@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Enforces the layering rules from CLAUDE.md: project graph (csproj), package placement and type-level dependencies (ArchUnitNET). -->
+  <ItemGroup>
+    <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Query\InsightFlow.Query.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Connectors\InsightFlow.Connectors.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Web\InsightFlow.Web.csproj" />
+  </ItemGroup>
+</Project>

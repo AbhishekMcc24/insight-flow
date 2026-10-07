@@ -1,0 +1,5 @@
+{
+  "appHost": {
+    "path": "src/InsightFlow.AppHost/InsightFlow.AppHost.csproj"
+  }
+}

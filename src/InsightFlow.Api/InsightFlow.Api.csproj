@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Public REST API (Minimal APIs, OpenAPI): workspace explorer, connections, datasets. Owned by Developer 2 after handoff. -->
+  <PropertyGroup>
+    <UserSecretsId>insightflow-api-3d9f</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Connectors\InsightFlow.Connectors.csproj" />
+    <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
+    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- DTOs shared by Web, Api and the services (System.Text.Json source generation). References Domain only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+  </ItemGroup>
+</Project>

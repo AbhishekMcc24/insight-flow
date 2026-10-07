@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <!-- One-shot startup step: applies EF Core migrations and seed data, then exits.
+       Every other service waits for its completion (WaitForCompletion in the AppHost). See docs/adr/0020. -->
+  <PropertyGroup>
+    <UserSecretsId>insightflow-migrations-5f2b</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
+    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Unit tests for the pure domain model: VizSpec JSON round-trips, validators, Data Thread DAG, workspace tree rules. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+  </ItemGroup>
+</Project>

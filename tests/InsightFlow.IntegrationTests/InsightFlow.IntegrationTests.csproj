@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- End-to-end tests that start the whole AppHost via Aspire.Hosting.Testing. Require Docker; skipped when it is not available. -->
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.AppHost\InsightFlow.AppHost.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+  </ItemGroup>
+</Project>

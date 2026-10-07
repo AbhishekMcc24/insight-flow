@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Data source connector abstraction + implementations. References Domain and Contracts only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DuckDB.NET.Data.Full" />
+  </ItemGroup>
+</Project>

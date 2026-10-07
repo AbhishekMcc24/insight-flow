@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- ASP.NET Core host exposing the query engine (VizSpec -> rows). -->
+  <PropertyGroup>
+    <UserSecretsId>insightflow-queryservice-1b7d</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Query\InsightFlow.Query.csproj" />
+    <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
+    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.StackExchange.Redis.DistributedCaching" />
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+</Project>

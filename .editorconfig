@@ -1,0 +1,88 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,props,targets,csproj,slnx,xml,razor,html,css,js}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# --- Style (enforced in build via EnforceCodeStyleInBuild) ---
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = when_multiline:warning
+csharp_style_var_for_built_in_types = true:silent
+csharp_style_var_when_type_is_apparent = true:silent
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+
+# Unused usings
+dotnet_diagnostic.IDE0005.severity = warning
+# Namespace must match folder: off (test fixtures / generated code)
+dotnet_diagnostic.IDE0130.severity = none
+
+# Private fields: _camelCase
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_fields.required_modifiers =
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+dotnet_naming_style.underscore_camel.required_prefix = _
+
+# Private static readonly / const: PascalCase (exception to the rule above)
+dotnet_naming_rule.private_static_readonly_pascal.symbols = private_static_readonly
+dotnet_naming_rule.private_static_readonly_pascal.style = pascal
+dotnet_naming_rule.private_static_readonly_pascal.severity = warning
+dotnet_naming_symbols.private_static_readonly.applicable_kinds = field
+dotnet_naming_symbols.private_static_readonly.applicable_accessibilities = private
+dotnet_naming_symbols.private_static_readonly.required_modifiers = static, readonly
+dotnet_naming_rule.private_const_pascal.symbols = private_const
+dotnet_naming_rule.private_const_pascal.style = pascal
+dotnet_naming_rule.private_const_pascal.severity = warning
+dotnet_naming_symbols.private_const.applicable_kinds = field
+dotnet_naming_symbols.private_const.applicable_accessibilities = private
+dotnet_naming_symbols.private_const.required_modifiers = const
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+# --- Analyzer tuning (documented in docs/adr) ---
+# Library code awaits without a SynchronizationContext concern (ASP.NET Core / workers only).
+dotnet_diagnostic.CA2007.severity = none
+# LoggerMessage source-gen is required in hot paths (reviewed), not everywhere.
+dotnet_diagnostic.CA1848.severity = suggestion
+dotnet_diagnostic.CA1873.severity = suggestion
+# Internal classes instantiated by DI / reflection.
+dotnet_diagnostic.CA1812.severity = none
+# We are not localising exception/log messages.
+dotnet_diagnostic.CA1303.severity = none
+# Records/DTO collections are intentionally IReadOnlyList<T> with init.
+dotnet_diagnostic.CA2227.severity = none
+# URIs are often plain strings in config/DTOs.
+dotnet_diagnostic.CA1056.severity = none
+dotnet_diagnostic.CA1054.severity = none
+
+[tests/**.cs]
+# Test names use Method_State_Expected.
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA1861.severity = none
+
+[evals/**.cs]
+dotnet_diagnostic.CA1515.severity = none
+
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_diagnostic.IDE0005.severity = none

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Web unit tests (e.g. VizSpec -> Vega-Lite spec golden files). Like Web itself, only Contracts-level types are used. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.Web\InsightFlow.Web.csproj" />
+  </ItemGroup>
+</Project>

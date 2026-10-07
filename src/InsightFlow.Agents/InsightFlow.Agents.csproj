@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Agents, tools, model router and the AI-SQL sandbox. References Query for the sandbox and compiler only. -->
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+    <ProjectReference Include="..\InsightFlow.Query\InsightFlow.Query.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <PackageReference Include="OpenAI" />
+    <PackageReference Include="Anthropic" />
+  </ItemGroup>
+</Project>

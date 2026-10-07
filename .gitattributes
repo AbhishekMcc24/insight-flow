@@ -1,0 +1,12 @@
+* text=auto eol=lf
+*.cs text eol=lf diff=csharp
+*.razor text eol=lf
+*.sln text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.parquet binary
+*.xlsx binary
+*.verified.* text eol=lf

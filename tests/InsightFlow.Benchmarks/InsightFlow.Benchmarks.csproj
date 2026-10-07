@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- BenchmarkDotNet: VizSpec compiler + DuckDB group-by over a deterministic 10M-row retail Parquet file.
+       Usage is documented in README.md ("Run the benchmarks"); results go to docs/benchmarks.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.Query\InsightFlow.Query.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Blazor Web App (Interactive Server) styled with Tailwind CSS v4; charts rendered by Vega-Lite (vega-embed).
+       References Contracts + ServiceDefaults only and talks to services over HTTP. Owned by Developer 2 after handoff.
+       Front-end assets are built from npm on every build (see the FrontendBuild target below and docs/adr/0009). -->
+  <PropertyGroup>
+    <UserSecretsId>insightflow-web-6a3c</UserSecretsId>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <!-- ===================================================================================== -->
+  <!-- Front-end build: npm ci -> Tailwind CLI -> copy vendored Vega bundles into wwwroot.    -->
+  <!-- Set SkipNpm=true to build without Node (generated CSS/JS must then already exist).      -->
+  <!-- ===================================================================================== -->
+  <PropertyGroup>
+    <SkipNpm Condition="'$(SkipNpm)' == ''">false</SkipNpm>
+    <_RunFrontendBuild>false</_RunFrontendBuild>
+    <_RunFrontendBuild Condition="'$(SkipNpm)' != 'true' and '$(DesignTimeBuild)' != 'true'">true</_RunFrontendBuild>
+    <_NpmInstallStamp>$(MSBuildProjectDirectory)/node_modules/.package-lock.json</_NpmInstallStamp>
+    <_TailwindOutput>wwwroot/css/app.css</_TailwindOutput>
+    <_VegaOutputDir>wwwroot/lib/vega/</_VegaOutputDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="package.json;package-lock.json;node_modules/**" />
+    <None Remove="node_modules/**" />
+    <None Include="package.json;package-lock.json" />
+    <_TailwindSources Include="Styles/**/*.css;Components/**/*.razor;Components/**/*.cs;wwwroot/js/**/*.js" />
+  </ItemGroup>
+
+  <Target Name="NpmInstall" Condition="'$(_RunFrontendBuild)' == 'true'"
+          Inputs="package.json;package-lock.json" Outputs="$(_NpmInstallStamp)">
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <Touch Files="$(_NpmInstallStamp)" />
+  </Target>
+
+  <Target Name="TailwindBuild" Condition="'$(_RunFrontendBuild)' == 'true'" DependsOnTargets="NpmInstall"
+          Inputs="@(_TailwindSources);package-lock.json" Outputs="$(_TailwindOutput)">
+    <Exec Command="npm run build:css --silent" WorkingDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+
+  <Target Name="CopyVegaAssets" Condition="'$(_RunFrontendBuild)' == 'true'" DependsOnTargets="NpmInstall">
+    <ItemGroup>
+      <_VegaFiles Include="node_modules/vega/build/vega.min.js;node_modules/vega-lite/build/vega-lite.min.js;node_modules/vega-embed/build/vega-embed.min.js" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_VegaFiles)" DestinationFolder="$(_VegaOutputDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Generated files do not exist at evaluation time on a clean clone, so register them as static web assets here. -->
+  <Target Name="FrontendBuild" BeforeTargets="BeforeBuild" DependsOnTargets="TailwindBuild;CopyVegaAssets">
+    <ItemGroup>
+      <_GeneratedWebAssets Include="$(_TailwindOutput);$(_VegaOutputDir)*.js" />
+      <Content Include="@(_GeneratedWebAssets)" Exclude="@(Content)" />
+    </ItemGroup>
+  </Target>
+</Project>

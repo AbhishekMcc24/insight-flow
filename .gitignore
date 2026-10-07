@@ -1,0 +1,33 @@
+# Build output
+bin/
+obj/
+artifacts/
+TestResults/
+BenchmarkDotNet.Artifacts/
+*.user
+*.suo
+.vs/
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Verify
+*.received.*
+
+# Node / front-end build output (generated on build)
+node_modules/
+src/InsightFlow.Web/wwwroot/css/app.css
+src/InsightFlow.Web/wwwroot/lib/vega/
+
+# Local data, caches and secrets — never commit
+.env
+*.local.json
+secrets.local.json
+.local-data/
+eval-results/
+*.pfx
+*.key
+telerik-license.txt
+
+# Aspire
+.aspire/

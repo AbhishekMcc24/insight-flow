@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <!-- Quartz.NET background jobs: extract refresh, schedules, subscriptions, alerts, exports. Owned by Developer 2 after handoff. -->
+  <PropertyGroup>
+    <UserSecretsId>insightflow-worker-4e1a</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Connectors\InsightFlow.Connectors.csproj" />
+    <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
+    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Azure.Storage.Blobs" />
+  </ItemGroup>
+</Project>

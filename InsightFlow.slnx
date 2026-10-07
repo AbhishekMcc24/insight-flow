@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/evals/">
+    <Project Path="evals/InsightFlow.Evals/InsightFlow.Evals.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/InsightFlow.Agents/InsightFlow.Agents.csproj" />
+    <Project Path="src/InsightFlow.AgentService/InsightFlow.AgentService.csproj" />
+    <Project Path="src/InsightFlow.Api/InsightFlow.Api.csproj" />
+    <Project Path="src/InsightFlow.AppHost/InsightFlow.AppHost.csproj" />
+    <Project Path="src/InsightFlow.Connectors/InsightFlow.Connectors.csproj" />
+    <Project Path="src/InsightFlow.Contracts/InsightFlow.Contracts.csproj" />
+    <Project Path="src/InsightFlow.Domain/InsightFlow.Domain.csproj" />
+    <Project Path="src/InsightFlow.MigrationService/InsightFlow.MigrationService.csproj" />
+    <Project Path="src/InsightFlow.Persistence/InsightFlow.Persistence.csproj" />
+    <Project Path="src/InsightFlow.Query/InsightFlow.Query.csproj" />
+    <Project Path="src/InsightFlow.QueryService/InsightFlow.QueryService.csproj" />
+    <Project Path="src/InsightFlow.ServiceDefaults/InsightFlow.ServiceDefaults.csproj" />
+    <Project Path="src/InsightFlow.Web/InsightFlow.Web.csproj" />
+    <Project Path="src/InsightFlow.Worker/InsightFlow.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/InsightFlow.Agents.Tests/InsightFlow.Agents.Tests.csproj" />
+    <Project Path="tests/InsightFlow.Architecture.Tests/InsightFlow.Architecture.Tests.csproj" />
+    <Project Path="tests/InsightFlow.Benchmarks/InsightFlow.Benchmarks.csproj" />
+    <Project Path="tests/InsightFlow.Connectors.Tests/InsightFlow.Connectors.Tests.csproj" />
+    <Project Path="tests/InsightFlow.Domain.Tests/InsightFlow.Domain.Tests.csproj" />
+    <Project Path="tests/InsightFlow.IntegrationTests/InsightFlow.IntegrationTests.csproj" />
+    <Project Path="tests/InsightFlow.Query.Tests/InsightFlow.Query.Tests.csproj" />
+    <Project Path="tests/InsightFlow.Web.Tests/InsightFlow.Web.Tests.csproj" />
+  </Folder>
+</Solution>

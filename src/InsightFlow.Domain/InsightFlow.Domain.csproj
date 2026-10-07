@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure domain model. BCL only: no EF, ASP.NET Core, DuckDB or UI references (enforced by InsightFlow.Architecture.Tests). -->
+  <PropertyGroup>
+    <RootNamespace>InsightFlow.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>

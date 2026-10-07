@@ -1,0 +1,22 @@
+@inherits LayoutComponentBase
+
+<div class="flex h-full min-h-screen flex-col">
+    <header class="flex h-12 shrink-0 items-center gap-6 border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
+        <a href="/" class="flex items-center gap-2 font-semibold text-brand-700 dark:text-brand-300">
+            <span class="inline-block size-3 rounded-sm bg-brand-500"></span>
+            Insight Flow
+        </a>
+        <nav class="flex gap-4 text-sm text-slate-600 dark:text-slate-300">
+            <NavLink href="/" Match="NavLinkMatch.All" class="hover:text-brand-600" ActiveClass="font-medium text-brand-700 dark:text-brand-300">Home</NavLink>
+        </nav>
+    </header>
+
+    <main class="flex-1 overflow-auto">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" class="fixed inset-x-0 bottom-0 z-50 hidden bg-amber-100 px-4 py-2 text-sm text-amber-900" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="underline">Reload</a>
+</div>

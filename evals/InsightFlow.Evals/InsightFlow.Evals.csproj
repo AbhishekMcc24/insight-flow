@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AI accuracy harness: runs the question set through the Analyst agent and compares result sets (not SQL text).
+       Usage is documented in README.md ("Run the evals"). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <UserSecretsId>insightflow-evals-7c4d</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
+  </ItemGroup>
+</Project>

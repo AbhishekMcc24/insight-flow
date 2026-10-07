@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Agent, tool, router and SQL sandbox tests. Uses a scripted fake IChatClient; real providers only when keys are present. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
+  </ItemGroup>
+</Project>

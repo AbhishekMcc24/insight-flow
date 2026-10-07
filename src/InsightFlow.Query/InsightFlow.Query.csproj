@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- VizQL-lite: VizSpec -> SQL compiler, dialects, DuckDB execution, extract store and result cache.
+       Must not reference UI packages, ASP.NET Core MVC or Agents. -->
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DuckDB.NET.Data.Full" />
+  </ItemGroup>
+</Project>
