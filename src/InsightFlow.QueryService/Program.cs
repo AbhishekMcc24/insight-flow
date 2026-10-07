@@ -1,5 +1,8 @@
+using InsightFlow.Contracts;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Persistence;
+using InsightFlow.Query;
+using InsightFlow.QueryService;
 using InsightFlow.ServiceDefaults.Security;
 using Scalar.AspNetCore;
 
@@ -15,7 +18,9 @@ builder.EnrichNpgsqlDbContext<InsightFlowDbContext>();
 
 builder.AddRedisDistributedCache("redis");
 builder.AddAzureBlobServiceClient("blobs");
+builder.Services.AddInsightFlowQueryEngine(builder.Configuration);
 
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, ContractsJsonContext.Default));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -33,7 +38,8 @@ if (app.Environment.IsDevelopment())
 
 app.MapDefaultEndpoints();
 
-// TODO(roy): M4 — POST /api/v1/query/viz and POST /api/v1/query/preview.
-app.MapGroup("/api/v1/query").WithTags("Query");
+app.MapGroup("/api/v1/query")
+    .WithTags("Query")
+    .MapQueryEndpoints();
 
 app.Run();

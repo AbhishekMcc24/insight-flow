@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Compiler, dialect and DuckDB execution tests, including golden-file (Verify) SQL tests. -->
+  <!-- Compiler, dialect and DuckDB execution tests, including golden-file SQL tests (tests/InsightFlow.Testing/Golden.cs). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Query\InsightFlow.Query.csproj" />
+    <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
 </Project>

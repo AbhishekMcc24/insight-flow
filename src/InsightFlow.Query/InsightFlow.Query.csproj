@@ -7,5 +7,13 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DuckDB.NET.Data.Full" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="InsightFlow.Query.Tests" />
   </ItemGroup>
 </Project>

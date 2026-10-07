@@ -2,12 +2,14 @@
   <!-- End-to-end tests that start the whole AppHost via Aspire.Hosting.Testing. Require Docker; skipped when it is not available. -->
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Azure.Storage.Blobs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.AppHost\InsightFlow.AppHost.csproj" />
     <ProjectReference Include="..\..\src\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
     <ProjectReference Include="..\..\src\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\src\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+    <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Aspire.Hosting" />

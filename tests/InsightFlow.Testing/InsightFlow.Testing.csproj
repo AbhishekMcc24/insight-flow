@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Shared, dependency-free test helpers (golden files, the retail test model). Not a test project itself.
+  <!-- Shared test helpers (golden files, the retail test model and its deterministic data generator). Not a test project itself.
        Replaces the Verify library, whose current releases require a paid maintenance-fee licence (docs/adr/0018). -->
   <PropertyGroup>
     <IsPackable>false</IsPackable>
@@ -7,5 +7,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DuckDB.NET.Data.Full" />
   </ItemGroup>
 </Project>

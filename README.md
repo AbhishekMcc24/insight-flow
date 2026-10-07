@@ -56,6 +56,28 @@ Tests run on Microsoft.Testing.Platform (opted in via `global.json`). `InsightFl
 AppHost and is skipped automatically when Docker is not running. Build with `-p:SkipNpm=true` to skip the front-end
 step (generated CSS/JS must then already exist).
 
+### Run the benchmarks
+
+Compile latency and DuckDB group-bys over a deterministic 10M-row retail dataset (generated once into
+`%TEMP%/insightflow-bench/10m`). Results are recorded in [docs/benchmarks.md](docs/benchmarks.md).
+
+```bash
+dotnet run -c Release --project tests/InsightFlow.Benchmarks -- --filter "*"
+```
+
+### Run the evals
+
+AI accuracy against the retail question set (Milestone 7; needs a provider key):
+
+```bash
+dotnet run --project evals/InsightFlow.Evals -- --provider anthropic
+```
+
+### Golden files
+
+SQL and JSON snapshots live in `Golden/*.verified.*` next to the tests. On a mismatch the test writes a
+`.received.*` file — review it, then rename it to `.verified.*` (or rerun with `INSIGHTFLOW_ACCEPT_GOLDEN=1`).
+
 ## Repository layout
 
 | Path | Purpose |

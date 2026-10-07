@@ -82,6 +82,14 @@
     <PackageVersion Include="Quartz.Serialization.SystemTextJson" Version="4.3.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Microsoft.Extensions (libraries)">
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="$(AspNetCoreVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="$(ExtensionsVersion)" />
+  </ItemGroup>
+
   <ItemGroup Label="Tooling">
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
   </ItemGroup>

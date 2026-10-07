@@ -1,4 +1,11 @@
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Toolchains.InProcess.Emit;
 
-// TODO(roy): M4 — CompilerBenchmarks and DuckDbGroupByBenchmarks over the generated 10M-row retail Parquet file.
-BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+// In-process toolchain: no generated project, so the repo's TreatWarningsAsErrors build settings cannot interfere.
+var config = DefaultConfig.Instance
+    .AddJob(Job.ShortRun.WithToolchain(InProcessEmitToolchain.Instance))
+    .WithOptions(ConfigOptions.DisableOptimizationsValidator);
+
+BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, config);

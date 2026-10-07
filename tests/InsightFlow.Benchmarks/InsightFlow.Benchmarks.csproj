@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- BenchmarkDotNet: VizSpec compiler + DuckDB group-by over a deterministic 10M-row retail Parquet file.
+  <!-- BenchmarkDotNet: VizSpec compiler + DuckDB group-bys over a deterministic 10M-row retail Parquet dataset.
        Usage is documented in README.md ("Run the benchmarks"); results go to docs/benchmarks.md. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,8 +7,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Query\InsightFlow.Query.csproj" />
+    <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
 </Project>
