@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Connector tests. Every connector's test class inherits the abstract connector contract suite. -->
+  <!-- Connector tests. Every connector's test class inherits the abstract ConnectorContractTests suite. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Connectors\InsightFlow.Connectors.csproj" />
+    <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
 </Project>

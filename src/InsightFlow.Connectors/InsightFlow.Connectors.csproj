@@ -1,10 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Data source connector abstraction + implementations. References Domain and Contracts only. -->
+  <!-- Data source connector abstraction + implementations and the extract pipeline. References Domain and Contracts only.
+       Driver packages for the TODO(dev2) stubs are referenced already so implementing them needs no csproj change. -->
   <ItemGroup>
     <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
     <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DuckDB.NET.Data.Full" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+    <PackageReference Include="MongoDB.Driver" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="ExcelDataReader" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="InsightFlow.Connectors.Tests" />
   </ItemGroup>
 </Project>

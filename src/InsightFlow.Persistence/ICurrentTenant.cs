@@ -31,6 +31,42 @@ public sealed class FixedCurrentTenant(TenantId tenantId) : ICurrentTenant
     public bool IsSystem => false;
 }
 
+/// <summary>
+/// Tenant scope for background jobs: each DI scope (one job execution, one claimed run) enters exactly one tenant —
+/// or the system scope for cross-tenant queue work — and cannot switch afterwards. Unentered scopes see nothing.
+/// </summary>
+public sealed class JobCurrentTenant : ICurrentTenant
+{
+    private bool _entered;
+
+    public TenantId? TenantId { get; private set; }
+
+    public bool IsSystem { get; private set; }
+
+    public void Enter(TenantId tenant)
+    {
+        EnsureNotEntered();
+        TenantId = tenant;
+    }
+
+    /// <summary>Only for queue bookkeeping across tenants (claiming runs). Do not load or write tenant content here.</summary>
+    public void EnterSystem()
+    {
+        EnsureNotEntered();
+        IsSystem = true;
+    }
+
+    private void EnsureNotEntered()
+    {
+        if (_entered)
+        {
+            throw new InvalidOperationException("A job scope can only enter one tenant; create a new DI scope instead.");
+        }
+
+        _entered = true;
+    }
+}
+
 /// <summary>Trusted system scope for migrations and seeding. Never register it in a request-serving host.</summary>
 public sealed class SystemCurrentTenant : ICurrentTenant
 {

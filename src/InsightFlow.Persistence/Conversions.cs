@@ -13,6 +13,7 @@ namespace InsightFlow.Persistence;
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(DatasetSchema))]
 [JsonSerializable(typeof(SemanticModelDefinition))]
+[JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
 internal sealed partial class PersistenceJsonContext : JsonSerializerContext;
 
 internal sealed class TenantIdConverter() : ValueConverter<TenantId, Guid>(v => v.Value, v => new TenantId(v));

@@ -83,6 +83,19 @@ public sealed record SemanticModel(
     public ModelTable? FindTable(string name) =>
         Tables.FirstOrDefault(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>True when any table reads <paramref name="datasetVersionId"/>.</summary>
+    public bool Uses(Guid datasetVersionId) => Tables.Any(t => t.SourceDatasetVersionId == datasetVersionId);
+
+    /// <summary>
+    /// Points tables at a refreshed dataset version. Models follow the latest extract of their sources; older versions
+    /// stay immutable, so saved charts and threads that reference them by id remain reproducible.
+    /// </summary>
+    public SemanticModel ReplaceDatasetVersion(Guid previousVersionId, Guid newVersionId) =>
+        this with
+        {
+            Tables = Tables.Select(t => t.SourceDatasetVersionId == previousVersionId ? t with { SourceDatasetVersionId = newVersionId } : t).ToList(),
+        };
+
     /// <summary>
     /// Resolves a field reference: <c>table.column</c>, a column name that is unique across tables, or a
     /// calculated measure name. Ambiguous or unknown names fail with a reason suitable for users and agents.

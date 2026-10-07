@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using InsightFlow.Contracts.Connections;
 using InsightFlow.Contracts.Identity;
 using InsightFlow.Contracts.Query;
+using InsightFlow.Contracts.Workspace;
 
 namespace InsightFlow.Contracts;
 
@@ -20,6 +22,22 @@ namespace InsightFlow.Contracts;
 [JsonSerializable(typeof(VizQueryResponse))]
 [JsonSerializable(typeof(PreviewRequest))]
 [JsonSerializable(typeof(PreviewResponse))]
+[JsonSerializable(typeof(WorkspaceRootsResponse))]
+[JsonSerializable(typeof(FolderContentsResponse))]
+[JsonSerializable(typeof(FolderDto))]
+[JsonSerializable(typeof(ContentItemDto))]
+[JsonSerializable(typeof(CreateFolderRequest))]
+[JsonSerializable(typeof(RenameRequest))]
+[JsonSerializable(typeof(MoveRequest))]
+[JsonSerializable(typeof(UploadResponse))]
+[JsonSerializable(typeof(ExtractQueuedResponse))]
+[JsonSerializable(typeof(ExtractRunDto))]
+[JsonSerializable(typeof(CreateConnectionRequest))]
+[JsonSerializable(typeof(ConnectionDto))]
+[JsonSerializable(typeof(IReadOnlyList<ConnectionDto>))]
+[JsonSerializable(typeof(ConnectionTestResponse))]
+[JsonSerializable(typeof(IReadOnlyList<SourceTableDto>))]
+[JsonSerializable(typeof(CreateExtractRequest))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(long))]
 [JsonSerializable(typeof(int))]

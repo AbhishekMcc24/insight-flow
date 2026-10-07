@@ -26,6 +26,17 @@ public static class PersistenceServiceCollectionExtensions
         return services.AddInsightFlowDbContext(connectionString);
     }
 
+    /// <summary>
+    /// Registers the DbContext for background jobs: each DI scope gets a <see cref="JobCurrentTenant"/> that the job
+    /// enters (one tenant, or the system scope for queue bookkeeping) before touching data.
+    /// </summary>
+    public static IServiceCollection AddInsightFlowPersistenceForJobs(this IServiceCollection services, string? connectionString)
+    {
+        services.TryAddScoped<JobCurrentTenant>();
+        services.TryAddScoped<ICurrentTenant>(sp => sp.GetRequiredService<JobCurrentTenant>());
+        return services.AddInsightFlowDbContext(connectionString);
+    }
+
     /// <summary>Registers the DbContext for trusted system work (migrations, seeding). Never use in a request-serving host.</summary>
     public static IServiceCollection AddInsightFlowPersistenceForSystem(this IServiceCollection services, string? connectionString)
     {

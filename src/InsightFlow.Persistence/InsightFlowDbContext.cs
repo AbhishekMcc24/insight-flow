@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text;
+using InsightFlow.Domain.Connections;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 using InsightFlow.Domain.Workspace;
@@ -38,6 +39,12 @@ public sealed class InsightFlowDbContext(DbContextOptions<InsightFlowDbContext> 
 
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
 
+    public DbSet<ConnectionProfile> ConnectionProfiles => Set<ConnectionProfile>();
+
+    public DbSet<ExtractDefinition> ExtractDefinitions => Set<ExtractDefinition>();
+
+    public DbSet<ExtractRun> ExtractRuns => Set<ExtractRun>();
+
     /// <summary>Referenced by the query filters; EF Core re-evaluates it per query, so one model serves every tenant.</summary>
     private TenantId CurrentTenantId => currentTenant.TenantId ?? default;
 
@@ -61,6 +68,8 @@ public sealed class InsightFlowDbContext(DbContextOptions<InsightFlowDbContext> 
         configurationBuilder.Properties<DatasetVersionKind>().HaveConversion<string>().HaveMaxLength(32);
         configurationBuilder.Properties<FolderScope>().HaveConversion<string>().HaveMaxLength(32);
         configurationBuilder.Properties<ContentKind>().HaveConversion<string>().HaveMaxLength(32);
+        configurationBuilder.Properties<DataSourceKind>().HaveConversion<string>().HaveMaxLength(32);
+        configurationBuilder.Properties<ExtractRunStatus>().HaveConversion<string>().HaveMaxLength(32);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -76,6 +85,9 @@ public sealed class InsightFlowDbContext(DbContextOptions<InsightFlowDbContext> 
         ApplyTenantFilter<Folder>(modelBuilder);
         ApplyTenantFilter<ContentItem>(modelBuilder);
         ApplyTenantFilter<StoredFile>(modelBuilder);
+        ApplyTenantFilter<ConnectionProfile>(modelBuilder);
+        ApplyTenantFilter<ExtractDefinition>(modelBuilder);
+        ApplyTenantFilter<ExtractRun>(modelBuilder);
 
         modelBuilder.Entity<Folder>().HasQueryFilter(SoftDeleteFilter, f => f.DeletedAt == null);
         modelBuilder.Entity<ContentItem>().HasQueryFilter(SoftDeleteFilter, i => i.DeletedAt == null);
