@@ -21,7 +21,7 @@ public enum DatasetVersionKind
 /// node can be branched from. Instances are created only through the factory methods, which enforce the
 /// per-kind invariants.
 /// </summary>
-public sealed class DatasetVersion
+public sealed class DatasetVersion : ITenantOwned
 {
     /// <summary>Upper bound on parents of a derived version (the sandbox exposes them as input, input_2, …).</summary>
     public const int MaxParents = 8;

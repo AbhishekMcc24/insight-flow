@@ -1,11 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- EF Core 10 metadata store (PostgreSQL). References Domain only. -->
+  <!-- EF Core 10 metadata store (PostgreSQL) and the secret store implementations. References Domain only. -->
   <ItemGroup>
     <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="InsightFlow.IntegrationTests" />
   </ItemGroup>
 </Project>

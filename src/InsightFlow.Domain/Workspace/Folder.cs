@@ -18,7 +18,7 @@ public enum FolderScope
 /// permission checks and "my folders" queries need no tree walk; moves across roots re-apply them to the
 /// moved subtree (see <see cref="ApplyScopeFrom"/>).
 /// </summary>
-public sealed class Folder
+public sealed class Folder : ITenantOwned
 {
     public static readonly ItemName SharedRootName = ItemName.Create("Shared");
     public static readonly ItemName PersonalRootName = ItemName.Create("My Workspace");

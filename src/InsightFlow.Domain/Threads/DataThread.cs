@@ -7,7 +7,7 @@ namespace InsightFlow.Domain.Threads;
 /// A titled exploration history ("Data Thread") that starts at one dataset version. Its steps are
 /// <see cref="ThreadNode"/>s; branching happens by adding a node whose parent is any earlier node.
 /// </summary>
-public sealed class DataThread
+public sealed class DataThread : ITenantOwned
 {
     public const int MaxTitleLength = 200;
 
@@ -67,7 +67,7 @@ public sealed class DataThread
 /// One immutable step of a <see cref="DataThread"/>: the dataset version it shows, optionally the chart that
 /// was saved and the agent's explanation. <see cref="ParentNodeId"/> forms the visible branch tree.
 /// </summary>
-public sealed class ThreadNode
+public sealed class ThreadNode : ITenantOwned
 {
     private ThreadNode()
     {

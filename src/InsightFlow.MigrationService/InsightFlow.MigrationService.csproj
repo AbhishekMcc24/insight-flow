@@ -8,4 +8,7 @@
     <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
     <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
 </Project>

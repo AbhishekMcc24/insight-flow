@@ -5,8 +5,12 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.AppHost\InsightFlow.AppHost.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Using Include="Aspire.Hosting" />
     <Using Include="Aspire.Hosting.ApplicationModel" />
     <Using Include="Aspire.Hosting.Testing" />
   </ItemGroup>

@@ -25,7 +25,7 @@ public enum ContentKind
 /// An entry in a workspace folder. Items are thin pointers (<see cref="Kind"/> + <see cref="TargetId"/>) so the
 /// same explorer can hold files, datasets, threads and later workbooks/dashboards (unified content tree).
 /// </summary>
-public sealed class ContentItem
+public sealed class ContentItem : ITenantOwned
 {
     private ContentItem()
     {

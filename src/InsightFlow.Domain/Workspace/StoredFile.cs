@@ -15,7 +15,7 @@ public enum TabularFormat
 /// Immutable metadata of an uploaded file. The bytes live in Blob Storage at <see cref="BlobPath"/>, which is
 /// built from ids only; <see cref="OriginalName"/> is kept as metadata and never used to form a path.
 /// </summary>
-public sealed class StoredFile
+public sealed class StoredFile : ITenantOwned
 {
     private StoredFile()
     {

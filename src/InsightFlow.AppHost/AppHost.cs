@@ -16,20 +16,38 @@ var keyVault = isPublish ? builder.AddAzureKeyVault("keyvault") : null;
 
 // ---------------------------------------------------------------------------------------------
 // Backing services: Azure resources when published, containers/emulators locally.
+// Local containers persist data across `aspire run`; integration tests set
+// InsightFlow:EphemeralInfrastructure=true to get fresh, throwaway containers instead.
 // ---------------------------------------------------------------------------------------------
+var ephemeral = bool.TryParse(builder.Configuration["InsightFlow:EphemeralInfrastructure"], out var e) && e;
+
 var postgres = builder.AddAzurePostgresFlexibleServer("postgres")
-    .RunAsContainer(pg => pg
-        .WithDataVolume("insightflow-postgres-data")
-        .WithLifetime(ContainerLifetime.Persistent));
+    .RunAsContainer(pg =>
+    {
+        if (!ephemeral)
+        {
+            pg.WithDataVolume("insightflow-postgres-data").WithLifetime(ContainerLifetime.Persistent);
+        }
+    });
 var database = postgres.AddDatabase(ResourceNames.Database);
 
 var redis = builder.AddAzureManagedRedis(ResourceNames.Redis)
-    .RunAsContainer(r => r.WithLifetime(ContainerLifetime.Persistent));
+    .RunAsContainer(r =>
+    {
+        if (!ephemeral)
+        {
+            r.WithLifetime(ContainerLifetime.Persistent);
+        }
+    });
 
 var storage = builder.AddAzureStorage("storage")
-    .RunAsEmulator(e => e
-        .WithDataVolume("insightflow-azurite-data")
-        .WithLifetime(ContainerLifetime.Persistent));
+    .RunAsEmulator(e =>
+    {
+        if (!ephemeral)
+        {
+            e.WithDataVolume("insightflow-azurite-data").WithLifetime(ContainerLifetime.Persistent);
+        }
+    });
 var blobs = storage.AddBlobs(ResourceNames.Blobs);
 storage.AddBlobContainer(ResourceNames.ExtractsContainer);
 storage.AddBlobContainer(ResourceNames.FilesContainer);

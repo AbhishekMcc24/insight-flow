@@ -10,8 +10,10 @@ internal static class DockerAvailability
 {
     private static readonly Lazy<bool> IsAvailableLazy = new(Probe);
 
+    public static bool IsAvailable => IsAvailableLazy.Value;
+
     public static void SkipIfUnavailable() =>
-        Assert.SkipUnless(IsAvailableLazy.Value, "Docker is not running; start Docker Desktop to run integration tests.");
+        Assert.SkipUnless(IsAvailable, "Docker is not running; start Docker Desktop to run integration tests.");
 
     private static bool Probe()
     {
