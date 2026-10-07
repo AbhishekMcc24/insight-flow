@@ -11,7 +11,7 @@ BenchmarkDotNet.Artifacts/
 !.vscode/extensions.json
 .idea/
 
-# Verify
+# Golden-file test output awaiting review (tests/InsightFlow.Testing/Golden.cs)
 *.received.*
 
 # Node / front-end build output (generated on build)

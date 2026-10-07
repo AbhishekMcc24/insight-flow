@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "datasetVersionId": "5a1e5000-0000-4000-8000-000000000001",
+  "mark": "Line",
+  "encoding": {
+    "x": {
+      "field": "order_date",
+      "agg": "None",
+      "timeUnit": "Quarter"
+    },
+    "y": {
+      "field": "revenue",
+      "agg": "Sum"
+    },
+    "color": {
+      "field": "stores.region",
+      "agg": "None"
+    }
+  },
+  "filters": [
+    {
+      "type": "in",
+      "field": "channel",
+      "values": [
+        "Online",
+        "Store"
+      ],
+      "exclude": false
+    },
+    {
+      "type": "range",
+      "field": "quantity",
+      "min": 1,
+      "minInclusive": true,
+      "maxInclusive": true
+    },
+    {
+      "type": "relativeDate",
+      "field": "order_date",
+      "unit": "Year",
+      "anchor": "ToDate",
+      "count": 1
+    },
+    {
+      "type": "equals",
+      "field": "is_returned",
+      "value": null,
+      "exclude": true
+    }
+  ],
+  "sort": [
+    {
+      "field": "order_date",
+      "direction": "Asc"
+    }
+  ],
+  "limit": 2000
+}

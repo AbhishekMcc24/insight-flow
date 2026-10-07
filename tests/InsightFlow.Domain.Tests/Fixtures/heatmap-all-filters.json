@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "datasetVersionId": "5a1e5000-0000-4000-8000-000000000001",
+  "mark": "Heatmap",
+  "encoding": {
+    "x": { "field": "stores.region" },
+    "y": { "field": "products.category" },
+    "color": { "field": "profit" }
+  },
+  "filters": [
+    { "type": "equals", "field": "channel", "value": "Online" },
+    { "type": "equals", "field": "is_returned", "value": false, "exclude": true },
+    { "type": "in", "field": "country", "values": [ "Germany", "France", "Spain" ] },
+    { "type": "range", "field": "revenue", "min": 10, "max": 2500.5, "maxInclusive": false },
+    { "type": "range", "field": "order_date", "min": "2025-01-01" },
+    { "type": "topN", "field": "product_name", "n": 10, "by": { "field": "revenue", "agg": "Sum" }, "direction": "Desc" }
+  ],
+  "limit": 1000
+}

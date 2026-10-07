@@ -2,6 +2,9 @@
   <!-- Unit tests for the pure domain model: VizSpec JSON round-trips, validators, Data Thread DAG, workspace tree rules. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Domain\InsightFlow.Domain.csproj" />
-    <ProjectReference Include="..\..\src\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
+    <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

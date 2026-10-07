@@ -26,6 +26,7 @@
     <Project Path="tests/InsightFlow.Domain.Tests/InsightFlow.Domain.Tests.csproj" />
     <Project Path="tests/InsightFlow.IntegrationTests/InsightFlow.IntegrationTests.csproj" />
     <Project Path="tests/InsightFlow.Query.Tests/InsightFlow.Query.Tests.csproj" />
+    <Project Path="tests/InsightFlow.Testing/InsightFlow.Testing.csproj" />
     <Project Path="tests/InsightFlow.Web.Tests/InsightFlow.Web.Tests.csproj" />
   </Folder>
 </Solution>

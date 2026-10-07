@@ -69,6 +69,8 @@ dotnet_diagnostic.CA1812.severity = none
 dotnet_diagnostic.CA1303.severity = none
 # Records/DTO collections are intentionally IReadOnlyList<T> with init.
 dotnet_diagnostic.CA2227.severity = none
+# Logical data-type enums intentionally use type names (DataType.String, ScalarKind.Number, ...).
+dotnet_diagnostic.CA1720.severity = none
 # URIs are often plain strings in config/DTOs.
 dotnet_diagnostic.CA1056.severity = none
 dotnet_diagnostic.CA1054.severity = none

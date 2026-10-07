@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "datasetVersionId": "5a1e5000-0000-4000-8000-000000000001",
+  "mark": "Bar",
+  "encoding": {
+    "x": { "field": "order_date", "agg": "None", "timeUnit": "Month" },
+    "y": { "field": "revenue", "agg": "Sum" },
+    "color": { "field": "channel" }
+  },
+  "filters": [
+    { "type": "relativeDate", "field": "order_date", "unit": "Month", "anchor": "Last", "count": 12 }
+  ],
+  "sort": [ { "field": "order_date", "direction": "Asc" } ],
+  "limit": 5000
+}

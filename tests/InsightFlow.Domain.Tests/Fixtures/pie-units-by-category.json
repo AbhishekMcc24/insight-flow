@@ -1,0 +1,13 @@
+{
+  "datasetVersionId": "5a1e5000-0000-4000-8000-000000000001",
+  "schemaVersion": 1,
+  "mark": "Pie",
+  "encoding": {
+    "y": { "field": "quantity", "agg": "Sum" },
+    "color": { "field": "category" },
+    "label": { "field": "category" }
+  },
+  "filters": [
+    { "field": "region", "type": "in", "values": [ "North", "South" ], "exclude": true }
+  ]
+}
