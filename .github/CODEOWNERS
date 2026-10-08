@@ -40,3 +40,4 @@
 /src/InsightFlow.ServiceDefaults/Security/ @roy @dev2
 /tests/InsightFlow.IntegrationTests/ @roy @dev2
 /.github/                           @roy @dev2
+/.cursor/                           @roy @dev2

@@ -1,0 +1,41 @@
+---
+description: Insight Flow core rules — always apply in this repository
+globs:
+alwaysApply: true
+---
+
+# Insight Flow — core rules
+
+Read `CLAUDE.md` (repo rules), `docs/handoff-dev2.md` (Developer 2 areas, contracts, how-tos) and
+`docs/prompts/02-developer2.md` (Developer 2 master prompt and milestones) before non-trivial work.
+
+## Ownership
+- Developer 2 owns `src/InsightFlow.Web`, `src/InsightFlow.Api`, `src/InsightFlow.Connectors` and `src/InsightFlow.Worker`.
+- Roy owns Domain, Contracts, Persistence, Query/QueryService, Agents/AgentService, AppHost, ServiceDefaults,
+  evals, architecture tests and `Directory.*.props`. Propose changes there; never make them silently.
+
+## Process
+- Plan before large edits. Verify package versions and API signatures; never guess.
+- Package versions belong only in `Directory.Packages.props`.
+- Done = `dotnet build InsightFlow.slnx` with zero warnings, plus green tests (`dotnet test --solution InsightFlow.slnx`).
+  New endpoints get integration tests with a cross-tenant check; UI changes are checked in a browser.
+- Never commit, push, deploy, provision Azure resources, delete data or edit secrets unless the developer explicitly
+  asks for that action. Show `git diff --stat` before a commit. Conventional Commits.
+
+## Never
+- No Python. No secrets in the repo. No row data, data-bearing prompts or credentials in logs.
+- Never take the tenant from a request body or route; use `ITenantContext` / `ICurrentTenant`.
+  Tenant-owned data implements `ITenantOwned`.
+- No role strings in endpoints; use `InsightFlowPolicies`.
+- AI-generated SQL runs only through `ISqlSandbox`. Column names never come from user or model text.
+- Credentials only as a `SecretReference` via `ISecretStore`.
+- Web references only Contracts + ServiceDefaults (and `InsightFlow.Domain.Viz`). No UI/JS outside Web, no CDN
+  scripts, no Telerik (the UI is Tailwind + Vega-Lite).
+- Services never run EF migrations; only the migration service does.
+
+## C# conventions
+- File-scoped namespaces, `sealed` by default, records for immutable data.
+- `CancellationToken` passed everywhere; no `.Result`/`.Wait()`.
+- `[LoggerMessage]` logging. Minimal APIs with `TypedResults` + ProblemDetails.
+- Options validated on start. New DTOs added to `ContractsJsonContext`.
+- Tests: xUnit v3, Shouldly, `Method_State_Expected`; golden files via `tests/InsightFlow.Testing/Golden.cs`.

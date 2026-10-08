@@ -3,6 +3,8 @@
 Welcome. This repository is the **foundation** of Insight Flow. Your areas have a skeleton, the contracts, one working
 reference path each, and `TODO(dev2)` markers wherever product work starts. Read [CLAUDE.md](../CLAUDE.md) (rules) and
 [architecture.md](architecture.md) (how it fits together) first. The *why* behind each choice is in [adr/](adr/README.md).
+Your milestones, and the brief for your AI assistant (Cursor), are in [prompts/02-developer2.md](prompts/02-developer2.md).
+Cursor also loads the always-on rules in `.cursor/rules/`.
 
 ## What you own
 
