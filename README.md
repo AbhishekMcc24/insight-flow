@@ -4,8 +4,8 @@ Multi-tenant SaaS analytics: governed, drag-and-drop BI (semantic model, shelves
 AI-first exploration (derived fields, branching Data Threads). Every chart is a canonical `VizSpec` compiled to
 DuckDB SQL over Parquet extracts. The AI writes DuckDB SQL only, and it always runs in a locked-down sandbox.
 
-> Status: **Milestone 1 — solution skeleton & orchestration.** Architecture docs, ADRs and the Developer 2 handoff
-> land in later milestones (see `docs/`).
+> Status: **foundation (milestones 1–9)**: orchestration, domain, persistence, query engine, connectors, AI sandbox
+> and agents, evals, the Web workspace, CI and Azure deployment config. Architecture docs and ADRs: `docs/`.
 
 ## Prerequisites
 
@@ -73,10 +73,20 @@ AI accuracy against the 20-question retail set (see [evals/README.md](evals/READ
 dotnet run --project evals/InsightFlow.Evals -- --provider anthropic
 ```
 
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request. It does a Release build (warnings are
+errors), runs the unit and architecture tests and the eval harness self-test, and in a second job runs the integration
+tests against throwaway containers. CI uses no secrets and never deploys.
+
 ### Golden files
 
 SQL and JSON snapshots live in `Golden/*.verified.*` next to the tests. On a mismatch the test writes a
 `.received.*` file — review it, then rename it to `.verified.*` (or rerun with `INSIGHTFLOW_ACCEPT_GOLDEN=1`).
+
+## Deploy to Azure
+
+Manual and deliberate: see [docs/deploy.md](docs/deploy.md) (`aspire publish` to review the Bicep, then `aspire deploy`).
 
 ## Repository layout
 

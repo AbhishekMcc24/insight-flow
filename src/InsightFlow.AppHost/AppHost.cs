@@ -14,6 +14,10 @@ if (isPublish)
 
 var keyVault = isPublish ? builder.AddAzureKeyVault("keyvault") : null;
 
+// Entra External ID settings become deployment parameters (prompted by `aspire deploy`); locally the
+// development auth handler is used and these are not declared.
+var entra = isPublish ? CloudConfiguration.EntraParameters.Add(builder) : null;
+
 // ---------------------------------------------------------------------------------------------
 // Backing services: Azure resources when published, containers/emulators locally.
 // Local containers persist data across `aspire run`; integration tests set
@@ -29,6 +33,13 @@ var postgres = builder.AddAzurePostgresFlexibleServer("postgres")
             pg.WithDataVolume("insightflow-postgres-data").WithLifetime(ContainerLifetime.Persistent);
         }
     });
+if (keyVault is not null)
+{
+    // Services, EF Core and the Quartz job store connect with plain Npgsql connection strings, so Azure uses password
+    // auth with the connection string kept in Key Vault. TODO(dev2): move to Entra token auth (docs/adr/0023).
+    postgres.WithPasswordAuthentication(keyVault);
+}
+
 var database = postgres.AddDatabase(ResourceNames.Database);
 
 var redis = builder.AddAzureManagedRedis(ResourceNames.Redis)
@@ -39,6 +50,11 @@ var redis = builder.AddAzureManagedRedis(ResourceNames.Redis)
             r.WithLifetime(ContainerLifetime.Persistent);
         }
     });
+if (keyVault is not null)
+{
+    // The services use the plain StackExchange.Redis client: access-key auth, key stored in Key Vault (docs/adr/0023).
+    redis.WithAccessKeyAuthentication(keyVault);
+}
 
 var storage = builder.AddAzureStorage("storage")
     .RunAsEmulator(e =>
@@ -57,7 +73,13 @@ storage.AddBlobContainer(ResourceNames.FilesContainer);
 // ---------------------------------------------------------------------------------------------
 var migrations = builder.AddProject<Projects.InsightFlow_MigrationService>(ResourceNames.Migrations)
     .WithReference(database)
-    .WaitFor(database);
+    .WaitFor(database)
+    .WithReplicas(min: 1, max: 1);
+if (isPublish)
+{
+    // No run-to-completion apps in Container Apps via Aspire 13.6: migrate, then idle (see MigrationWorker).
+    migrations.WithEnvironment("Migrations__KeepAlive", "true");
+}
 
 var queryService = builder.AddProject<Projects.InsightFlow_QueryService>(ResourceNames.QueryService)
     .WithReference(database)
@@ -66,7 +88,9 @@ var queryService = builder.AddProject<Projects.InsightFlow_QueryService>(Resourc
     .WaitFor(redis)
     .WaitFor(storage)
     .WaitForCompletion(migrations)
-    .WithKeyVault(keyVault);
+    .WithKeyVault(keyVault)
+    .WithEntraApi(entra)
+    .WithReplicas(min: 1, max: 5);
 
 var agentService = builder.AddProject<Projects.InsightFlow_AgentService>(ResourceNames.AgentService)
     .WithReference(database)
@@ -81,7 +105,9 @@ var agentService = builder.AddProject<Projects.InsightFlow_AgentService>(Resourc
     .WaitFor(redis)
     .WaitFor(storage)
     .WaitForCompletion(migrations)
-    .WithKeyVault(keyVault);
+    .WithKeyVault(keyVault)
+    .WithEntraApi(entra)
+    .WithReplicas(min: 1, max: 3);
 
 var api = builder.AddProject<Projects.InsightFlow_Api>(ResourceNames.Api)
     .WithReference(database)
@@ -91,14 +117,18 @@ var api = builder.AddProject<Projects.InsightFlow_Api>(ResourceNames.Api)
     .WaitFor(redis)
     .WaitFor(storage)
     .WaitForCompletion(migrations)
-    .WithKeyVault(keyVault);
+    .WithKeyVault(keyVault)
+    .WithEntraApi(entra)
+    .WithReplicas(min: 1, max: 5);
 
 builder.AddProject<Projects.InsightFlow_Worker>(ResourceNames.Worker)
     .WithReference(database)
     .WithReference(blobs)
     .WaitFor(storage)
     .WaitForCompletion(migrations)
-    .WithKeyVault(keyVault);
+    .WithKeyVault(keyVault)
+    // Quartz runs clustered (one node fires each trigger); extract runs are claimed with SKIP LOCKED.
+    .WithReplicas(min: 1, max: 3);
 
 builder.AddProject<Projects.InsightFlow_Web>(ResourceNames.Web)
     .WithExternalHttpEndpoints()
@@ -107,6 +137,10 @@ builder.AddProject<Projects.InsightFlow_Web>(ResourceNames.Web)
     .WithReference(agentService)
     .WaitFor(api)
     .WaitFor(queryService)
-    .WaitFor(agentService);
+    .WaitFor(agentService)
+    .WithEntraWebApp(entra)
+    // Blazor Server keeps circuits in memory: one replica until sticky sessions and a shared Data Protection key
+    // ring are configured. TODO(dev2): see docs/deploy.md "Scaling the Web app".
+    .WithReplicas(min: 1, max: 1);
 
 builder.Build().Run();

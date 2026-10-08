@@ -1,0 +1,107 @@
+# Build and test on every push to main and every pull request.
+# - build-test: restore (NuGet + npm caches), Release build with warnings as errors (Directory.Build.props),
+#   unit + architecture tests, the eval harness self-test (reference SQL, no model, no keys).
+# - integration: starts the whole AppHost with throwaway Postgres/Redis/Azurite containers (Docker is available on
+#   ubuntu-latest) and runs InsightFlow.IntegrationTests.
+# No secrets are used. Nothing is deployed from CI (deployment is manual: docs/deploy.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  NODE_VERSION: "24"
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/InsightFlow.Web/package-lock.json
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore InsightFlow.slnx
+
+      - name: Build (warnings are errors)
+        run: dotnet build InsightFlow.slnx -c Release --no-restore
+
+      - name: Unit and architecture tests
+        run: |
+          set -euo pipefail
+          for project in tests/*.Tests; do
+            case "$project" in *IntegrationTests) continue ;; esac
+            echo "::group::$project"
+            dotnet test --project "$project" -c Release --no-build
+            echo "::endgroup::"
+          done
+
+      - name: Eval harness self-test (no model)
+        run: dotnet run -c Release --no-build --project evals/InsightFlow.Evals -- --provider reference --out eval-results
+
+      - name: Upload golden-file diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-received
+          path: "**/Golden/*.received.*"
+          if-no-files-found: ignore
+          retention-days: 14
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/InsightFlow.Web/package-lock.json
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build
+        run: dotnet build tests/InsightFlow.IntegrationTests -c Release
+
+      - name: Integration tests (AppHost + containers)
+        run: dotnet test --project tests/InsightFlow.IntegrationTests -c Release --no-build
