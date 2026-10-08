@@ -232,6 +232,12 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
         dataset.Name.ShouldBe("retail_sales");
         dataset.TargetId.ShouldBe(run.DatasetVersionId!.Value);
 
+        // The dataset picker lists it; a brand-new tenant has no seeded datasets, so it is the only one.
+        var listed = await GetAsync(caller, "/api/v1/workspace/datasets", Json.IReadOnlyListDatasetSummaryDto);
+        var summary = listed.ShouldHaveSingleItem();
+        summary.DatasetVersionId.ShouldBe(dataset.TargetId);
+        summary.FolderId.ShouldBe(root.Id);
+
         var spec = new VizSpec(1, dataset.TargetId, Mark.Bar, new VizEncoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
         using var query = Client("queryservice", caller);
         using var chart = await query.PostAsJsonAsync(new Uri("/api/v1/query/viz", UriKind.Relative), new VizQueryRequest(spec), Json.VizQueryRequest, Ct);

@@ -1,0 +1,53 @@
+@page "/slice"
+@inject WorkspaceApiClient Workspace
+@inject NavigationManager Navigation
+@* Vertical slice page: dataset version → mark/X/Y → QueryService → Vega-Lite. Linkable via ?datasetVersionId=. *@
+
+<PageTitle>Chart · Insight Flow</PageTitle>
+
+<div class="mx-auto flex h-full max-w-6xl flex-col gap-3 px-4 py-4">
+    <div class="flex flex-wrap items-end gap-3">
+        <label class="min-w-64 flex-1">
+            <span class="@UiStyles.Label">Dataset</span>
+            <select class="@UiStyles.Input" value="@(DatasetVersionId?.ToString() ?? "")" @onchange="SelectDataset" aria-label="Dataset" data-testid="dataset-picker">
+                <option value="">Choose a dataset…</option>
+                @foreach (var dataset in _datasets)
+                {
+                    <option value="@dataset.DatasetVersionId">@dataset.FolderName / @dataset.Name</option>
+                }
+            </select>
+        </label>
+        <a href="@WorkspaceLink" class="text-sm font-medium text-brand-700 hover:underline dark:text-brand-300">Open in workspace →</a>
+    </div>
+    <Alert Message="@_error" />
+    <div class="min-h-[32rem] flex-1 rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <SliceBuilder DatasetVersionId="DatasetVersionId" />
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<DatasetSummaryDto> _datasets = [];
+    private string? _error;
+
+    [SupplyParameterFromQuery] public Guid? DatasetVersionId { get; set; }
+
+    private string WorkspaceLink => DatasetVersionId is { } id ? $"workspace?datasetVersionId={id}" : "workspace";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _datasets = await Workspace.ListDatasetsAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void SelectDataset(ChangeEventArgs e)
+    {
+        var value = e.Value as string;
+        Navigation.NavigateTo(string.IsNullOrEmpty(value) ? "slice" : $"slice?datasetVersionId={value}");
+    }
+}

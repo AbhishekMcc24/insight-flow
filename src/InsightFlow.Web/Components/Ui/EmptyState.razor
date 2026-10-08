@@ -1,0 +1,12 @@
+<div class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+    <p class="font-medium text-slate-700 dark:text-slate-200">@Title</p>
+    @if (ChildContent is not null)
+    {
+        <div>@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -29,3 +29,17 @@
     @apply h-full bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
   }
 }
+
+@layer components {
+  /* Explorer drop highlight (toggled by wwwroot/js/explorerDrop.js and internal drag-to-move). */
+  .if-drop-target {
+    @apply rounded-md bg-brand-50 outline-2 outline-dashed outline-brand-400 dark:bg-brand-900/40;
+  }
+
+  /* Workspace grid: pane widths are CSS variables so wwwroot/js/workspaceLayout.js can resize them. */
+  .if-workspace-grid {
+    --pane-explorer: 260px;
+    --pane-data: 220px;
+    --pane-chat: 340px;
+  }
+}

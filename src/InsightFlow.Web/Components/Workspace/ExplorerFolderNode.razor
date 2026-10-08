@@ -1,0 +1,101 @@
+@* One folder in the Explorer tree plus (when expanded) its children. Recursive; all state lives in ExplorerPane. *@
+@{
+    var expanded = Owner.IsExpanded(Folder.Id);
+    var contents = Owner.ContentsOf(Folder.Id);
+    var selected = Owner.IsSelected(Folder.Id);
+}
+<li role="treeitem" aria-expanded="@(expanded ? "true" : "false")" aria-selected="@(selected ? "true" : "false")">
+    <div class="group flex cursor-pointer items-center gap-1 rounded-md py-1 pr-2 text-sm select-none @RowClass(selected, Owner.IsDragTarget(Folder.Id))"
+         style="padding-left: @(Depth * 14 + 4)px"
+         data-folder-id="@Folder.Id"
+         draggable="@(Folder.ParentId is null ? "false" : "true")"
+         @onclick="() => Owner.SelectFolderAsync(Folder)"
+         @ondragstart="() => Owner.BeginDrag(new DragPayload(Folder.Id, true, Folder.ParentId ?? Guid.Empty))"
+         @ondragend="Owner.EndDrag"
+         @ondragenter="() => Owner.DragEnter(Folder)"
+         @ondragover:preventDefault="Owner.IsDragging"
+         @ondrop="() => Owner.DropAsync(Folder)">
+        <button type="button" class="rounded p-0.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label="@(expanded ? "Collapse" : "Expand")"
+                @onclick="() => Owner.ToggleAsync(Folder)" @onclick:stopPropagation="true">
+            <Icon Name="chevron" Class="@(expanded ? "size-3 rotate-90 transition-transform" : "size-3 transition-transform")" />
+        </button>
+        <Icon Name="@(expanded ? "folder-open" : "folder")" Class="text-amber-500" />
+        <span class="truncate">@Folder.Name</span>
+        @if (Owner.IsLoading(Folder.Id))
+        {
+            <Spinner Small="true" Class="ml-auto text-slate-400" />
+        }
+    </div>
+
+    @if (expanded && contents is not null)
+    {
+        <ul role="group">
+            @foreach (var child in contents.Folders)
+            {
+                <ExplorerFolderNode @key="child.Id" Folder="child" Owner="Owner" Depth="Depth + 1" />
+            }
+            @foreach (var item in contents.Items)
+            {
+                var itemSelected = Owner.IsSelected(item.Id);
+                <li role="treeitem" aria-selected="@(itemSelected ? "true" : "false")" @key="item.Id">
+                    <div class="flex cursor-pointer items-center gap-1.5 rounded-md py-1 pr-2 text-sm select-none @RowClass(itemSelected, false)"
+                         style="padding-left: @((Depth + 1) * 14 + 22)px"
+                         data-folder-id="@Folder.Id"
+                         draggable="true"
+                         title="@ItemTitle(item)"
+                         @onclick="() => Owner.SelectItem(item)"
+                         @ondblclick="() => Owner.OpenAsync(item)"
+                         @ondragstart="() => Owner.BeginDrag(new DragPayload(item.Id, false, item.FolderId))"
+                         @ondragend="Owner.EndDrag">
+                        <Icon Name="@IconFor(item)" Class="@IconColor(item)" />
+                        <span class="truncate">@item.Name</span>
+                        @if (Owner.JobStatus(item.Id) is { } status)
+                        {
+                            <span class="ml-auto shrink-0 text-xs text-brand-600 dark:text-brand-300">@status</span>
+                        }
+                    </div>
+                </li>
+            }
+            @if (contents.Folders.Count == 0 && contents.Items.Count == 0)
+            {
+                <li class="py-1 text-xs text-slate-400 italic" style="padding-left: @((Depth + 1) * 14 + 22)px">Empty — drop files here</li>
+            }
+        </ul>
+    }
+</li>
+
+@code {
+    [Parameter, EditorRequired] public FolderDto Folder { get; set; } = default!;
+    [Parameter, EditorRequired] public ExplorerPane Owner { get; set; } = default!;
+    [Parameter] public int Depth { get; set; }
+
+    private static string RowClass(bool selected, bool dragTarget) =>
+        dragTarget ? "if-drop-target"
+        : selected ? "bg-brand-100 text-brand-900 dark:bg-brand-900/50 dark:text-brand-100"
+        : "hover:bg-slate-100 dark:hover:bg-slate-800";
+
+    private static string IconFor(ContentItemDto item) => item.Kind switch
+    {
+        "Dataset" => "dataset",
+        "DataThread" => "thread",
+        _ => "file",
+    };
+
+    private static string IconColor(ContentItemDto item) => item.Kind switch
+    {
+        "Dataset" => "text-brand-500",
+        "DataThread" => "text-violet-500",
+        _ => "text-slate-400",
+    };
+
+    private static string ItemTitle(ContentItemDto item) =>
+        item.SizeBytes is { } size ? $"{item.Name} · {FormatSize(size)}" : $"{item.Name} · {item.Kind}";
+
+    internal static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):0.#} MB",
+        _ => $"{bytes / (1024.0 * 1024 * 1024):0.##} GB",
+    };
+}

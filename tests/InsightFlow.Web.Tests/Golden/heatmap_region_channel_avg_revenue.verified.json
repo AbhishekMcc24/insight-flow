@@ -1,0 +1,119 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "width": "container",
+  "height": "container",
+  "autosize": {
+    "type": "fit",
+    "contains": "padding"
+  },
+  "background": "transparent",
+  "data": {
+    "values": [
+      {
+        "x": "West",
+        "y": "Online",
+        "color": 10.5
+      },
+      {
+        "x": "West",
+        "y": "Store",
+        "color": 8
+      },
+      {
+        "x": "East",
+        "y": "Online",
+        "color": 12.25
+      }
+    ]
+  },
+  "mark": {
+    "type": "rect",
+    "tooltip": true
+  },
+  "encoding": {
+    "x": {
+      "field": "x",
+      "type": "nominal",
+      "title": "Region",
+      "sort": null,
+      "axis": {
+        "labelLimit": 160
+      }
+    },
+    "y": {
+      "field": "y",
+      "type": "nominal",
+      "title": "Channel",
+      "sort": null,
+      "axis": {
+        "labelLimit": 160
+      }
+    },
+    "color": {
+      "field": "color",
+      "type": "quantitative",
+      "title": "Revenue (avg)",
+      "legend": {
+        "format": "~s"
+      },
+      "scale": {
+        "scheme": "blues"
+      }
+    },
+    "tooltip": [
+      {
+        "field": "x",
+        "type": "nominal",
+        "title": "Region"
+      },
+      {
+        "field": "y",
+        "type": "nominal",
+        "title": "Channel"
+      },
+      {
+        "field": "color",
+        "type": "quantitative",
+        "title": "Revenue (avg)",
+        "format": ",.2~f"
+      }
+    ]
+  },
+  "config": {
+    "font": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "view": {
+      "stroke": null
+    },
+    "range": {
+      "category": [
+        "#3b6ee0",
+        "#f28e2b",
+        "#2fa37c",
+        "#e15759",
+        "#8e6ad8",
+        "#d4a72c",
+        "#4fb3d9",
+        "#b07aa1",
+        "#ff9da7",
+        "#9c755f"
+      ]
+    },
+    "mark": {
+      "color": "#3b6ee0"
+    },
+    "axis": {
+      "labelColor": "#475569",
+      "titleColor": "#475569",
+      "gridColor": "#e2e8f0",
+      "domainColor": "#e2e8f0",
+      "tickColor": "#e2e8f0",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": 500
+    },
+    "legend": {
+      "labelColor": "#475569",
+      "titleColor": "#475569"
+    }
+  }
+}

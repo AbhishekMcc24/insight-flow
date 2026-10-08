@@ -1,0 +1,67 @@
+@using System.Globalization
+@using System.Text.Json
+@* Renders a QueryResult as a Tailwind table (Table mark, previews and agent results). *@
+@if (Result is null || Result.Columns.Count == 0)
+{
+    <EmptyState Title="No data" />
+}
+else
+{
+    <div class="max-h-full overflow-auto @Class">
+        <table class="min-w-full border-separate border-spacing-0 text-sm">
+            <thead class="sticky top-0 bg-slate-50 dark:bg-slate-800">
+                <tr>
+                    @foreach (var column in Result.Columns)
+                    {
+                        <th scope="col" class="border-b border-slate-200 px-3 py-2 font-semibold whitespace-nowrap text-slate-600 dark:border-slate-700 dark:text-slate-300 @(IsNumeric(column) ? "text-right" : "text-left")">
+                            @(HeaderFor?.Invoke(column) ?? column.Name)
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Result.Rows.Take(MaxRows))
+                {
+                    <tr class="even:bg-slate-50/60 dark:even:bg-slate-800/40">
+                        @for (var i = 0; i < Result.Columns.Count; i++)
+                        {
+                            var column = Result.Columns[i];
+                            <td class="border-b border-slate-100 px-3 py-1.5 whitespace-nowrap dark:border-slate-800 @(IsNumeric(column) ? "text-right tabular-nums" : "")">
+                                @Format(i < row.Count ? row[i] : null, column)
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (Result.Rows.Count > MaxRows || Result.Truncated)
+        {
+            <p class="px-3 py-2 text-xs text-slate-500">Showing the first @Math.Min(MaxRows, Result.Rows.Count).ToString("N0", CultureInfo.CurrentCulture) rows.</p>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public QueryResult? Result { get; set; }
+    [Parameter] public int MaxRows { get; set; } = 500;
+    [Parameter] public Func<QueryColumn, string>? HeaderFor { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private static bool IsNumeric(QueryColumn column) => column.Type is ColumnType.Integer or ColumnType.Number;
+
+    private static string Format(object? value, QueryColumn column)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        return value switch
+        {
+            null => "—",
+            JsonElement { ValueKind: JsonValueKind.Null } => "—",
+            JsonElement { ValueKind: JsonValueKind.Number } e when column.Type == ColumnType.Integer && e.TryGetInt64(out var l) => l.ToString("N0", culture),
+            JsonElement { ValueKind: JsonValueKind.Number } e when e.TryGetDouble(out var d) => d.ToString("#,##0.##", culture),
+            JsonElement { ValueKind: JsonValueKind.String } e => e.GetString() ?? "",
+            JsonElement e => e.GetRawText(),
+            IFormattable f => f.ToString(null, culture),
+            _ => value.ToString() ?? "",
+        };
+    }
+}

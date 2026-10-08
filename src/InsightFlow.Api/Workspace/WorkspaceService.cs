@@ -68,6 +68,27 @@ public sealed partial class WorkspaceService(
             items.Select(i => ToDto(i, storedFiles.GetValueOrDefault(i.TargetId), canWrite)).ToList());
     }
 
+    /// <summary>
+    /// Every dataset item in a folder the caller can read, newest first (dataset pickers).
+    /// TODO(dev2): paging and search once tenants have many datasets.
+    /// </summary>
+    public async Task<IReadOnlyList<DatasetSummaryDto>> ListDatasetsAsync(CancellationToken cancellationToken)
+    {
+        var rows = await (
+                from item in db.ContentItems
+                join folder in db.Folders on item.FolderId equals folder.Id
+                where item.Kind == ContentKind.Dataset
+                orderby item.CreatedAt descending
+                select new { item, folder })
+            .Take(500)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .Where(r => permissions.CanRead(r.folder, Principal))
+            .Select(r => new DatasetSummaryDto(r.item.Id, r.item.TargetId, r.item.Name.Value, r.folder.Id, r.folder.Name.Value, r.item.CreatedAt))
+            .ToList();
+    }
+
     public async Task<(Stream Content, string FileName, string ContentType)> OpenFileAsync(Guid itemId, CancellationToken cancellationToken)
     {
         var item = await LoadItemAsync(itemId, write: false, cancellationToken);

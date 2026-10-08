@@ -1,11 +1,59 @@
 @page "/"
+@inject WorkspaceApiClient Workspace
 
 <PageTitle>Insight Flow</PageTitle>
 
-<section class="mx-auto max-w-3xl px-6 py-16">
+<section class="mx-auto max-w-4xl px-6 py-12">
     <h1 class="text-3xl font-semibold tracking-tight">Insight Flow</h1>
-    <p class="mt-3 text-slate-600 dark:text-slate-400">
-        Governed BI meets AI-first exploration. Connect data, model it once, explore by dragging fields or asking in plain English.
+    <p class="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
+        Governed BI meets AI-first exploration. Drop files into your workspace, turn them into datasets, and explore by
+        picking fields or asking in plain English.
     </p>
-    @* TODO(dev2): replace with the workspace landing page (recent threads, datasets, Explorer). *@
+    <div class="mt-6 flex gap-3">
+        <a href="workspace" class="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-xs hover:bg-brand-700">Open workspace</a>
+        <a href="slice" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Build a chart</a>
+    </div>
+
+    <h2 class="mt-12 text-sm font-semibold uppercase tracking-wide text-slate-500">Datasets</h2>
+    <Alert Message="@_error" />
+    @if (_datasets is null)
+    {
+        <Spinner Class="mt-4 text-slate-400" />
+    }
+    else if (_datasets.Count == 0)
+    {
+        <p class="mt-3 text-sm text-slate-500">No datasets yet. Upload a CSV or Parquet file in the workspace and choose “Create dataset”.</p>
+    }
+    else
+    {
+        <ul class="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+            @foreach (var dataset in _datasets.Take(10))
+            {
+                <li class="flex items-center gap-3 px-4 py-2.5 text-sm">
+                    <Icon Name="dataset" Class="text-brand-500" />
+                    <a class="flex-1 font-medium hover:underline" href="workspace?datasetVersionId=@dataset.DatasetVersionId">@dataset.Name</a>
+                    <span class="text-xs text-slate-500">@dataset.FolderName</span>
+                </li>
+            }
+        </ul>
+    }
+    @* TODO(dev2): recent threads, workbooks and dashboards. *@
 </section>
+
+@code {
+    private IReadOnlyList<DatasetSummaryDto>? _datasets;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _datasets = await Workspace.ListDatasetsAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _datasets = [];
+            _error = ex.Message;
+        }
+    }
+}

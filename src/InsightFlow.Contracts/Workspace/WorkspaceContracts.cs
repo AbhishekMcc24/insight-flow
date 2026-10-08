@@ -54,3 +54,6 @@ public sealed record ExtractRunDto(
     Guid? ContentItemId,
     long? RowCount,
     string? Error);
+
+/// <summary>A dataset the caller can read (for pickers): the workspace item and the dataset version it points to.</summary>
+public sealed record DatasetSummaryDto(Guid ItemId, Guid DatasetVersionId, string Name, Guid FolderId, string FolderName, DateTimeOffset CreatedAt);

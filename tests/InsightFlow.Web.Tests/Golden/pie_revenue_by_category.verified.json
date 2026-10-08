@@ -1,0 +1,91 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "width": "container",
+  "height": "container",
+  "autosize": {
+    "type": "fit",
+    "contains": "padding"
+  },
+  "background": "transparent",
+  "data": {
+    "values": [
+      {
+        "y": 500,
+        "color": "Toys"
+      },
+      {
+        "y": 300,
+        "color": "Books"
+      }
+    ]
+  },
+  "mark": {
+    "type": "arc",
+    "tooltip": true,
+    "innerRadius": 0
+  },
+  "encoding": {
+    "theta": {
+      "field": "y",
+      "type": "quantitative",
+      "title": "Revenue (sum)",
+      "stack": true
+    },
+    "color": {
+      "field": "color",
+      "type": "nominal",
+      "title": "Category",
+      "sort": null
+    },
+    "tooltip": [
+      {
+        "field": "y",
+        "type": "quantitative",
+        "title": "Revenue (sum)",
+        "format": ",.2~f"
+      },
+      {
+        "field": "color",
+        "type": "nominal",
+        "title": "Category"
+      }
+    ]
+  },
+  "config": {
+    "font": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "view": {
+      "stroke": null
+    },
+    "range": {
+      "category": [
+        "#3b6ee0",
+        "#f28e2b",
+        "#2fa37c",
+        "#e15759",
+        "#8e6ad8",
+        "#d4a72c",
+        "#4fb3d9",
+        "#b07aa1",
+        "#ff9da7",
+        "#9c755f"
+      ]
+    },
+    "mark": {
+      "color": "#3b6ee0"
+    },
+    "axis": {
+      "labelColor": "#475569",
+      "titleColor": "#475569",
+      "gridColor": "#e2e8f0",
+      "domainColor": "#e2e8f0",
+      "tickColor": "#e2e8f0",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": 500
+    },
+    "legend": {
+      "labelColor": "#475569",
+      "titleColor": "#475569"
+    }
+  }
+}

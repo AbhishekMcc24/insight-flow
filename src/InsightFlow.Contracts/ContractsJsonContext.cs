@@ -27,6 +27,7 @@ namespace InsightFlow.Contracts;
 [JsonSerializable(typeof(FolderContentsResponse))]
 [JsonSerializable(typeof(FolderDto))]
 [JsonSerializable(typeof(ContentItemDto))]
+[JsonSerializable(typeof(IReadOnlyList<DatasetSummaryDto>))]
 [JsonSerializable(typeof(CreateFolderRequest))]
 [JsonSerializable(typeof(RenameRequest))]
 [JsonSerializable(typeof(MoveRequest))]

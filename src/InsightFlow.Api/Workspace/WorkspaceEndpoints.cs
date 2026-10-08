@@ -25,6 +25,7 @@ internal static class WorkspaceEndpoints
         group.MapGet("/roots", (WorkspaceService ws, CancellationToken ct) => ws.GetRootsAsync(ct)).WithName("GetWorkspaceRoots");
         group.MapGet("/folders/{folderId:guid}/children", (Guid folderId, WorkspaceService ws, CancellationToken ct) => ws.GetFolderContentsAsync(folderId, ct))
             .WithName("GetFolderContents");
+        group.MapGet("/datasets", (WorkspaceService ws, CancellationToken ct) => ws.ListDatasetsAsync(ct)).WithName("ListDatasets");
 
         group.MapPost("/folders", async (CreateFolderRequest request, WorkspaceService ws, CancellationToken ct) =>
         {

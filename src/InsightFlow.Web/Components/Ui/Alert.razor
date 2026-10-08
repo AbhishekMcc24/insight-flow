@@ -1,0 +1,16 @@
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div role="alert" class="flex items-start gap-2 rounded-md px-3 py-2 text-sm @(Error ? "bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100")">
+        <span class="flex-1">@Message</span>
+        @if (OnDismiss.HasDelegate)
+        {
+            <button type="button" class="opacity-60 hover:opacity-100" aria-label="Dismiss" @onclick="OnDismiss">✕</button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public bool Error { get; set; } = true;
+    [Parameter] public EventCallback OnDismiss { get; set; }
+}

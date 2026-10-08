@@ -1,0 +1,29 @@
+@* Minimal inline SVG icon set (no icon font / CDN). Names: folder, folder-open, file, dataset, thread, chevron. *@
+<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="size-4 shrink-0 @Class">
+    @switch (Name)
+    {
+        case "folder":
+            <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h4l1.5 2h7.5A1.5 1.5 0 0 1 18 7.5v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 2 14.5v-9Z" />
+            break;
+        case "folder-open":
+            <path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h4l1.5 2h6.5A1.5 1.5 0 0 1 17 7.5V8H6.2a1.5 1.5 0 0 0-1.4 1L2.6 15.2A1.5 1.5 0 0 1 2 14V5.5Zm2.8 4.3A1 1 0 0 1 5.7 9H18a1 1 0 0 1 .95 1.3l-1.6 5A1 1 0 0 1 16.4 16H3.6a.6.6 0 0 1-.57-.8l1.77-5.4Z" />
+            break;
+        case "dataset":
+            <path d="M10 2c3.9 0 7 1.3 7 3s-3.1 3-7 3-7-1.3-7-3 3.1-3 7-3Zm7 5.2V10c0 1.7-3.1 3-7 3s-7-1.3-7-3V7.2C4.5 8.3 7.1 9 10 9s5.5-.7 7-1.8Zm0 5V15c0 1.7-3.1 3-7 3s-7-1.3-7-3v-2.8C4.5 13.3 7.1 14 10 14s5.5-.7 7-1.8Z" />
+            break;
+        case "thread":
+            <path d="M5 3a2 2 0 1 1-1 3.73V13.27A2 2 0 1 1 6 13.27V11h5a3 3 0 0 0 3-3V6.73A2 2 0 1 1 16 6.73V8a5 5 0 0 1-5 5H6v.27A2 2 0 0 1 6 13.27V6.73A2 2 0 0 1 5 3Z" />
+            break;
+        case "chevron":
+            <path d="M7.2 4.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4l-4.6 4.6a1 1 0 1 1-1.4-1.4L11.1 10 7.2 6.1a1 1 0 0 1 0-1.4Z" />
+            break;
+        default:
+            <path d="M5 2h6l4 4v10.5A1.5 1.5 0 0 1 13.5 18h-8A1.5 1.5 0 0 1 4 16.5v-13A1.5 1.5 0 0 1 5.5 2H5Zm6 1v3.5h3.5L11 3Z" />
+            break;
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public string? Class { get; set; }
+}

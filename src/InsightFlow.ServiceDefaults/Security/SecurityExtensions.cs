@@ -1,6 +1,7 @@
 using InsightFlow.ServiceDefaults.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,19 @@ namespace Microsoft.Extensions.Hosting;
 public static class SecurityExtensions
 {
     public static TBuilder AddInsightFlowSecurity<TBuilder>(this TBuilder builder)
+        where TBuilder : IHostApplicationBuilder =>
+        builder.AddInsightFlowSecurityCore(webApp: false);
+
+    /// <summary>
+    /// Security for the Blazor Web app: the development handler locally; in the cloud, Entra External ID sign-in
+    /// (OpenID Connect + cookie) with token acquisition so the app can call the services as the signed-in user
+    /// (scopes from <c>DownstreamApi:Scopes</c>). Tenant resolution and policies are identical to the APIs.
+    /// </summary>
+    public static TBuilder AddInsightFlowWebSecurity<TBuilder>(this TBuilder builder)
+        where TBuilder : IHostApplicationBuilder =>
+        builder.AddInsightFlowSecurityCore(webApp: true);
+
+    private static TBuilder AddInsightFlowSecurityCore<TBuilder>(this TBuilder builder, bool webApp)
         where TBuilder : IHostApplicationBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -40,6 +54,15 @@ public static class SecurityExtensions
 
             builder.Services.AddAuthentication(DevToken.Scheme)
                 .AddScheme<AuthenticationSchemeOptions, DevelopmentAuthenticationHandler>(DevToken.Scheme, null);
+        }
+        else if (webApp)
+        {
+            // TODO(dev2): verify the Entra External ID app registrations (web app + API scope) end to end in a test tenant.
+            var scopes = builder.Configuration.GetSection("DownstreamApi:Scopes").Get<string[]>() ?? [];
+            builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+                .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+                .EnableTokenAcquisitionToCallDownstreamApi(scopes)
+                .AddInMemoryTokenCaches();
         }
         else
         {

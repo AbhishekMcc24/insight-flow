@@ -1,0 +1,104 @@
+@page "/workspace"
+@inject IJSRuntime JS
+@* The four-pane workspace: Explorer | Data | Canvas | Assistant. Panes collapse to rails and are resizable
+   (wwwroot/js/workspaceLayout.js). Opening a dataset in the Explorer loads it into the canvas and the assistant. *@
+
+<PageTitle>Workspace · Insight Flow</PageTitle>
+
+<div @ref="_grid" class="if-workspace-grid grid h-full min-h-0 gap-px bg-slate-200 dark:bg-slate-800" style="grid-template-columns: @Columns">
+    <Pane Title="Explorer" @bind-Collapsed="_explorerCollapsed">
+        <ExplorerPane OnOpenDataset="OpenDataset" />
+    </Pane>
+    <div class="@SplitterClass(_explorerCollapsed)" data-splitter="--pane-explorer" role="separator" aria-orientation="vertical"></div>
+
+    <Pane Title="Data" @bind-Collapsed="_dataCollapsed">
+        @if (_dataset is null)
+        {
+            <EmptyState Title="No dataset open" />
+        }
+        else
+        {
+            <div class="p-3">
+                <p class="truncate text-sm font-medium" title="@_dataset.Name">@_dataset.Name</p>
+                <ul class="mt-2 space-y-0.5 text-sm" data-testid="field-list">
+                    @foreach (var column in _columns)
+                    {
+                        <li class="flex items-center gap-2 rounded px-1.5 py-1 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <span class="w-6 shrink-0 text-center font-mono text-[10px] text-slate-400">@TypeGlyph(column.Type)</span>
+                            <span class="truncate">@column.Name</span>
+                        </li>
+                    }
+                </ul>
+                @* TODO(dev2): semantic-model fields (dimensions/measures), drag to shelves, calculated fields. *@
+            </div>
+        }
+    </Pane>
+    <div class="@SplitterClass(_dataCollapsed)" data-splitter="--pane-data" role="separator" aria-orientation="vertical"></div>
+
+    <Pane Title="@(_dataset?.Name ?? "Canvas")" Collapsible="false">
+        <SliceBuilder @ref="_slice" DatasetVersionId="_dataset?.DatasetVersionId" ColumnsChanged="c => _columns = c" />
+    </Pane>
+    <div class="w-1 bg-slate-200 dark:bg-slate-800" role="separator" aria-orientation="vertical"></div>
+
+    <Pane Title="Assistant" @bind-Collapsed="_chatCollapsed">
+        <AnalystChat DatasetVersionId="_dataset?.DatasetVersionId" OnChart="ShowChartAsync" />
+    </Pane>
+</div>
+
+@code {
+    private ElementReference _grid;
+    private SliceBuilder? _slice;
+    private DatasetSelection? _dataset;
+    private IReadOnlyList<QueryColumn> _columns = [];
+    private bool _explorerCollapsed, _dataCollapsed, _chatCollapsed;
+
+    [SupplyParameterFromQuery] public Guid? DatasetVersionId { get; set; }
+
+    private string Columns =>
+        $"{(_explorerCollapsed ? "2.5rem" : "var(--pane-explorer)")} 4px {(_dataCollapsed ? "2.5rem" : "var(--pane-data)")} 4px minmax(0,1fr) 4px {(_chatCollapsed ? "2.5rem" : "var(--pane-chat)")}";
+
+    private static string SplitterClass(bool collapsed) =>
+        collapsed ? "w-1 bg-slate-200 dark:bg-slate-800" : "w-1 cursor-col-resize bg-slate-200 hover:bg-brand-400 dark:bg-slate-800";
+
+    protected override void OnParametersSet()
+    {
+        if (DatasetVersionId is { } id && _dataset?.DatasetVersionId != id)
+        {
+            _dataset = new DatasetSelection(id, "Dataset");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await using var module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/workspaceLayout.js");
+            await module.InvokeVoidAsync("init", _grid);
+        }
+    }
+
+    private void OpenDataset(DatasetSelection selection)
+    {
+        _dataset = selection;
+        _columns = [];
+    }
+
+    private async Task ShowChartAsync(VizSpec spec)
+    {
+        if (_slice is not null)
+        {
+            await _slice.ApplySpecAsync(spec);
+        }
+    }
+
+    private static string TypeGlyph(ColumnType type) => type switch
+    {
+        ColumnType.String => "Abc",
+        ColumnType.Integer => "123",
+        ColumnType.Number => "#.#",
+        ColumnType.Boolean => "T/F",
+        ColumnType.Date => "📅",
+        ColumnType.DateTime => "⏱",
+        _ => "?",
+    };
+}

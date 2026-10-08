@@ -1,0 +1,113 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "width": "container",
+  "height": "container",
+  "autosize": {
+    "type": "fit",
+    "contains": "padding"
+  },
+  "background": "transparent",
+  "data": {
+    "values": [
+      {
+        "x": "2025-01-01",
+        "y": 12,
+        "color": "Online"
+      },
+      {
+        "x": "2025-01-01",
+        "y": 7,
+        "color": "Store"
+      },
+      {
+        "x": "2025-02-01",
+        "y": 15,
+        "color": "Online"
+      }
+    ]
+  },
+  "mark": {
+    "type": "line",
+    "tooltip": true,
+    "point": true,
+    "interpolate": "monotone"
+  },
+  "encoding": {
+    "x": {
+      "field": "x",
+      "type": "temporal",
+      "title": "Order date (month)",
+      "timeUnit": "utcyearmonth"
+    },
+    "y": {
+      "field": "y",
+      "type": "quantitative",
+      "title": "Quantity (count)",
+      "axis": {
+        "format": "~s"
+      }
+    },
+    "color": {
+      "field": "color",
+      "type": "nominal",
+      "title": "Channel",
+      "sort": null
+    },
+    "tooltip": [
+      {
+        "field": "x",
+        "type": "temporal",
+        "title": "Order date (month)",
+        "timeUnit": "utcyearmonth"
+      },
+      {
+        "field": "y",
+        "type": "quantitative",
+        "title": "Quantity (count)",
+        "format": ",.2~f"
+      },
+      {
+        "field": "color",
+        "type": "nominal",
+        "title": "Channel"
+      }
+    ]
+  },
+  "config": {
+    "font": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "view": {
+      "stroke": null
+    },
+    "range": {
+      "category": [
+        "#3b6ee0",
+        "#f28e2b",
+        "#2fa37c",
+        "#e15759",
+        "#8e6ad8",
+        "#d4a72c",
+        "#4fb3d9",
+        "#b07aa1",
+        "#ff9da7",
+        "#9c755f"
+      ]
+    },
+    "mark": {
+      "color": "#3b6ee0"
+    },
+    "axis": {
+      "labelColor": "#475569",
+      "titleColor": "#475569",
+      "gridColor": "#e2e8f0",
+      "domainColor": "#e2e8f0",
+      "tickColor": "#e2e8f0",
+      "labelFontSize": 11,
+      "titleFontSize": 12,
+      "titleFontWeight": 500
+    },
+    "legend": {
+      "labelColor": "#475569",
+      "titleColor": "#475569"
+    }
+  }
+}

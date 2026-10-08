@@ -1,0 +1,142 @@
+@implements IDisposable
+@inject AgentApiClient Agent
+@* Ask-in-plain-English pane. Streams the analyst's SSE events: answer text, the SQL it ran (always shown, with a
+   preview), and chart proposals that can be put on the canvas.
+   TODO(dev2): Data Thread view (branching history), derived-field UI, conversation memory across questions. *@
+
+<div class="flex h-full min-h-0 flex-col">
+    <div class="min-h-0 flex-1 space-y-3 overflow-auto p-3 text-sm" data-testid="chat-log">
+        @if (_turns.Count == 0)
+        {
+            <EmptyState Title="Ask about this dataset">
+                e.g. “Which region had the highest revenue last quarter?”
+            </EmptyState>
+        }
+        @foreach (var turn in _turns)
+        {
+            <div class="ml-6 rounded-lg bg-brand-600 px-3 py-2 text-white">@turn.Question</div>
+            <div class="mr-2 space-y-2">
+                @foreach (var part in turn.Parts)
+                {
+                    @switch (part.Type)
+                    {
+                        case AgentEventTypes.Text:
+                            <p class="whitespace-pre-wrap">@part.Text</p>
+                            break;
+                        case AgentEventTypes.Tool:
+                            <p class="text-xs text-slate-400">Using @part.Tool…</p>
+                            break;
+                        case AgentEventTypes.Sql:
+                            <details class="rounded-md border border-slate-200 text-xs dark:border-slate-700" open="@(part.Error is not null)">
+                                <summary class="cursor-pointer px-2 py-1 font-medium text-slate-600 dark:text-slate-300">
+                                    SQL @(part.Error is null ? $"· {part.RowCount:N0} rows" : "· failed")
+                                </summary>
+                                <pre class="overflow-auto bg-slate-50 px-2 py-1.5 font-mono text-[11px] dark:bg-slate-950">@part.Sql</pre>
+                                @if (part.Error is not null)
+                                {
+                                    <p class="px-2 py-1 text-red-600">@part.Error</p>
+                                }
+                                else if (part.Preview is not null)
+                                {
+                                    <DataTable Result="part.Preview" MaxRows="10" Class="max-h-48" />
+                                }
+                            </details>
+                            break;
+                        case AgentEventTypes.Chart when part.Spec is not null:
+                            <div class="flex items-center gap-2 rounded-md border border-brand-200 bg-brand-50 px-2 py-1.5 text-xs dark:border-brand-800 dark:bg-brand-900/30">
+                                <span class="flex-1">Proposed chart: @part.Spec.Mark</span>
+                                <Button Small="true" Variant="ButtonVariant.Primary" OnClick="() => OnChart.InvokeAsync(part.Spec)">Show on canvas</Button>
+                            </div>
+                            break;
+                        case AgentEventTypes.Error:
+                            <Alert Message="@part.Error" />
+                            break;
+                        case AgentEventTypes.Done:
+                            <p class="text-xs text-slate-400">@part.InputTokens?.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) in · @part.OutputTokens?.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) out tokens</p>
+                            break;
+                    }
+                }
+                @if (turn.Running)
+                {
+                    <Spinner Small="true" Class="text-brand-600" />
+                }
+            </div>
+        }
+    </div>
+
+    <form class="flex shrink-0 gap-2 border-t border-slate-200 p-2 dark:border-slate-800" @onsubmit="AskAsync">
+        <textarea class="@UiStyles.Input min-h-10 resize-none" rows="2" @bind="_question" @bind:event="oninput" placeholder="Ask a question…" aria-label="Question"
+                  disabled="@(DatasetVersionId is null)" maxlength="4000"></textarea>
+        <Button Variant="ButtonVariant.Primary" Type="submit" Busy="_running" Disabled="@(DatasetVersionId is null || string.IsNullOrWhiteSpace(_question))">Ask</Button>
+    </form>
+</div>
+
+@code {
+    private sealed class Turn(string question)
+    {
+        public string Question { get; } = question;
+
+        public List<AgentEvent> Parts { get; } = [];
+
+        public bool Running { get; set; } = true;
+    }
+
+    private readonly List<Turn> _turns = [];
+    private string _question = "";
+    private bool _running;
+    private CancellationTokenSource? _cts;
+
+    [Parameter] public Guid? DatasetVersionId { get; set; }
+
+    [Parameter] public EventCallback<VizSpec> OnChart { get; set; }
+
+    private async Task AskAsync()
+    {
+        if (DatasetVersionId is not { } dataset || string.IsNullOrWhiteSpace(_question) || _running)
+        {
+            return;
+        }
+
+        var turn = new Turn(_question.Trim());
+        _turns.Add(turn);
+        _question = "";
+        _running = true;
+        _cts = new CancellationTokenSource();
+        try
+        {
+            await foreach (var e in Agent.AskAnalystAsync(new AnalystRequest(dataset, turn.Question), _cts.Token))
+            {
+                // Merge consecutive text chunks into one paragraph.
+                if (e.Type == AgentEventTypes.Text && turn.Parts.Count > 0 && turn.Parts[^1].Type == AgentEventTypes.Text)
+                {
+                    turn.Parts[^1] = turn.Parts[^1] with { Text = turn.Parts[^1].Text + e.Text };
+                }
+                else
+                {
+                    turn.Parts.Add(e);
+                }
+
+                StateHasChanged();
+            }
+        }
+        catch (ServiceCallException ex)
+        {
+            turn.Parts.Add(new AgentEvent(AgentEventTypes.Error, Error: ex.Message));
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            // Pane closed.
+        }
+        finally
+        {
+            turn.Running = false;
+            _running = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

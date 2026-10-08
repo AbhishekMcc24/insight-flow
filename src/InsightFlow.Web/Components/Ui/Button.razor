@@ -1,0 +1,31 @@
+@* Tailwind button. Variants: Primary, Secondary, Ghost, Danger; Small for toolbars. *@
+<button type="@Type" class="@Classes" disabled="@(Disabled || Busy)" title="@Title" @onclick="OnClick" @attributes="AdditionalAttributes">
+    @if (Busy)
+    {
+        <Spinner Small="true" />
+    }
+    @ChildContent
+</button>
+
+@code {
+    [Parameter] public ButtonVariant Variant { get; set; } = ButtonVariant.Secondary;
+    [Parameter] public bool Small { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string Classes =>
+        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 "
+        + (Small ? "px-2 py-1 text-xs " : "px-3 py-1.5 text-sm ")
+        + Variant switch
+        {
+            ButtonVariant.Primary => "bg-brand-600 text-white shadow-xs hover:bg-brand-700",
+            ButtonVariant.Danger => "bg-red-600 text-white shadow-xs hover:bg-red-700",
+            ButtonVariant.Ghost => "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
+            _ => "border border-slate-300 bg-white text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
+        };
+}

@@ -1,0 +1,8 @@
+<span role="status" class="inline-block animate-spin rounded-full border-2 border-current border-t-transparent @(Small ? "size-3" : "size-5") @Class">
+    <span class="sr-only">Loading…</span>
+</span>
+
+@code {
+    [Parameter] public bool Small { get; set; }
+    [Parameter] public string? Class { get; set; }
+}
