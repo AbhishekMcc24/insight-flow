@@ -1,5 +1,9 @@
+using InsightFlow.Agents;
+using InsightFlow.AgentService;
+using InsightFlow.Contracts;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Persistence;
+using InsightFlow.Query;
 using InsightFlow.ServiceDefaults.Security;
 using Scalar.AspNetCore;
 
@@ -15,7 +19,10 @@ builder.EnrichNpgsqlDbContext<InsightFlowDbContext>();
 
 builder.AddRedisDistributedCache("redis");
 builder.AddAzureBlobServiceClient("blobs");
+builder.Services.AddInsightFlowQueryEngine(builder.Configuration);
+builder.Services.AddInsightFlowAgents(builder.Configuration);
 
+builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, ContractsJsonContext.Default));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -33,7 +40,11 @@ if (app.Environment.IsDevelopment())
 
 app.MapDefaultEndpoints();
 
-// TODO(roy): M6 — POST /api/v1/agent/analyst (SSE) and the derived-field endpoint.
-app.MapGroup("/api/v1/agent").WithTags("Agents");
+app.MapGroup("/api/v1/agent")
+    .WithTags("Agents")
+    .MapAgentEndpoints();
 
 app.Run();
+
+/// <summary>Exposed for WebApplicationFactory-based integration tests.</summary>
+public partial class Program;

@@ -32,13 +32,13 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
         return await Executor().ExecuteAsync(compiled, data.Versions, Ct);
     }
 
-    private static VizSpec Spec(Encoding encoding, IReadOnlyList<FilterSpec>? filters = null, IReadOnlyList<SortSpec>? sort = null, int limit = 5_000, Mark mark = Mark.Bar) =>
+    private static VizSpec Spec(VizEncoding encoding, IReadOnlyList<FilterSpec>? filters = null, IReadOnlyList<SortSpec>? sort = null, int limit = 5_000, Mark mark = Mark.Bar) =>
         new(VizSpec.CurrentSchemaVersion, RetailModel.SalesVersionId, mark, encoding, filters ?? [], sort, limit);
 
     [Fact]
     public async Task SumRevenueByRegion_ThroughJoin_MatchesDirectSql()
     {
-        var result = await RunAsync(Spec(new Encoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum))));
+        var result = await RunAsync(Spec(new VizEncoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum))));
         var expected = await data.QueryDirectAsync(
             "SELECT st.region, SUM(s.revenue) FROM {sales} s LEFT JOIN {stores} st USING (store_id) GROUP BY 1 ORDER BY 1");
 
@@ -50,7 +50,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     [Fact]
     public async Task MonthTimeUnit_ReturnsFirstDayOfMonthDates()
     {
-        var result = await RunAsync(Spec(new Encoding(new FieldRef("order_date", TimeUnit: TimeUnit.Month), new FieldRef("order_id", Agg.Count))));
+        var result = await RunAsync(Spec(new VizEncoding(new FieldRef("order_date", TimeUnit: TimeUnit.Month), new FieldRef("order_id", Agg.Count))));
 
         result.Columns[0].Type.ShouldBe(ColumnType.Date);
         result.Rows.Count.ShouldBe(36); // 2023-01 .. 2025-12
@@ -62,7 +62,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     public async Task TopNWithOtherFilter_ReturnsRankedSubset()
     {
         var spec = Spec(
-            new Encoding(new FieldRef("product_name"), new FieldRef("revenue", Agg.Sum)),
+            new VizEncoding(new FieldRef("product_name"), new FieldRef("revenue", Agg.Sum)),
             [new EqualsFilter("channel", "Online"), new TopNFilter("product_name", 5, new FieldRef("revenue", Agg.Sum))],
             [new SortSpec("revenue", SortDirection.Desc)]);
 
@@ -80,7 +80,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     public async Task Filters_AreAppliedWithParameters()
     {
         var spec = Spec(
-            new Encoding(null, new FieldRef("order_id", Agg.Count)),
+            new VizEncoding(null, new FieldRef("order_id", Agg.Count)),
             [
                 new InFilter("country", ["Germany", "France"]),
                 new RangeFilter("quantity", Min: 3, Max: 7),
@@ -105,7 +105,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     {
         // Clock: 2026-10-07; data ends 2025-12-31, so "last 12 months" (Oct 2025 – Sep 2026) covers Oct–Dec 2025.
         var spec = Spec(
-            new Encoding(new FieldRef("order_date", TimeUnit: TimeUnit.Month), new FieldRef("order_id", Agg.Count)),
+            new VizEncoding(new FieldRef("order_date", TimeUnit: TimeUnit.Month), new FieldRef("order_id", Agg.Count)),
             [new RelativeDateFilter("order_date", TimeUnit.Month, RelativeDateAnchor.Last, 12)]);
 
         var result = await RunAsync(spec);
@@ -116,7 +116,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     [Fact]
     public async Task CalculatedMeasure_IsEvaluated()
     {
-        var result = await RunAsync(Spec(new Encoding(new FieldRef("channel"), new FieldRef("profit"))));
+        var result = await RunAsync(Spec(new VizEncoding(new FieldRef("channel"), new FieldRef("profit"))));
         var expected = await data.QueryDirectAsync("SELECT channel, SUM(revenue) - SUM(cost) FROM {sales} GROUP BY 1 ORDER BY 1");
 
         result.Rows.Select(r => (r[0], r[1])).ShouldBe(expected.Select(r => (r[0], r[1])));
@@ -125,7 +125,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     [Fact]
     public async Task RowLimit_ReportsTruncation()
     {
-        var result = await RunAsync(Spec(new Encoding(new FieldRef("order_id"), new FieldRef("revenue")), limit: 10, mark: Mark.Point));
+        var result = await RunAsync(Spec(new VizEncoding(new FieldRef("order_id"), new FieldRef("revenue")), limit: 10, mark: Mark.Point));
 
         result.Rows.Count.ShouldBe(10);
         result.Truncated.ShouldBeTrue();
@@ -179,7 +179,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     {
         var cache = new InMemoryQueryCache();
         var engine = new VizQueryEngine(new SqlCompiler(Clock), Executor(), cache, Clock);
-        var spec = Spec(new Encoding(new FieldRef("channel"), new FieldRef("quantity", Agg.Sum)));
+        var spec = Spec(new VizEncoding(new FieldRef("channel"), new FieldRef("quantity", Agg.Sum)));
         var model = RetailModel.Create();
 
         var first = await engine.RunAsync(RetailModel.Tenant, spec, model, data.Versions, Ct);
@@ -196,7 +196,7 @@ public sealed class ExecutionTests(RetailExtractFixture data) : IClassFixture<Re
     public async Task Engine_OtherTenantsVersions_AreRefused()
     {
         var engine = new VizQueryEngine(new SqlCompiler(Clock), Executor(), new InMemoryQueryCache(), Clock);
-        var spec = Spec(new Encoding(new FieldRef("channel"), new FieldRef("quantity", Agg.Sum)));
+        var spec = Spec(new VizEncoding(new FieldRef("channel"), new FieldRef("quantity", Agg.Sum)));
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             engine.RunAsync(RetailModel.OtherTenant, spec, RetailModel.Create(), data.Versions, Ct));

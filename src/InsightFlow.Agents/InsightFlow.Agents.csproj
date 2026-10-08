@@ -1,15 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Agents, tools, model router and the AI-SQL sandbox. References Query for the sandbox and compiler only. -->
+  <!-- Agents, tools, model router and the AI-SQL sandbox. References Query for the sandbox (extract store, DuckDB value mapping) and compiler only. -->
   <ItemGroup>
     <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
     <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
     <ProjectReference Include="..\InsightFlow.Query\InsightFlow.Query.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="DuckDB.NET.Data.Full" />
     <PackageReference Include="Microsoft.Agents.AI" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
     <PackageReference Include="OpenAI" />
     <PackageReference Include="Anthropic" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="InsightFlow.Agents.Tests" />
   </ItemGroup>
 </Project>

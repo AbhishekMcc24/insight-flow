@@ -22,7 +22,7 @@ public sealed class VizSpecValidatorTests
             VizSpec.CurrentSchemaVersion,
             RetailModel.SalesVersionId,
             mark,
-            new Encoding(x ?? new FieldRef("channel"), y ?? new FieldRef("revenue", Agg.Sum), color),
+            new VizEncoding(x ?? new FieldRef("channel"), y ?? new FieldRef("revenue", Agg.Sum), color),
             filters ?? [],
             sort,
             limit);
@@ -147,7 +147,7 @@ public sealed class VizSpecValidatorTests
     [Fact]
     public void Validate_BarWithoutY_ReportsMissingChannel()
     {
-        var spec = Bar() with { Encoding = new Encoding(new FieldRef("channel"), null) };
+        var spec = Bar() with { Encoding = new VizEncoding(new FieldRef("channel"), null) };
 
         var result = VizSpecValidator.Validate(spec, Model);
 

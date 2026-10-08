@@ -73,7 +73,7 @@ public sealed class QueryServiceTests(AppHostFixture fixture)
     }
 
     private static VizSpec RevenueByRegion(Guid versionId) =>
-        new(1, versionId, Mark.Bar, new Encoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), [new EqualsFilter("channel", "Online")]);
+        new(1, versionId, Mark.Bar, new VizEncoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), [new EqualsFilter("channel", "Online")]);
 
     [Fact]
     public async Task Viz_RunsOnDuckDb_ThenServesFromCache()
@@ -114,7 +114,7 @@ public sealed class QueryServiceTests(AppHostFixture fixture)
     {
         fixture.RequireRunning();
         var version = await CreateRetailVersionAsync();
-        var spec = new VizSpec(1, version.Id, Mark.Bar, new Encoding(new FieldRef("nope"), new FieldRef("channel", Agg.Sum)), []);
+        var spec = new VizSpec(1, version.Id, Mark.Bar, new VizEncoding(new FieldRef("nope"), new FieldRef("channel", Agg.Sum)), []);
 
         using var response = await PostAsync("/api/v1/query/viz", new VizQueryRequest(spec), ContractsJsonContext.Default.VizQueryRequest);
 

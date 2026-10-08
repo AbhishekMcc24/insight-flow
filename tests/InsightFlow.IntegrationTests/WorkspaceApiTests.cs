@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json.Serialization.Metadata;
 using InsightFlow.Contracts;
 using InsightFlow.Contracts.Connections;
@@ -9,8 +10,6 @@ using InsightFlow.Contracts.Workspace;
 using InsightFlow.Domain.Viz;
 using InsightFlow.ServiceDefaults.Security;
 using InsightFlow.Testing;
-using Encoding = InsightFlow.Domain.Viz.Encoding;
-using TextEncoding = System.Text.Encoding;
 
 namespace InsightFlow.IntegrationTests;
 
@@ -67,7 +66,7 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
         using var content = new MultipartFormDataContent();
         foreach (var (path, bytes) in files)
         {
-            content.Add(new StringContent(path, TextEncoding.UTF8), "path");
+            content.Add(new StringContent(path, Encoding.UTF8), "path");
             content.Add(new ByteArrayContent(bytes), "file", Path.GetFileName(path));
         }
 
@@ -149,12 +148,12 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
         fixture.RequireRunning();
         var caller = Caller.NewTenant();
         var root = (await RootsAsync(caller)).MyWorkspace;
-        var csv = TextEncoding.UTF8.GetBytes("a,b\n1,2\n");
+        var csv = Encoding.UTF8.GetBytes("a,b\n1,2\n");
 
         var result = await UploadAsync(caller, root.Id,
             ("Q3/eu/sales.csv", csv),
             ("Q3/eu/sales.csv", csv),
-            ("Q3/readme.md", TextEncoding.UTF8.GetBytes("# notes")),
+            ("Q3/readme.md", Encoding.UTF8.GetBytes("# notes")),
             ("Q3/../escape.csv", csv),
             ("Q3/tool.exe", [0x4D, 0x5A]));
 
@@ -233,7 +232,7 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
         dataset.Name.ShouldBe("retail_sales");
         dataset.TargetId.ShouldBe(run.DatasetVersionId!.Value);
 
-        var spec = new VizSpec(1, dataset.TargetId, Mark.Bar, new Encoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
+        var spec = new VizSpec(1, dataset.TargetId, Mark.Bar, new VizEncoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
         using var query = Client("queryservice", caller);
         using var chart = await query.PostAsJsonAsync(new Uri("/api/v1/query/viz", UriKind.Relative), new VizQueryRequest(spec), Json.VizQueryRequest, Ct);
         chart.StatusCode.ShouldBe(HttpStatusCode.OK, await chart.Content.ReadAsStringAsync(Ct));
@@ -246,7 +245,7 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
         fixture.RequireRunning();
         var caller = Caller.NewTenant();
         var root = (await RootsAsync(caller)).MyWorkspace;
-        var upload = await UploadAsync(caller, root.Id, ("notes.md", TextEncoding.UTF8.GetBytes("x")), ("book.xlsx", [0x50, 0x4B]));
+        var upload = await UploadAsync(caller, root.Id, ("notes.md", Encoding.UTF8.GetBytes("x")), ("book.xlsx", [0x50, 0x4B]));
 
         using var md = await SendAsync(caller, HttpMethod.Post, $"/api/v1/workspace/items/{upload.Files[0].ItemId}/dataset", new RenameRequest(string.Empty), Json.RenameRequest);
         using var xlsx = await SendAsync(caller, HttpMethod.Post, $"/api/v1/workspace/items/{upload.Files[1].ItemId}/dataset", new RenameRequest(string.Empty), Json.RenameRequest);

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Numerics;
 using DuckDB.NET.Data;
 using InsightFlow.Contracts.Query;
 using InsightFlow.Domain.Threads;
@@ -62,7 +61,7 @@ public sealed partial class DuckDbQueryExecutor(
             var version = sources.FirstOrDefault(v => v.Id == source.DatasetVersionId)
                 ?? throw new InvalidOperationException($"No dataset version supplied for source {source.RelationName}.");
             var path = await extracts.GetLocalPathAsync(version, ct);
-            await ExecuteAsync(connection, $"CREATE VIEW {DuckDbDialect.Instance.QuoteIdentifier(source.RelationName)} AS SELECT * FROM read_parquet({PathLiteral(path)})", ct);
+            await ExecuteAsync(connection, $"CREATE VIEW {DuckDbDialect.Instance.QuoteIdentifier(source.RelationName)} AS SELECT * FROM read_parquet({DuckDbValues.PathLiteral(path)})", ct);
         }
 
         await LockDownAsync(connection, extracts.LocalRoot, ct);
@@ -83,7 +82,7 @@ public sealed partial class DuckDbQueryExecutor(
     /// <summary>Only the extract cache stays readable; nothing (including the compiled SQL) can change that afterwards.</summary>
     internal static async Task LockDownAsync(DuckDBConnection connection, string readableRoot, CancellationToken ct)
     {
-        await ExecuteAsync(connection, $"SET allowed_directories = [{PathLiteral(readableRoot)}]", ct);
+        await ExecuteAsync(connection, $"SET allowed_directories = [{DuckDbValues.PathLiteral(readableRoot)}]", ct);
         await ExecuteAsync(connection, "SET enable_external_access = false", ct);
         await ExecuteAsync(connection, "SET lock_configuration = true", ct);
     }
@@ -104,7 +103,7 @@ public sealed partial class DuckDbQueryExecutor(
         {
             var name = reader.GetName(i);
             var meta = query.Columns.FirstOrDefault(c => c.Name == name);
-            columns.Add(new QueryColumn(name, MapType(reader.GetFieldType(i)), meta?.Channel, meta?.Field));
+            columns.Add(new QueryColumn(name, DuckDbValues.ToColumnType(reader.GetFieldType(i)), meta?.Channel, meta?.Field));
         }
 
         var rows = new List<IReadOnlyList<object?>>();
@@ -120,7 +119,7 @@ public sealed partial class DuckDbQueryExecutor(
             var row = new object?[reader.FieldCount];
             for (var i = 0; i < row.Length; i++)
             {
-                row[i] = Normalize(reader.IsDBNull(i) ? null : reader.GetValue(i));
+                row[i] = DuckDbValues.Normalize(reader.IsDBNull(i) ? null : reader.GetValue(i));
             }
 
             rows.Add(row);
@@ -128,47 +127,6 @@ public sealed partial class DuckDbQueryExecutor(
 
         return new QueryResult(columns, rows, truncated);
     }
-
-    internal static ColumnType MapType(Type type) => type switch
-    {
-        _ when type == typeof(string) => ColumnType.String,
-        _ when type == typeof(bool) => ColumnType.Boolean,
-        _ when type == typeof(DateOnly) => ColumnType.Date,
-        _ when type == typeof(DateTime) || type == typeof(DateTimeOffset) => ColumnType.DateTime,
-        _ when type == typeof(long) || type == typeof(int) || type == typeof(short) || type == typeof(sbyte)
-               || type == typeof(ulong) || type == typeof(uint) || type == typeof(ushort) || type == typeof(byte)
-               || type == typeof(BigInteger) => ColumnType.Integer,
-        _ when type == typeof(decimal) || type == typeof(double) || type == typeof(float) => ColumnType.Number,
-        _ => ColumnType.Other,
-    };
-
-    /// <summary>Converts DuckDB values to JSON-friendly primitives.</summary>
-    internal static object? Normalize(object? value) => value switch
-    {
-        null or DBNull => null,
-        string or bool or long or decimal or DateOnly => value,
-        int i => (long)i,
-        short s => (long)s,
-        sbyte sb => (long)sb,
-        byte b => (long)b,
-        ushort us => (long)us,
-        uint ui => (long)ui,
-        ulong ul => ul <= long.MaxValue ? (long)ul : (decimal)ul,
-        BigInteger big => big >= long.MinValue && big <= long.MaxValue ? (long)big : big.ToString(CultureInfo.InvariantCulture),
-        double d => double.IsFinite(d) ? d : null,
-        float f => float.IsFinite(f) ? (double)f : null,
-        DateTime dt => dt,
-        DateTimeOffset dto => dto.UtcDateTime,
-        TimeOnly t => t.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture),
-        Guid g => g.ToString("D"),
-        byte[] bytes => Convert.ToBase64String(bytes),
-        _ => Convert.ToString(value, CultureInfo.InvariantCulture),
-    };
-
-    private static string Literal(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
-
-    /// <summary>DuckDB accepts forward slashes on every OS; ids-only paths never contain quotes, but escape anyway.</summary>
-    private static string PathLiteral(string path) => Literal(path.Replace('\\', '/'));
 
     private static async Task ExecuteAsync(DuckDBConnection connection, string sql, CancellationToken ct)
     {

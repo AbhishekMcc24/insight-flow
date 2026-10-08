@@ -13,7 +13,7 @@ public sealed record FieldRef(string Field, Agg Agg = Agg.None, TimeUnit? TimeUn
 }
 
 /// <summary>Mapping from visual channels to fields.</summary>
-public sealed record Encoding(
+public sealed record VizEncoding(
     FieldRef? X,
     FieldRef? Y,
     FieldRef? Color = null,
@@ -38,7 +38,7 @@ public sealed record VizSpec(
     int SchemaVersion,
     Guid DatasetVersionId,
     Mark Mark,
-    Encoding Encoding,
+    VizEncoding Encoding,
     IReadOnlyList<FilterSpec> Filters,
     IReadOnlyList<SortSpec>? Sort = null,
     int Limit = VizSpec.DefaultLimit)

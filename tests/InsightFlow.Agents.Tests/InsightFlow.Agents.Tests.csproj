@@ -1,6 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Agent, tool, router and SQL sandbox tests. Uses a scripted fake IChatClient; real providers only when keys are present. -->
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
+    <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
 </Project>

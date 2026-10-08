@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using InsightFlow.Contracts.Agents;
 using InsightFlow.Contracts.Connections;
 using InsightFlow.Contracts.Identity;
 using InsightFlow.Contracts.Query;
@@ -38,6 +39,10 @@ namespace InsightFlow.Contracts;
 [JsonSerializable(typeof(ConnectionTestResponse))]
 [JsonSerializable(typeof(IReadOnlyList<SourceTableDto>))]
 [JsonSerializable(typeof(CreateExtractRequest))]
+[JsonSerializable(typeof(AnalystRequest))]
+[JsonSerializable(typeof(AgentEvent))]
+[JsonSerializable(typeof(DerivedFieldRequest))]
+[JsonSerializable(typeof(DerivedFieldResponse))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(long))]
 [JsonSerializable(typeof(int))]

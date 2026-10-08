@@ -9,7 +9,7 @@ public sealed class PackagePlacementTests
     public static readonly TheoryData<string, string[]> PackageOwners = new()
     {
         // Package id prefix -> projects allowed to reference it directly.
-        { "DuckDB.NET", ["InsightFlow.Query", "InsightFlow.Connectors"] },
+        { "DuckDB.NET", ["InsightFlow.Query", "InsightFlow.Connectors", "InsightFlow.Agents"] }, // Agents: the AI-SQL sandbox (ADR 0022)
         { "Microsoft.EntityFrameworkCore", ["InsightFlow.Persistence"] },
         { "Npgsql.EntityFrameworkCore", ["InsightFlow.Persistence"] },
         { "Aspire.Npgsql.EntityFrameworkCore", ["InsightFlow.QueryService", "InsightFlow.AgentService", "InsightFlow.Api", "InsightFlow.Worker", "InsightFlow.MigrationService"] },

@@ -104,7 +104,7 @@ public sealed class DataThreadTests
     {
         var root = Source();
         var thread = DataThread.Start(RetailModel.Tenant, "Revenue by region", root, "alice", Now);
-        var spec = new VizSpec(1, Guid.NewGuid(), Mark.Bar, new Encoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
+        var spec = new VizSpec(1, Guid.NewGuid(), Mark.Bar, new VizEncoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
 
         Should.Throw<DomainRuleException>(() => ThreadNode.Create(thread, null, root, spec, null, "alice", Now))
             .Code.ShouldBe("viz_dataset_mismatch");

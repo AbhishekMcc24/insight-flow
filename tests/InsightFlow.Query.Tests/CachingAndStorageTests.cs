@@ -14,7 +14,7 @@ public sealed class CachingAndStorageTests
     private static readonly DateTimeOffset Now = new(2026, 10, 7, 12, 30, 0, TimeSpan.Zero);
 
     private static VizSpec Spec(params FilterSpec[] filters) =>
-        new(1, RetailModel.SalesVersionId, Mark.Bar, new Encoding(new FieldRef("channel"), new FieldRef("revenue", Agg.Sum)), filters);
+        new(1, RetailModel.SalesVersionId, Mark.Bar, new VizEncoding(new FieldRef("channel"), new FieldRef("revenue", Agg.Sum)), filters);
 
     [Fact]
     public void CacheKey_FilterOrder_DoesNotMatter()

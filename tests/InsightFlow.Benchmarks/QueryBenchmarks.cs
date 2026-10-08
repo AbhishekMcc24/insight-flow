@@ -20,13 +20,13 @@ namespace InsightFlow.Benchmarks;
 internal static class BenchmarkSpecs
 {
     public static readonly VizSpec RevenueByRegion = new(1, RetailModel.SalesVersionId, Mark.Bar,
-        new Encoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
+        new VizEncoding(new FieldRef("region"), new FieldRef("revenue", Agg.Sum)), []);
 
     public static readonly VizSpec MonthlyRevenueByChannel = new(1, RetailModel.SalesVersionId, Mark.Line,
-        new Encoding(new FieldRef("order_date", TimeUnit: TimeUnit.Month), new FieldRef("revenue", Agg.Sum), Color: new FieldRef("channel")), []);
+        new VizEncoding(new FieldRef("order_date", TimeUnit: TimeUnit.Month), new FieldRef("revenue", Agg.Sum), Color: new FieldRef("channel")), []);
 
     public static readonly VizSpec Top10ProductsInGermany = new(1, RetailModel.SalesVersionId, Mark.Bar,
-        new Encoding(new FieldRef("product_name"), new FieldRef("revenue", Agg.Sum)),
+        new VizEncoding(new FieldRef("product_name"), new FieldRef("revenue", Agg.Sum)),
         [new EqualsFilter("country", "Germany"), new TopNFilter("product_name", 10, new FieldRef("revenue", Agg.Sum))]);
 }
 

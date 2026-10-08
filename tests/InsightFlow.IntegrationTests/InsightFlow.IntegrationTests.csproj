@@ -1,11 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- End-to-end tests that start the whole AppHost via Aspire.Hosting.Testing. Require Docker; skipped when it is not available. -->
+  <!-- End-to-end tests that start the whole AppHost via Aspire.Hosting.Testing. Require Docker; skipped when it is not available.
+       AgentService is also hosted in-process (WebApplicationFactory) against the same infrastructure to swap in a scripted model. -->
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.Testing" />
     <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.AppHost\InsightFlow.AppHost.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.AgentService\InsightFlow.AgentService.csproj" Aliases="agentservice" />
     <ProjectReference Include="..\..\src\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
     <ProjectReference Include="..\..\src\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\src\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />

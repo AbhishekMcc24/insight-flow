@@ -85,7 +85,7 @@ public sealed class VizSpecJsonTests
             VizSpec.CurrentSchemaVersion,
             RetailModel.SalesVersionId,
             Mark.Line,
-            new Encoding(
+            new VizEncoding(
                 X: new FieldRef("order_date", TimeUnit: TimeUnit.Quarter),
                 Y: new FieldRef("revenue", Agg.Sum),
                 Color: new FieldRef("stores.region")),
@@ -104,7 +104,7 @@ public sealed class VizSpecJsonTests
     [Fact]
     public void Serialize_Enums_AreWrittenAsNames()
     {
-        var spec = new VizSpec(1, Guid.Empty, Mark.Heatmap, new Encoding(new FieldRef("a", Agg.CountDistinct), null), []);
+        var spec = new VizSpec(1, Guid.Empty, Mark.Heatmap, new VizEncoding(new FieldRef("a", Agg.CountDistinct), null), []);
 
         var json = VizSpecJson.Serialize(spec);
 
