@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- AI accuracy harness: runs the question set through the Analyst agent and compares result sets (not SQL text).
-       Usage is documented in README.md ("Run the evals"). -->
+       Usage is documented in README.md ("Run the evals") and at the top of Program.cs. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
@@ -8,8 +8,17 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
+    <ProjectReference Include="..\..\tests\InsightFlow.Testing\InsightFlow.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="questions.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <InternalsVisibleTo Include="InsightFlow.Agents.Tests" />
   </ItemGroup>
 </Project>

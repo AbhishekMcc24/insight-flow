@@ -1,0 +1,68 @@
+# AI accuracy evals (manual). Runs the 20-question analyst eval against a real provider and uploads the report.
+# Costs real tokens: trigger it deliberately (Actions → "AI evals" → Run workflow).
+# Secrets: ANTHROPIC_API_KEY and/or AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY (+ optional AZURE_OPENAI_DEPLOYMENT_LARGE).
+name: AI evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider to evaluate
+        type: choice
+        options: [anthropic, azure-openai]
+        default: anthropic
+      limit:
+        description: Number of questions (blank = all)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ inputs.provider }}
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build evals
+        run: dotnet build evals/InsightFlow.Evals -c Release
+
+      - name: Harness self-test (reference SQL, no model)
+        run: dotnet run -c Release --no-build --project evals/InsightFlow.Evals -- --provider reference --out eval-results
+
+      - name: Run eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+          AZURE_OPENAI_DEPLOYMENT_LARGE: ${{ vars.AZURE_OPENAI_DEPLOYMENT_LARGE }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          args=(--provider "${{ inputs.provider }}" --out eval-results)
+          if [ -n "$LIMIT" ]; then args+=(--limit "$LIMIT"); fi
+          dotnet run -c Release --no-build --project evals/InsightFlow.Evals -- "${args[@]}"
+
+      - name: Publish summary
+        if: always()
+        run: |
+          for f in eval-results/*.md; do cat "$f" >> "$GITHUB_STEP_SUMMARY"; echo >> "$GITHUB_STEP_SUMMARY"; done
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eval-results-${{ inputs.provider }}
+          path: eval-results/
+          retention-days: 90

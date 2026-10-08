@@ -9,5 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
     <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\evals\InsightFlow.Evals\InsightFlow.Evals.csproj" />
   </ItemGroup>
 </Project>

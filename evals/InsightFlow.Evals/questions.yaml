@@ -1,0 +1,113 @@
+# Insight Flow analyst eval set (v1).
+#
+# Each question is answered by the Analyst agent over the deterministic retail dataset (RetailDataGenerator, 5,000
+# rows, table `input`). The agent's final SQL is re-executed in the sandbox and its RESULT SET is compared with the
+# result of `expected_sql` (reviewed reference SQL) — never SQL text.
+#
+#   ordered:    true  → row order must match (rankings, time series); false → compared as a multiset
+#   tolerance:  relative tolerance for numbers (default 0.001 = 0.1 %)
+#   columns:    how many leading columns of the expected result must be matched (default: all)
+#
+# Keep questions phrased like a business user would ask them. Add new ones at the end; never renumber.
+
+questions:
+  - id: q01
+    question: What is the total revenue?
+    expected_sql: SELECT SUM(revenue) FROM input
+
+  - id: q02
+    question: How many order lines are there in total?
+    expected_sql: SELECT COUNT(*) FROM input
+
+  - id: q03
+    question: Show total revenue by region.
+    expected_sql: SELECT region, SUM(revenue) FROM input GROUP BY region
+
+  - id: q04
+    question: What are the top 5 products by revenue? List them from highest to lowest.
+    expected_sql: SELECT product_name, SUM(revenue) AS r FROM input GROUP BY product_name ORDER BY r DESC LIMIT 5
+    ordered: true
+
+  - id: q05
+    question: What is the average quantity per order line?
+    expected_sql: SELECT AVG(quantity) FROM input
+
+  - id: q06
+    question: Break down revenue by sales channel.
+    expected_sql: SELECT channel, SUM(revenue) FROM input GROUP BY channel
+
+  - id: q07
+    question: How many order lines were returned?
+    expected_sql: SELECT COUNT(*) FROM input WHERE is_returned
+
+  - id: q08
+    question: What percentage of order lines were returned? Give the percentage as a number between 0 and 100.
+    expected_sql: SELECT 100.0 * AVG(CASE WHEN is_returned THEN 1 ELSE 0 END) FROM input
+    tolerance: 0.01
+
+  - id: q09
+    question: Show monthly revenue for 2024, one row per month in date order.
+    expected_sql: |
+      SELECT date_trunc('month', order_date) AS m, SUM(revenue) FROM input
+      WHERE order_date >= DATE '2024-01-01' AND order_date < DATE '2025-01-01'
+      GROUP BY m ORDER BY m
+    ordered: true
+
+  - id: q10
+    question: Which country made the most profit (revenue minus cost)? Return the country and its profit.
+    expected_sql: SELECT country, SUM(revenue) - SUM(cost) AS p FROM input GROUP BY country ORDER BY p DESC LIMIT 1
+
+  - id: q11
+    question: What is the revenue per product category for the Online channel only?
+    expected_sql: SELECT category, SUM(revenue) FROM input WHERE channel = 'Online' GROUP BY category
+
+  - id: q12
+    question: How many units were sold in Germany?
+    expected_sql: SELECT SUM(quantity) FROM input WHERE country = 'Germany'
+
+  - id: q13
+    question: What was the average revenue per order line in 2025?
+    expected_sql: SELECT AVG(revenue) FROM input WHERE order_date >= DATE '2025-01-01' AND order_date < DATE '2026-01-01'
+
+  - id: q14
+    question: How many distinct products have been sold?
+    expected_sql: SELECT COUNT(DISTINCT product_name) FROM input
+
+  - id: q15
+    question: Which store has the most order lines? Return the store and the count.
+    expected_sql: SELECT store_name, COUNT(*) AS n FROM input GROUP BY store_name ORDER BY n DESC, store_name LIMIT 1
+
+  - id: q16
+    question: What is the profit margin (profit divided by revenue, as a percentage) for each region?
+    expected_sql: SELECT region, 100.0 * (SUM(revenue) - SUM(cost)) / SUM(revenue) FROM input GROUP BY region
+    tolerance: 0.005
+
+  - id: q17
+    question: Show quarterly revenue for 2023 in chronological order.
+    expected_sql: |
+      SELECT date_trunc('quarter', order_date) AS q, SUM(revenue) FROM input
+      WHERE order_date >= DATE '2023-01-01' AND order_date < DATE '2024-01-01'
+      GROUP BY q ORDER BY q
+    ordered: true
+
+  - id: q18
+    question: Which product category has the highest revenue, and what share of total revenue (in percent) does it represent?
+    expected_sql: |
+      SELECT category, 100.0 * SUM(revenue) / (SELECT SUM(revenue) FROM input) AS share
+      FROM input GROUP BY category ORDER BY share DESC LIMIT 1
+    tolerance: 0.005
+
+  - id: q19
+    question: How many order lines did each region have in the fourth quarter of 2025?
+    expected_sql: |
+      SELECT region, COUNT(*) FROM input
+      WHERE order_date >= DATE '2025-10-01' AND order_date < DATE '2026-01-01'
+      GROUP BY region
+
+  - id: q20
+    question: By what percentage did total revenue grow from 2024 to 2025?
+    expected_sql: |
+      SELECT 100.0 * (SUM(revenue) FILTER (WHERE year(order_date) = 2025) - SUM(revenue) FILTER (WHERE year(order_date) = 2024))
+             / SUM(revenue) FILTER (WHERE year(order_date) = 2024)
+      FROM input
+    tolerance: 0.01

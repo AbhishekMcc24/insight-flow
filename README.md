@@ -67,7 +67,7 @@ dotnet run -c Release --project tests/InsightFlow.Benchmarks -- --filter "*"
 
 ### Run the evals
 
-AI accuracy against the retail question set (Milestone 7; needs a provider key):
+AI accuracy against the 20-question retail set (see [evals/README.md](evals/README.md)). `--provider reference` self-tests the harness without keys; `anthropic` / `azure-openai` need a provider key:
 
 ```bash
 dotnet run --project evals/InsightFlow.Evals -- --provider anthropic
