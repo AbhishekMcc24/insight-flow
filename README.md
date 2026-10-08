@@ -4,8 +4,8 @@ Multi-tenant SaaS analytics: governed, drag-and-drop BI (semantic model, shelves
 AI-first exploration (derived fields, branching Data Threads). Every chart is a canonical `VizSpec` compiled to
 DuckDB SQL over Parquet extracts. The AI writes DuckDB SQL only, and it always runs in a locked-down sandbox.
 
-> Status: **foundation (milestones 1–9)**: orchestration, domain, persistence, query engine, connectors, AI sandbox
-> and agents, evals, the Web workspace, CI and Azure deployment config. Architecture docs and ADRs: `docs/`.
+> Status: **foundation (milestones 1–10)**: orchestration, domain, persistence, query engine, connectors, AI sandbox
+> and agents, evals, the Web workspace, CI and Azure deployment config. Start with [CLAUDE.md](CLAUDE.md), [docs/architecture.md](docs/architecture.md) and [docs/handoff-dev2.md](docs/handoff-dev2.md).
 
 ## Prerequisites
 
@@ -106,3 +106,4 @@ Manual and deliberate: see [docs/deploy.md](docs/deploy.md) (`aspire publish` to
 | `src/InsightFlow.Web` | Blazor Web App + Tailwind CSS v4 + Vega-Lite |
 | `tests/` | Unit, architecture, integration tests and benchmarks |
 | `evals/InsightFlow.Evals` | AI accuracy harness |
+| `docs/` | Architecture, ADRs, deploy guide, Developer 2 handoff, benchmarks, original prompt |
