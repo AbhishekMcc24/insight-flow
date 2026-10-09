@@ -18,5 +18,5 @@ The UI, the AI and saved workbooks all describe charts. If each had its own form
 
 ## Consequences
 
-+ The compiler (ADR 0006), the agent tool `ProposeChart` and the Vega-Lite builder (ADR 0009) all speak one language.
++ The compiler (ADR 0006), the agent tool `ProposeChart` and the ECharts option builder (ADR 0028) all speak one language.
 - Every new chart feature starts with a contract change and validator rules.

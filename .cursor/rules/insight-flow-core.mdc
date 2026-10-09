@@ -30,7 +30,7 @@ Read `CLAUDE.md` (repo rules), `docs/handoff-dev2.md` (Developer 2 areas, contra
 - AI-generated SQL runs only through `ISqlSandbox`. Column names never come from user or model text.
 - Credentials only as a `SecretReference` via `ISecretStore`.
 - Web references only Contracts + ServiceDefaults (and `InsightFlow.Domain.Viz`). No UI/JS outside Web, no CDN
-  scripts, no Telerik (the UI is Tailwind + Vega-Lite).
+  scripts, no Telerik (the UI is Tailwind + Apache ECharts).
 - Services never run EF migrations; only the migration service does.
 
 ## C# conventions

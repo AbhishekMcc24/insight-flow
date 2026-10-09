@@ -25,7 +25,7 @@ Working rules (for you **and** the AI assistant):
    - Check it against the dependency rules.
    - If it changes anything in Roy's areas (see §3), stop and get Roy's agreement before writing code.
 3. **Never guess package versions or API signatures.** Verify against NuGet, npm and the official docs
-   (learn.microsoft.com, aspire.dev, duckdb.org, tailwindcss.com, vega.github.io). Packages go in
+   (learn.microsoft.com, aspire.dev, duckdb.org, tailwindcss.com, echarts.apache.org). Packages go in
    `Directory.Packages.props` (Central Package Management) — never put a version in a csproj.
 4. **Small, reviewable pull requests.** One branch per feature (`feat/<area>-<thing>`) and one PR per milestone or
    smaller. Use Conventional Commits. CI must be green, and you complete the PR template checklist.
@@ -57,9 +57,9 @@ extracts. The AI writes **DuckDB SQL only**, runs it in a sandbox, and always sh
 | Area | Working today |
 |---|---|
 | Run & infra | Aspire AppHost: Postgres, Redis and Azurite containers, a migration service, Contoso Retail seed. `dotnet run --project src/InsightFlow.AppHost` → http://localhost:5100, signed in as Dev User |
-| Web (`src/InsightFlow.Web`) | Blazor Server + **Tailwind v4** + **Vega-Lite**. `/workspace` (Explorer · Data · Canvas · Assistant panes, resizable/collapsible), `/slice` chart builder, Home dataset list, dark mode. Tailwind primitives in `Components/Ui` (Button, Pane, DataTable, Alert, Spinner, EmptyState, Icon) |
+| Web (`src/InsightFlow.Web`) | Blazor Server + **Tailwind v4** + **Apache ECharts** (ADR 0028). `/workspace` (Explorer · Data · Canvas · Assistant panes, resizable/collapsible), `/slice` chart builder, Home dataset list, dark mode. Tailwind primitives in `Components/Ui` (Button, Pane, DataTable, Alert, Spinner, EmptyState, Icon) |
 | Explorer | My Workspace + Shared roots. OS drag-and-drop of files and folders with progress bars, drag-to-move, rename/delete, download, "Create dataset" (CSV/Parquet → Parquet extract) |
-| Charts | `VegaLiteSpecBuilder` (bar, line, area, point, pie, heatmap; table via `DataTable`), golden-tested. `VizRenderer` picks the renderer |
+| Charts | `EChartsOptionBuilder` (bar incl. stacked/horizontal, line, area, point, pie/donut, heatmap; table via `DataTable`), golden-tested; animations, morphing between marks, zoom, interactive legend, PNG export. `VizRenderer` picks the renderer |
 | Web → services | Typed clients (`WorkspaceApiClient`, `QueryApiClient`, `AgentApiClient`, `WorkspaceUploadClient`), `ServiceCallCredentials` (user identity forwarded), a BFF proxy for uploads/downloads (`/bff/...`, CSRF header `X-InsightFlow-Request`) |
 | Api (`src/InsightFlow.Api`) | `/api/v1/workspace/*` (tree, upload, download, move, delete, datasets, create dataset), `/api/v1/connections/*` (create, test, discover, trigger extract), `/api/v1/extract-runs/{id}`, `/api/v1/me` |
 | Connectors | **CSV, Parquet, SQL Server** done. **Excel, PostgreSQL, MySQL, Oracle, MongoDB, Cosmos DB** are registered stubs with implementation notes. `ConnectorContractTests` base class |
@@ -167,15 +167,15 @@ exact spots.
   - A workbook is a content item holding one or more named `VizSpec`s. The `Workbook` kind is reserved in `ContentKind`.
   - The persistence entity, DTOs and Api CRUD need Roy's review first.
   - In the Explorer, opening a workbook loads it.
-- **Vega-Lite:** facets, size/label channels, and number/date formats from the semantic model. Add golden tests for
-  every new case in `VegaLiteSpecBuilderTests`. A **new `Mark`** goes through Roy (the compiler and validator must
+- **ECharts:** facets (matrix coordinate system), size/label channels, and number/date formats from the semantic model. Add golden tests for
+  every new case in `EChartsOptionBuilderTests`. A **new `Mark`** goes through Roy (the compiler and validator must
   support it).
 
 ### D2-M4 — Dashboards
 - A Dashboard content item: a responsive grid of tiles, each tile a saved chart (VizSpec) or text.
 - Edit mode: add, resize, move, remove tiles. View mode: tiles load in parallel and show cache badges.
 - Dashboard-level filters applied to every tile (append `FilterSpec`s before querying).
-  TODO: cross-filtering by clicking a mark (Vega-Lite selections) — plan it with Roy.
+  TODO: cross-filtering by clicking or brushing a mark (ECharts events forwarded to .NET) — plan it with Roy.
 
 ### D2-M5 — Data Threads and AI UI
 - **Thread view:**

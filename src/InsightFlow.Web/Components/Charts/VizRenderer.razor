@@ -1,12 +1,12 @@
-@* Chooses the renderer for a chart: DataTable for the Table mark, Vega-Lite for everything else.
+@* Chooses the renderer for a chart: DataTable for the Table mark, Apache ECharts for everything else.
    TODO(dev2): add renderers behind this switch (e.g. KPI cards, maps) as new marks are introduced. *@
 @if (Result.Rows.Count == 0)
 {
     <EmptyState Title="No rows match this chart" />
 }
-else if (VegaLiteSpecBuilder.Supports(Spec.Mark))
+else if (EChartsOptionBuilder.Supports(Spec.Mark))
 {
-    <VegaLiteChart Spec="Spec" Result="Result" Class="@Class" />
+    <EChartsChart Spec="Spec" Result="Result" Class="@Class" />
 }
 else
 {
@@ -18,5 +18,5 @@ else
     [Parameter, EditorRequired] public QueryResult Result { get; set; } = default!;
     [Parameter] public string? Class { get; set; }
 
-    private string Header(QueryColumn column) => column.Field is { } field ? VegaLiteSpecBuilder.Title(field) : column.Name;
+    private string Header(QueryColumn column) => column.Field is { } field ? ChartLabels.Title(field) : column.Name;
 }

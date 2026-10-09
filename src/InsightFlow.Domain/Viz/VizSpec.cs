@@ -31,7 +31,7 @@ public sealed record SortSpec(string Field, SortDirection Direction);
 
 /// <summary>
 /// The canonical, versioned description of every chart (D5). The UI, the AI and saved workbooks all produce
-/// and consume this one record; the query engine compiles it to SQL and the Web renders it with Vega-Lite.
+/// and consume this one record; the query engine compiles it to SQL and the Web renders it with Apache ECharts.
 /// Bump <see cref="CurrentSchemaVersion"/> on breaking changes and add an upgrader.
 /// </summary>
 public sealed record VizSpec(

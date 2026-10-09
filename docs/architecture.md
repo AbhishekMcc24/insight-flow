@@ -12,7 +12,7 @@ Decisions and their reasons are in [docs/adr](adr/README.md). This page shows ho
 flowchart LR
     browser([Browser])
 
-    subgraph web["InsightFlow.Web (Blazor Server + Tailwind + Vega-Lite)"]
+    subgraph web["InsightFlow.Web (Blazor Server + Tailwind + ECharts)"]
         ui[Pages & components<br/>Workspace · Explorer · Slice · Assistant]
         bff[BFF endpoints<br/>/bff/workspace/*]
         clients[Typed HTTP clients<br/>+ ServiceCallCredentials]
@@ -85,7 +85,7 @@ flowchart LR
 | **Api** | Workspace Explorer (folders, uploads, downloads, create dataset), connections, extract runs |
 | **Worker** | Quartz (clustered, PostgreSQL store); claims and runs queued extract runs |
 | **MigrationService** | Applies migrations once; seeds Contoso Retail in Development |
-| **Web** | Tailwind UI, Vega-Lite rendering, BFF proxy for files, typed clients to the services |
+| **Web** | Tailwind UI, ECharts rendering, BFF proxy for files, typed clients to the services |
 
 ## Vertical slice: drop a file → chart
 
@@ -121,7 +121,7 @@ sequenceDiagram
     Q->>Q: compile → DuckDB over local Parquet cache (locked down)
     Q->>R: store result
     Q-->>W: rows + SQL + FromCache + duration
-    W->>W: VegaLiteSpecBuilder → vega-embed
+    W->>W: EChartsOptionBuilder → ECharts (canvas)
 ```
 
 ## Derived-field flow ("drop a field that doesn't exist yet")

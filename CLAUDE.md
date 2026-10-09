@@ -20,7 +20,7 @@ Start here: [docs/architecture.md](docs/architecture.md) · [docs/adr/](docs/adr
 | D6 | DuckDB.NET in-process over Parquet extracts; dialect seam for future pushdown |
 | D7 | AI writes DuckDB SQL only; single SELECT via DuckDB's parser; sandbox with external access off, config locked, timeout, row cap |
 | D8 | Microsoft Agent Framework on `IChatClient`; Azure OpenAI + Anthropic via a model router; no local LLMs |
-| D9 | Blazor Web App (Interactive Server) + **Tailwind CSS v4** + **Vega-Lite** (amended; no Telerik) |
+| D9 | Blazor Web App (Interactive Server) + **Tailwind CSS v4**; charts with **Apache ECharts** (ADR 0028; no Telerik) |
 | D10 | PostgreSQL + EF Core 10, JSONB for specs/schemas |
 | D11 | Redis query cache keyed by tenant + version + model + spec |
 | D12 | Data Threads = DAG of immutable `DatasetVersion`s |

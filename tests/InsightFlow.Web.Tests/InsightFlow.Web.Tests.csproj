@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Web unit tests: VizSpec + QueryResult -> Vega-Lite spec golden files (tests/InsightFlow.Testing/Golden.cs). -->
+  <!-- Web unit tests: VizSpec + QueryResult -> ECharts option golden files (tests/InsightFlow.Testing/Golden.cs). -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\InsightFlow.Web\InsightFlow.Web.csproj" />
     <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />

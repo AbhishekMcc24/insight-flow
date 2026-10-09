@@ -1,91 +1,129 @@
 {
-  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-  "width": "container",
-  "height": "container",
-  "autosize": {
-    "type": "fit",
-    "contains": "padding"
+  "backgroundColor": "transparent",
+  "color": [
+    "#3b6ee0",
+    "#f28e2b",
+    "#2fa37c",
+    "#e15759",
+    "#8e6ad8",
+    "#d4a72c",
+    "#4fb3d9",
+    "#b07aa1",
+    "#ff9da7",
+    "#9c755f"
+  ],
+  "textStyle": {
+    "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "color": "#475569"
   },
-  "background": "transparent",
-  "data": {
-    "values": [
-      {
-        "y": 500,
-        "color": "Toys"
-      },
-      {
-        "y": 300,
-        "color": "Books"
+  "animationDuration": 600,
+  "animationDurationUpdate": 450,
+  "animationEasing": "cubicOut",
+  "animationEasingUpdate": "cubicInOut",
+  "aria": {
+    "enabled": true
+  },
+  "toolbox": {
+    "right": 4,
+    "top": 0,
+    "itemSize": 13,
+    "iconStyle": {
+      "borderColor": "#64748b"
+    },
+    "emphasis": {
+      "iconStyle": {
+        "borderColor": "#3b6ee0"
       }
-    ]
-  },
-  "mark": {
-    "type": "arc",
-    "tooltip": true,
-    "innerRadius": 0
-  },
-  "encoding": {
-    "theta": {
-      "field": "y",
-      "type": "quantitative",
-      "title": "Revenue (sum)",
-      "stack": true
     },
-    "color": {
-      "field": "color",
-      "type": "nominal",
-      "title": "Category",
-      "sort": null
-    },
-    "tooltip": [
-      {
-        "field": "y",
-        "type": "quantitative",
-        "title": "Revenue (sum)",
-        "format": ",.2~f"
-      },
-      {
-        "field": "color",
-        "type": "nominal",
-        "title": "Category"
+    "feature": {
+      "saveAsImage": {
+        "title": "Save as PNG",
+        "pixelRatio": 2,
+        "backgroundColor": "#ffffff"
       }
-    ]
-  },
-  "config": {
-    "font": "Inter, ui-sans-serif, system-ui, sans-serif",
-    "view": {
-      "stroke": null
-    },
-    "range": {
-      "category": [
-        "#3b6ee0",
-        "#f28e2b",
-        "#2fa37c",
-        "#e15759",
-        "#8e6ad8",
-        "#d4a72c",
-        "#4fb3d9",
-        "#b07aa1",
-        "#ff9da7",
-        "#9c755f"
-      ]
-    },
-    "mark": {
-      "color": "#3b6ee0"
-    },
-    "axis": {
-      "labelColor": "#475569",
-      "titleColor": "#475569",
-      "gridColor": "#e2e8f0",
-      "domainColor": "#e2e8f0",
-      "tickColor": "#e2e8f0",
-      "labelFontSize": 11,
-      "titleFontSize": 12,
-      "titleFontWeight": 500
-    },
-    "legend": {
-      "labelColor": "#475569",
-      "titleColor": "#475569"
     }
-  }
+  },
+  "tooltip": {
+    "trigger": "item",
+    "confine": true,
+    "backgroundColor": "rgba(255, 255, 255, 0.98)",
+    "borderWidth": 0,
+    "textStyle": {
+      "color": "#0f172a"
+    },
+    "extraCssText": "border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); padding: 8px 12px;"
+  },
+  "legend": {
+    "type": "scroll",
+    "orient": "vertical",
+    "left": "auto",
+    "right": 4,
+    "top": "middle",
+    "icon": "roundRect",
+    "itemWidth": 12,
+    "itemHeight": 8,
+    "itemGap": 14,
+    "textStyle": {
+      "color": "#475569",
+      "fontSize": 12
+    },
+    "pageTextStyle": {
+      "color": "#64748b"
+    }
+  },
+  "series": [
+    {
+      "id": "s0",
+      "name": "Revenue (sum)",
+      "type": "pie",
+      "radius": [
+        "42%",
+        "72%"
+      ],
+      "center": [
+        "42%",
+        "52%"
+      ],
+      "avoidLabelOverlap": true,
+      "padAngle": 1.5,
+      "itemStyle": {
+        "borderRadius": 6,
+        "borderColor": "#ffffff",
+        "borderWidth": 2
+      },
+      "label": {
+        "show": true,
+        "formatter": "{b}\n{d}%",
+        "color": "#475569",
+        "fontSize": 11
+      },
+      "labelLine": {
+        "length": 8,
+        "length2": 8,
+        "lineStyle": {
+          "color": "#e2e8f0"
+        }
+      },
+      "emphasis": {
+        "scale": true,
+        "scaleSize": 6,
+        "label": {
+          "fontWeight": "bold"
+        }
+      },
+      "data": [
+        {
+          "name": "Toys",
+          "value": 500
+        },
+        {
+          "name": "Books",
+          "value": 300
+        }
+      ],
+      "universalTransition": {
+        "enabled": true
+      }
+    }
+  ]
 }

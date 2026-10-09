@@ -1,7 +1,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject ThemeState Theme
-@* Renders a VizSpec + QueryResult with Vega-Lite (vega-embed). The spec JSON is built server-side by VegaLiteSpecBuilder. *@
+@* Renders a VizSpec + QueryResult with Apache ECharts. The option JSON is built server-side by EChartsOptionBuilder. *@
 
 <div @ref="_element" class="size-full min-h-64 @Class" role="img" aria-label="@AriaLabel"></div>
 
@@ -20,13 +20,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var json = VegaLiteSpecBuilder.BuildJson(Spec, Result, Theme.Dark);
+        var json = EChartsOptionBuilder.BuildJson(Spec, Result, Theme.Dark);
         if (json == _renderedJson)
         {
             return;
         }
 
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/vegaInterop.js");
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/echartsInterop.js");
         await _module.InvokeVoidAsync("render", _element, json);
         _renderedJson = json;
     }

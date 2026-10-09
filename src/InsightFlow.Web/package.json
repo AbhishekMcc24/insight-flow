@@ -1,18 +1,16 @@
 {
   "name": "insightflow-web",
   "private": true,
-  "description": "Front-end build for InsightFlow.Web: Tailwind CSS v4 and vendored Vega-Lite bundles. Run via MSBuild; see docs/adr/0009.",
+  "description": "Front-end build for InsightFlow.Web: Tailwind CSS v4 and the vendored Apache ECharts bundle. Run via MSBuild; see docs/adr/0028.",
   "scripts": {
     "build:css": "tailwindcss -i ./Styles/app.css -o ./wwwroot/css/app.css --minify",
     "watch:css": "tailwindcss -i ./Styles/app.css -o ./wwwroot/css/app.css --watch"
   },
-  "dependencies": {
-    "vega": "6.4.0",
-    "vega-embed": "7.3.0",
-    "vega-lite": "6.4.3"
-  },
   "devDependencies": {
     "@tailwindcss/cli": "4.3.3",
     "tailwindcss": "4.3.3"
+  },
+  "dependencies": {
+    "echarts": "6.1.0"
   }
 }

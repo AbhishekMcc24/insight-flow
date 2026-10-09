@@ -10,7 +10,7 @@ Cursor also loads the always-on rules in `.cursor/rules/`.
 
 | Area | Project(s) | State today |
 |---|---|---|
-| UI | `src/InsightFlow.Web` | Tailwind shell, workspace grid, Explorer (drag-and-drop), `/slice` chart builder, Assistant chat, Vega-Lite renderer |
+| UI | `src/InsightFlow.Web` | Tailwind shell, workspace grid, Explorer (drag-and-drop), `/slice` chart builder, Assistant chat, ECharts renderer |
 | Public API | `src/InsightFlow.Api` | Workspace Explorer endpoints, connections + extracts (create/test/discover/trigger), extract runs |
 | Connectors | `src/InsightFlow.Connectors` | CSV, Parquet, Excel, SQL Server, PostgreSQL, MySQL, Oracle, MongoDB and Cosmos DB |
 | Jobs | `src/InsightFlow.Worker` | Quartz (clustered), extract-run processor |
@@ -127,14 +127,14 @@ Scalar API docs are served in Development at `/scalar` on each API service. The 
 }
 ```
 
-`VizRenderer` picks Vega-Lite or `DataTable`. Catch `ServiceCallException` and show `<Alert Message=…/>`. For a
+`VizRenderer` picks ECharts or `DataTable`. Catch `ServiceCallException` and show `<Alert Message=…/>`. For a
 full builder, reuse `Components/Workspace/SliceBuilder.razor`.
 
-### Add a mark or encoding to the Vega-Lite builder
+### Add a mark or encoding to the ECharts builder
 
 1. If it is a new mark, add it to `Mark` (Roy's area: the compiler and validator must support it) — talk to Roy first.
-2. In `src/InsightFlow.Web/Charts/VegaLiteSpecBuilder.cs`, map it in `MarkDefinition` and in `Encoding`.
-3. Add a golden test in `tests/InsightFlow.Web.Tests/VegaLiteSpecBuilderTests.cs`. Run it once, review
+2. In `src/InsightFlow.Web/Charts/EChartsOptionBuilder.cs`, add a case in `Build` (see `Cartesian`, `Pie`, `Heatmap`, `Scatter`). Formatters that need JS functions go in `wwwroot/js/echartsInterop.js`.
+3. Add a golden test in `tests/InsightFlow.Web.Tests/EChartsOptionBuilderTests.cs`. Run it once, review
    `Golden/<name>.received.json`, and accept it (rename, or rerun with `INSIGHTFLOW_ACCEPT_GOLDEN=1`).
 
 ### Add a Tailwind UI component
@@ -169,7 +169,7 @@ Run `git grep -n "TODO(dev2)"` for the live list.
 **Web (`src/InsightFlow.Web`)**
 - Workspace Data pane: semantic-model fields (dimensions/measures), drag to shelves, calculated fields (`Pages/WorkspacePage.razor`).
 - Chart builder: drag fields onto shelves, filters UI, saved charts / workbooks (`Workspace/SliceBuilder.razor`).
-- Vega-Lite: facets, size/label channels, box plot, density, selections, cross-filtering (`Charts/VegaLiteSpecBuilder.cs`).
+- ECharts: facets (matrix), size/label channels, box plot, click/brush events → cross-filtering, tree-shaken bundle (`Charts/EChartsOptionBuilder.cs`, ADR 0028).
 - More renderers behind `VizRenderer` (KPI cards, maps).
 - Explorer: trash/restore, sharing, search, multi-select, keyboard navigation, live refresh (`Workspace/ExplorerPane.razor`).
 - Assistant: Data Thread view (branching history), derived-field UI, conversation memory (`Workspace/AnalystChat.razor`).

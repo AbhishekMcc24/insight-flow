@@ -17,7 +17,7 @@ BenchmarkDotNet.Artifacts/
 # Node / front-end build output (generated on build)
 node_modules/
 src/InsightFlow.Web/wwwroot/css/app.css
-src/InsightFlow.Web/wwwroot/lib/vega/
+src/InsightFlow.Web/wwwroot/lib/echarts/
 
 # Local data, caches and secrets — never commit
 .env
