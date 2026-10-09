@@ -1,14 +1,11 @@
 using System.Security.Cryptography;
-using Azure;
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 using Microsoft.Extensions.Options;
 
 namespace InsightFlow.Api.Workspace;
 
-/// <summary>Raw bytes of uploaded files (Blob container <c>files</c>). Paths are built from ids only.</summary>
+/// <summary>Raw bytes of uploaded files under the shared storage directory. Paths are built from ids only.</summary>
 public interface IFileStore
 {
     /// <summary>Streams <paramref name="content"/> to <c>tenants/{tenant}/files/{id}</c>; never overwrites.</summary>
@@ -19,34 +16,33 @@ public interface IFileStore
     Task DeleteAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken);
 }
 
-internal sealed class BlobFileStore(BlobServiceClient blobs, IOptions<UploadOptions> options) : IFileStore
+internal sealed class DirectoryFileStore(IOptions<UploadOptions> options) : IFileStore
 {
-    private int _containerEnsured;
-
-    public async Task UploadAsync(TenantId tenant, Guid storedFileId, Stream content, string contentType, CancellationToken cancellationToken)
+    public Task UploadAsync(TenantId tenant, Guid storedFileId, Stream content, string contentType, CancellationToken cancellationToken)
     {
-        var container = blobs.GetBlobContainerClient(options.Value.FilesContainer);
-        if (Interlocked.CompareExchange(ref _containerEnsured, 1, 0) == 0)
-        {
-            await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        }
-
-        await container.GetBlobClient(StoragePaths.File(tenant, storedFileId)).UploadAsync(content, new BlobUploadOptions
-        {
-            HttpHeaders = new BlobHttpHeaders { ContentType = contentType },
-            Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All },
-        }, cancellationToken);
+        _ = contentType;
+        return LocalStorage.WriteNewAsync(options.Value.StorageRoot, StoragePaths.File(tenant, storedFileId), content, cancellationToken);
     }
 
-    public async Task<Stream> OpenReadAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken) =>
-        await blobs.GetBlobContainerClient(options.Value.FilesContainer)
-            .GetBlobClient(StoragePaths.File(tenant, storedFileId))
-            .OpenReadAsync(cancellationToken: cancellationToken);
+    public Task<Stream> OpenReadAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = LocalStorage.Resolve(options.Value.StorageRoot, StoragePaths.File(tenant, storedFileId));
+        Stream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81_920, useAsync: true);
+        return Task.FromResult(stream);
+    }
 
-    public async Task DeleteAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken) =>
-        await blobs.GetBlobContainerClient(options.Value.FilesContainer)
-            .GetBlobClient(StoragePaths.File(tenant, storedFileId))
-            .DeleteIfExistsAsync(cancellationToken: cancellationToken);
+    public Task DeleteAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = LocalStorage.Resolve(options.Value.StorageRoot, StoragePaths.File(tenant, storedFileId));
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
+
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>Thrown when an upload exceeds the per-file size limit.</summary>
@@ -69,7 +65,7 @@ public sealed class UploadTooLargeException : Exception
 
 /// <summary>
 /// Read-through stream that counts bytes, computes SHA-256 incrementally and enforces a size limit, so an upload is
-/// hashed and bounded while it streams to Blob Storage — nothing is buffered in memory.
+/// hashed and bounded while it streams to the storage directory — nothing is buffered in memory.
 /// </summary>
 internal sealed class HashingStream(Stream inner, long maxBytes) : Stream
 {

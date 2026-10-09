@@ -13,7 +13,8 @@ DuckDB SQL over Parquet extracts. The AI writes DuckDB SQL only, and it always r
 |---|---|---|
 | .NET SDK | 10.0.401+ (pinned in `global.json`) | |
 | Aspire CLI | 13.6+ | `aspire run` |
-| Docker Desktop (or Podman) | running | Postgres, Redis and Azurite run as containers |
+| PostgreSQL | 17 | Local server on port 5432. Not required when `InsightFlow:EphemeralInfrastructure=true` (integration tests) |
+| Garnet | current | Redis-compatible server on port 6379 (`dotnet tool install -g Microsoft.Garnet`) |
 | Node.js | 22+ (npm 10+) | Builds Tailwind CSS and vendors Vega-Lite for `InsightFlow.Web` (runs automatically during `dotnet build`) |
 
 ## Run locally
@@ -22,8 +23,13 @@ DuckDB SQL over Parquet extracts. The AI writes DuckDB SQL only, and it always r
 aspire run
 ```
 
-This starts PostgreSQL, Redis, the Azurite storage emulator, the migration step and all services. The dashboard URL
-is printed in the console. The Web app is at http://localhost:5100.
+This starts migrations and all services against PostgreSQL and Garnet already listening on localhost
+(connection strings in AppHost `appsettings.Development.json` and user-secrets). Uploaded files and Parquet
+extracts are stored under `%LOCALAPPDATA%\InsightFlow\storage`. The dashboard URL is printed in the console.
+The Web app is at http://localhost:5100.
+
+Integration tests still start throwaway containers. That path needs Docker and is selected with
+`InsightFlow:EphemeralInfrastructure=true`.
 
 ### AI provider keys (optional)
 

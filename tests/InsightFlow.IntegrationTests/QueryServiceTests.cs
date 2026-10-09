@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Azure.Storage.Blobs;
 using InsightFlow.Contracts;
 using InsightFlow.Contracts.Query;
 using InsightFlow.Domain.Modeling;
@@ -16,7 +15,7 @@ using InsightFlow.Testing;
 namespace InsightFlow.IntegrationTests;
 
 /// <summary>
-/// End to end through QueryService: a Parquet extract in Azurite + a dataset version row → chart query over HTTP,
+/// End to end through QueryService: a Parquet extract on disk + a dataset version row → chart query over HTTP,
 /// served from Redis on repeat, invisible to other tenants.
 /// </summary>
 public sealed class QueryServiceTests(AppHostFixture fixture)
@@ -43,10 +42,8 @@ public sealed class QueryServiceTests(AppHostFixture fixture)
         await RetailDataGenerator.WriteDenormalizedAsync(file, Rows, csv: false, Ct);
         try
         {
-            var blobs = new BlobServiceClient(await fixture.App.GetConnectionStringAsync("blobs", Ct));
-            var container = blobs.GetBlobContainerClient("extracts");
-            await container.CreateIfNotExistsAsync(cancellationToken: Ct);
-            await container.GetBlobClient(StoragePaths.Extract(Contoso, id)).UploadAsync(file, Ct);
+            var root = await fixture.App.GetConnectionStringAsync("storage", Ct);
+            await LocalStorage.CopyNewAsync(root!, StoragePaths.Extract(Contoso, id), file, Ct);
         }
         finally
         {

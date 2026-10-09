@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -246,22 +247,78 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
     }
 
     [Fact]
-    public async Task CreateDataset_FromNonTabularFile_IsRejected_AndExcelIsNotImplementedYet()
+    public async Task CreateDataset_FromNonTabularFile_IsRejected_AndExcelExtracts()
     {
         fixture.RequireRunning();
         var caller = Caller.NewTenant();
         var root = (await RootsAsync(caller)).MyWorkspace;
-        var upload = await UploadAsync(caller, root.Id, ("notes.md", Encoding.UTF8.GetBytes("x")), ("book.xlsx", [0x50, 0x4B]));
+        var upload = await UploadAsync(caller, root.Id, ("notes.md", Encoding.UTF8.GetBytes("x")), ("book.xlsx", TinyWorkbook()));
 
         using var md = await SendAsync(caller, HttpMethod.Post, $"/api/v1/workspace/items/{upload.Files[0].ItemId}/dataset", new RenameRequest(string.Empty), Json.RenameRequest);
         using var xlsx = await SendAsync(caller, HttpMethod.Post, $"/api/v1/workspace/items/{upload.Files[1].ItemId}/dataset", new RenameRequest(string.Empty), Json.RenameRequest);
 
         md.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        xlsx.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+        xlsx.StatusCode.ShouldBe(HttpStatusCode.Accepted, await xlsx.Content.ReadAsStringAsync(Ct));
+        var runId = (await xlsx.Content.ReadFromJsonAsync(Json.ExtractQueuedResponse, Ct))!.RunId;
+        var run = await WaitForRunAsync(caller, runId);
+        run.Status.ShouldBe("Succeeded", run.Error);
+        run.RowCount.ShouldBe(2);
+    }
+
+    private static byte[] TinyWorkbook()
+    {
+        using var stream = new MemoryStream();
+        using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            Write(zip, "[Content_Types].xml", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+                  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+                </Types>
+                """);
+            Write(zip, "_rels/.rels", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+                </Relationships>
+                """);
+            Write(zip, "xl/workbook.xml", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <sheets><sheet name="Orders" sheetId="1" r:id="rId1"/></sheets>
+                </workbook>
+                """);
+            Write(zip, "xl/_rels/workbook.xml.rels", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+                </Relationships>
+                """);
+            Write(zip, "xl/worksheets/sheet1.xml", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
+                  <row r="1"><c r="A1" t="inlineStr"><is><t>region</t></is></c><c r="B1" t="inlineStr"><is><t>amount</t></is></c></row>
+                  <row r="2"><c r="A2" t="inlineStr"><is><t>North</t></is></c><c r="B2"><v>1</v></c></row>
+                  <row r="3"><c r="A3" t="inlineStr"><is><t>South</t></is></c><c r="B3"><v>2</v></c></row>
+                </sheetData></worksheet>
+                """);
+        }
+
+        return stream.ToArray();
+
+        static void Write(ZipArchive zip, string name, string xml)
+        {
+            var entry = zip.CreateEntry(name);
+            using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            writer.Write(xml);
+        }
     }
 
     [Fact]
-    public async Task Connections_SecretIsNeverReturned_StubsAreNotImplemented_UnreachableTestFailsGracefully()
+    public async Task Connections_SecretIsNeverReturned_AndUnreachableTestFailsGracefully()
     {
         fixture.RequireRunning();
         var caller = Caller.NewTenant();
@@ -284,7 +341,15 @@ public sealed class WorkspaceApiTests(AppHostFixture fixture)
 
         using var mongo = await SendAsync(caller, HttpMethod.Post, "/api/v1/connections",
             request with { Kind = "MongoDb" }, Json.CreateConnectionRequest);
-        mongo.StatusCode.ShouldBe(HttpStatusCode.NotImplemented);
+        var mongoBody = await mongo.Content.ReadAsStringAsync(Ct);
+        mongo.StatusCode.ShouldBe(HttpStatusCode.Created, mongoBody);
+        mongoBody.ShouldNotContain("Sup3r-S3cret!");
+        var mongoConnection = (await mongo.Content.ReadFromJsonAsync(Json.ConnectionDto, Ct))!;
+        using var mongoTest = await SendAsync(caller, HttpMethod.Post, $"/api/v1/connections/{mongoConnection.Id}/test", new RenameRequest(string.Empty), Json.RenameRequest);
+        mongoTest.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var mongoResult = (await mongoTest.Content.ReadFromJsonAsync(Json.ConnectionTestResponse, Ct))!;
+        mongoResult.Success.ShouldBeFalse();
+        mongoResult.Message.ShouldNotContain("Sup3r-S3cret!");
 
         var viewer = caller with { Role = InsightFlowRoles.Viewer };
         using var forbidden = await SendAsync(viewer, HttpMethod.Post, "/api/v1/connections", request, Json.CreateConnectionRequest);

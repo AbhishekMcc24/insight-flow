@@ -4,6 +4,7 @@ using InsightFlow.Api.Workspace;
 using InsightFlow.Connectors;
 using InsightFlow.Contracts;
 using InsightFlow.Domain.Tenancy;
+using InsightFlow.Domain.Threads;
 using InsightFlow.Domain.Workspace;
 using InsightFlow.Persistence;
 using InsightFlow.ServiceDefaults.Security;
@@ -20,7 +21,6 @@ builder.Services.AddInsightFlowPersistence(
 builder.EnrichNpgsqlDbContext<InsightFlowDbContext>();
 
 builder.AddRedisDistributedCache("redis");
-builder.AddAzureBlobServiceClient("blobs");
 
 // Secrets: Key Vault when the AppHost wired one (publish mode), otherwise a per-user local file outside the repo.
 var useKeyVault = !string.IsNullOrEmpty(builder.Configuration.GetConnectionString("keyvault"));
@@ -35,8 +35,11 @@ builder.Services.AddInsightFlowConnectors(builder.Configuration);
 builder.Services.AddOptions<UploadOptions>()
     .Bind(builder.Configuration.GetSection(UploadOptions.SectionName))
     .ValidateDataAnnotations()
-    .ValidateOnStart();
-builder.Services.AddSingleton<IFileStore, BlobFileStore>();
+    .ValidateOnStart()
+    .PostConfigure(o => o.StorageRoot = LocalStorage.ChooseRoot(
+        builder.Configuration[LocalStorage.RootConfigurationKey],
+        builder.Configuration.GetConnectionString(LocalStorage.ConnectionStringName)));
+builder.Services.AddSingleton<IFileStore, DirectoryFileStore>();
 builder.Services.AddSingleton<IUploadScanner, NoOpUploadScanner>();
 builder.Services.AddSingleton<IContentPermissionEvaluator, ContentPermissionEvaluator>();
 builder.Services.AddScoped<WorkspaceService>();

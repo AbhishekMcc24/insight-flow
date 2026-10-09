@@ -9,9 +9,9 @@ internal static class ResourceNames
 {
     public const string Database = "insightflow";
     public const string Redis = "redis";
-    public const string Blobs = "blobs";
-    public const string ExtractsContainer = "extracts";
-    public const string FilesContainer = "files";
+
+    /// <summary>Connection string whose value is the shared file-storage directory (not a database).</summary>
+    public const string Storage = "storage";
     public const string Migrations = "migrations";
     public const string QueryService = "queryservice";
     public const string AgentService = "agentservice";

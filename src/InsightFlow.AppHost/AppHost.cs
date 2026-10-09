@@ -19,54 +19,71 @@ var keyVault = isPublish ? builder.AddAzureKeyVault("keyvault") : null;
 var entra = isPublish ? CloudConfiguration.EntraParameters.Add(builder) : null;
 
 // ---------------------------------------------------------------------------------------------
-// Backing services: Azure resources when published, containers/emulators locally.
-// Local containers persist data across `aspire run`; integration tests set
-// InsightFlow:EphemeralInfrastructure=true to get fresh, throwaway containers instead.
+// Backing services.
+// Publish: Azure Postgres and Managed Redis. Files live in the storage-root directory on the server.
+// Integration tests (InsightFlow:EphemeralInfrastructure=true): throwaway Postgres and Redis containers.
+// Everyday local run: no Docker or WSL. Postgres and a Redis-compatible server are expected on
+// localhost; files go under %LOCALAPPDATA%\InsightFlow\storage.
 // ---------------------------------------------------------------------------------------------
 var ephemeral = bool.TryParse(builder.Configuration["InsightFlow:EphemeralInfrastructure"], out var e) && e;
 
-var postgres = builder.AddAzurePostgresFlexibleServer("postgres")
-    .RunAsContainer(pg =>
-    {
-        if (!ephemeral)
-        {
-            pg.WithDataVolume("insightflow-postgres-data").WithLifetime(ContainerLifetime.Persistent);
-        }
-    });
-if (keyVault is not null)
+IResourceBuilder<IResourceWithConnectionString> database;
+IResourceBuilder<IResourceWithConnectionString> redis;
+IResourceBuilder<ParameterResource>? publishedStorage = null;
+string? localStorage = null;
+
+if (isPublish)
 {
-    // Services, EF Core and the Quartz job store connect with plain Npgsql connection strings, so Azure uses password
-    // auth with the connection string kept in Key Vault. TODO(dev2): move to Entra token auth (docs/adr/0023).
-    postgres.WithPasswordAuthentication(keyVault);
+    var postgres = builder.AddAzurePostgresFlexibleServer("postgres");
+    if (keyVault is not null)
+    {
+        // Services, EF Core and the Quartz job store connect with plain Npgsql connection strings, so Azure uses password
+        // auth with the connection string kept in Key Vault. TODO(dev2): move to Entra token auth (docs/adr/0023).
+        postgres.WithPasswordAuthentication(keyVault);
+    }
+
+    database = postgres.AddDatabase(ResourceNames.Database);
+
+    var redisServer = builder.AddAzureManagedRedis(ResourceNames.Redis);
+    if (keyVault is not null)
+    {
+        // The services use the plain StackExchange.Redis client: access-key auth, key stored in Key Vault (docs/adr/0023).
+        redisServer.WithAccessKeyAuthentication(keyVault);
+    }
+
+    redis = redisServer;
+    publishedStorage = builder.AddParameter("storage-root");
+}
+else if (ephemeral)
+{
+    var postgres = builder.AddAzurePostgresFlexibleServer("postgres").RunAsContainer();
+    database = postgres.AddDatabase(ResourceNames.Database);
+    redis = builder.AddAzureManagedRedis(ResourceNames.Redis).RunAsContainer();
+    localStorage = Path.Combine(Path.GetTempPath(), "insightflow", "ephemeral", Guid.NewGuid().ToString("N"));
+}
+else
+{
+    database = builder.AddConnectionString(ResourceNames.Database);
+    redis = builder.AddConnectionString(ResourceNames.Redis);
+    localStorage = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "InsightFlow",
+        "storage");
 }
 
-var database = postgres.AddDatabase(ResourceNames.Database);
-
-var redis = builder.AddAzureManagedRedis(ResourceNames.Redis)
-    .RunAsContainer(r =>
-    {
-        if (!ephemeral)
-        {
-            r.WithLifetime(ContainerLifetime.Persistent);
-        }
-    });
-if (keyVault is not null)
+if (localStorage is not null)
 {
-    // The services use the plain StackExchange.Redis client: access-key auth, key stored in Key Vault (docs/adr/0023).
-    redis.WithAccessKeyAuthentication(keyVault);
+    Directory.CreateDirectory(localStorage);
+    builder.Configuration["ConnectionStrings:storage"] = localStorage;
+    builder.AddConnectionString(ResourceNames.Storage);
 }
 
-var storage = builder.AddAzureStorage("storage")
-    .RunAsEmulator(e =>
-    {
-        if (!ephemeral)
-        {
-            e.WithDataVolume("insightflow-azurite-data").WithLifetime(ContainerLifetime.Persistent);
-        }
-    });
-var blobs = storage.AddBlobs(ResourceNames.Blobs);
-storage.AddBlobContainer(ResourceNames.ExtractsContainer);
-storage.AddBlobContainer(ResourceNames.FilesContainer);
+IResourceBuilder<ProjectResource> WaitForData(IResourceBuilder<ProjectResource> project) => project.WaitFor(redis);
+
+IResourceBuilder<ProjectResource> WithFileStorage(IResourceBuilder<ProjectResource> project) =>
+    publishedStorage is not null
+        ? project.WithEnvironment("FileStorage__Root", publishedStorage)
+        : project.WithEnvironment("FileStorage__Root", localStorage!);
 
 // ---------------------------------------------------------------------------------------------
 // Application services
@@ -81,50 +98,39 @@ if (isPublish)
     migrations.WithEnvironment("Migrations__KeepAlive", "true");
 }
 
-var queryService = builder.AddProject<Projects.InsightFlow_QueryService>(ResourceNames.QueryService)
+var queryService = WaitForData(WithFileStorage(builder.AddProject<Projects.InsightFlow_QueryService>(ResourceNames.QueryService)
     .WithReference(database)
-    .WithReference(redis)
-    .WithReference(blobs)
-    .WaitFor(redis)
-    .WaitFor(storage)
+    .WithReference(redis)))
     .WaitForCompletion(migrations)
     .WithKeyVault(keyVault)
     .WithEntraApi(entra)
     .WithReplicas(min: 1, max: 5);
 
-var agentService = builder.AddProject<Projects.InsightFlow_AgentService>(ResourceNames.AgentService)
+var agentService = WaitForData(WithFileStorage(builder.AddProject<Projects.InsightFlow_AgentService>(ResourceNames.AgentService)
     .WithReference(database)
     .WithReference(redis)
-    .WithReference(blobs)
     .WithReference(queryService)
     // AI provider settings: AppHost user-secrets locally (optional; unset providers are disabled),
     // secure deployment parameters in Azure. See README "AI provider keys".
     .WithOptionalParameter("Ai__AzureOpenAI__Endpoint", "azure-openai-endpoint", secret: false)
     .WithOptionalParameter("Ai__AzureOpenAI__ApiKey", "azure-openai-api-key", secret: true)
-    .WithOptionalParameter("Ai__Anthropic__ApiKey", "anthropic-api-key", secret: true)
-    .WaitFor(redis)
-    .WaitFor(storage)
+    .WithOptionalParameter("Ai__Anthropic__ApiKey", "anthropic-api-key", secret: true)))
     .WaitForCompletion(migrations)
     .WithKeyVault(keyVault)
     .WithEntraApi(entra)
     .WithReplicas(min: 1, max: 3);
 
-var api = builder.AddProject<Projects.InsightFlow_Api>(ResourceNames.Api)
+var api = WaitForData(WithFileStorage(builder.AddProject<Projects.InsightFlow_Api>(ResourceNames.Api)
     .WithReference(database)
     .WithReference(redis)
-    .WithReference(blobs)
-    .WithReference(queryService)
-    .WaitFor(redis)
-    .WaitFor(storage)
+    .WithReference(queryService)))
     .WaitForCompletion(migrations)
     .WithKeyVault(keyVault)
     .WithEntraApi(entra)
     .WithReplicas(min: 1, max: 5);
 
-builder.AddProject<Projects.InsightFlow_Worker>(ResourceNames.Worker)
-    .WithReference(database)
-    .WithReference(blobs)
-    .WaitFor(storage)
+WaitForData(WithFileStorage(builder.AddProject<Projects.InsightFlow_Worker>(ResourceNames.Worker)
+    .WithReference(database)))
     .WaitForCompletion(migrations)
     .WithKeyVault(keyVault)
     // Quartz runs clustered (one node fires each trigger); extract runs are claimed with SKIP LOCKED.

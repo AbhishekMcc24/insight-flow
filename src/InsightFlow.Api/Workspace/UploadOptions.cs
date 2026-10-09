@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using InsightFlow.Domain.Threads;
 
 namespace InsightFlow.Api.Workspace;
 
@@ -7,8 +8,9 @@ public sealed class UploadOptions
 {
     public const string SectionName = "Uploads";
 
+    /// <summary>Directory shared with the Worker and QueryService (<c>FileStorage:Root</c>). Filled in at startup.</summary>
     [Required]
-    public string FilesContainer { get; set; } = "files";
+    public string StorageRoot { get; set; } = LocalStorage.DefaultRoot;
 
     /// <summary>Maximum size of one file (default 2 GiB).</summary>
     [Range(1, long.MaxValue)]

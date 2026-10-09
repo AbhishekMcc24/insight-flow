@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using InsightFlow.Domain.Threads;
 
 namespace InsightFlow.Connectors;
 
@@ -11,11 +12,9 @@ public sealed class ConnectorOptions
     [Required]
     public string WorkDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "insightflow", "extract-work");
 
+    /// <summary>Directory shared with the Api and QueryService (<c>FileStorage:Root</c>). Filled in at startup.</summary>
     [Required]
-    public string ExtractsContainer { get; set; } = "extracts";
-
-    [Required]
-    public string FilesContainer { get; set; } = "files";
+    public string StorageRoot { get; set; } = LocalStorage.DefaultRoot;
 
     /// <summary>DuckDB memory limit for one extract (larger data spills to <see cref="WorkDirectory"/>).</summary>
     [Required]

@@ -4,9 +4,9 @@ using InsightFlow.Domain.Threads;
 namespace InsightFlow.Query.Storage;
 
 /// <summary>
-/// Where Parquet extracts live. The durable copy is in Blob Storage under
-/// <c>tenants/{tenantId}/extracts/{datasetVersionId}.parquet</c>; queries read a local copy because DuckDB runs with
-/// external access disabled (only <see cref="LocalRoot"/> is readable).
+/// Where Parquet extracts live. The durable copy is a file under the shared storage directory
+/// (<c>tenants/{tenantId}/extracts/{datasetVersionId}.parquet</c>). Queries read a copy in <see cref="LocalRoot"/>
+/// because DuckDB runs with external access disabled.
 /// </summary>
 public interface IExtractStore
 {
@@ -17,8 +17,8 @@ public interface IExtractStore
     Task<string> GetLocalPathAsync(DatasetVersion version, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Stores a new extract (immutable: an existing blob is never overwritten) and warms the local cache.
-    /// Returns the blob URI.
+    /// Stores a new extract (immutable: an existing file is never overwritten) and warms the local cache.
+    /// Returns the file URI.
     /// </summary>
     Task<Uri> SaveAsync(TenantId tenant, Guid datasetVersionId, Stream parquet, CancellationToken cancellationToken);
 }

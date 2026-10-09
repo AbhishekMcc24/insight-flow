@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using InsightFlow.Domain.Threads;
 
 namespace InsightFlow.Query;
 
@@ -7,9 +8,9 @@ public sealed class QueryEngineOptions
 {
     public const string SectionName = "QueryEngine";
 
-    /// <summary>Blob container that holds Parquet extracts.</summary>
+    /// <summary>Directory shared with the Api and Worker (<c>FileStorage:Root</c>). Filled in at startup.</summary>
     [Required]
-    public string ExtractsContainer { get; set; } = "extracts";
+    public string StorageRoot { get; set; } = LocalStorage.DefaultRoot;
 
     /// <summary>Local directory of the extract cache (the only directory DuckDB may read).</summary>
     [Required]

@@ -12,7 +12,7 @@ Cursor also loads the always-on rules in `.cursor/rules/`.
 |---|---|---|
 | UI | `src/InsightFlow.Web` | Tailwind shell, workspace grid, Explorer (drag-and-drop), `/slice` chart builder, Assistant chat, Vega-Lite renderer |
 | Public API | `src/InsightFlow.Api` | Workspace Explorer endpoints, connections + extracts (create/test/discover/trigger), extract runs |
-| Connectors | `src/InsightFlow.Connectors` | CSV, Parquet, SQL Server done; Excel, PostgreSQL, MySQL, Oracle, MongoDB, Cosmos DB stubs |
+| Connectors | `src/InsightFlow.Connectors` | CSV, Parquet, Excel, SQL Server, PostgreSQL, MySQL, Oracle, MongoDB and Cosmos DB |
 | Jobs | `src/InsightFlow.Worker` | Quartz (clustered), extract-run processor |
 | Tenancy admin, roles, RLS | ServiceDefaults policies + Persistence | Plumbing only: roles, policies, tenant filter, dev auth |
 
@@ -20,14 +20,14 @@ Roy owns Domain, Query/QueryService, Agents/AgentService and the evals. Changes 
 
 ## Local setup
 
-1. Install the .NET SDK 10.0.401+, Node 22+ and Docker Desktop. Optionally install the Aspire CLI 13.6+.
+1. Install the .NET SDK 10.0.401+, Node 22+, the Aspire CLI 13.6+, PostgreSQL 17 and Garnet (`dotnet tool install -g Microsoft.Garnet`). Docker is only needed for the integration tests. Files are stored on disk (`%LOCALAPPDATA%\InsightFlow\storage` locally; `FileStorage:Root` on a server).
 2. Clone, then build. The first build runs `npm ci` and the Tailwind build for the Web project.
 
    ```bash
    dotnet build InsightFlow.slnx
    ```
 
-3. Start everything: Postgres, Redis and Azurite containers, migrations + Contoso seed, all services and the dashboard.
+3. Start PostgreSQL and Garnet (`garnet-server`) on localhost, then start the app. Set AppHost user-secret `ConnectionStrings:insightflow` to the Postgres connection string. The Redis connection string is in `appsettings.Development.json`.
 
    ```bash
    dotnet run --project src/InsightFlow.AppHost
@@ -76,11 +76,9 @@ Scalar API docs are served in Development at `/scalar` on each API service. The 
 
 ### Add a connector (e.g. PostgreSQL)
 
-1. Replace the stub in `src/InsightFlow.Connectors/Stubs/StubConnectors.cs` with a real class, e.g.
-   `Databases/PostgreSqlConnector.cs`. Use `Databases/SqlServerConnector.cs` as the model: settings from
-   `ConnectionProfile.Settings`, the password from `ISecretStore` via the profile's `SecretReference`, and `DiscoverAsync`
-   from the catalog. `ExtractAsync` streams rows into `IExtractWriter` (`BeginTableAsync` → append rows). Never buffer
-   a whole table. The stub's comment has driver-specific notes (quoting, SSL, type mapping).
+1. Implement `IDataSourceConnector` (use `Databases/SqlServerConnector.cs` or `Files/ExcelConnector.cs` as the model).
+   Settings come from `ConnectionProfile.Settings`, the password from `ISecretStore` via the profile's `SecretReference`,
+   and `DiscoverAsync` from the catalog. `ExtractAsync` streams rows into `IExtractWriter`. Never buffer a whole table.
 2. Keep the registration in `ConnectorsServiceCollectionExtensions` (one `AddSingleton<IDataSourceConnector, …>`).
 3. Add tests: `public sealed class PostgreSqlConnectorTests : ConnectorContractTests`. Implement `ExpectedKind`,
    `ExpectedTableId`, `ExpectedRowCount`, `ExpectedColumns`, `CreateConnector()`, `CreateValidProfileAsync()` and
@@ -184,10 +182,6 @@ Run `git grep -n "TODO(dev2)"` for the live list.
 - Replace lazy tenant provisioning with explicit tenant onboarding.
 - Replace `NoOpUploadScanner` with a real scanner before accepting untrusted public uploads.
 - Connections: update/delete, secret rotation, scheduled refreshes.
-
-**Connectors (`src/InsightFlow.Connectors`)**
-- Excel (ExcelDataReader), PostgreSQL (Npgsql), MySQL (MySqlConnector), Oracle (Oracle.ManagedDataAccess.Core),
-  MongoDB (MongoDB.Driver), Cosmos DB (Microsoft.Azure.Cosmos). Packages are already referenced; notes are in `Stubs/StubConnectors.cs`.
 
 **Worker**
 - Scheduled refreshes: a cron per `ExtractDefinition` that enqueues an `ExtractRun`. Then subscriptions, alerts, exports.
