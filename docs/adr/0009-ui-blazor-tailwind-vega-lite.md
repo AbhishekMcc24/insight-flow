@@ -1,6 +1,6 @@
 # 0009. UI: Blazor Web App + Tailwind CSS + Vega-Lite (D9, amended)
 
-- **Status:** Accepted (amends D9)
+- **Status:** Accepted (amends D9). The chart-renderer part is superseded by ADR 0028 (Apache ECharts).
 - **Date:** 2026-10-08
 - **Deciders:** Roy (tech lead)
 

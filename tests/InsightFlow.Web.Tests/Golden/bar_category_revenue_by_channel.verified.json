@@ -45,7 +45,7 @@
   },
   "xAxis": {
     "type": "category",
-    "name": "Region",
+    "name": "Category",
     "nameLocation": "middle",
     "nameGap": 30,
     "nameTextStyle": {
@@ -75,16 +75,14 @@
       }
     },
     "data": [
-      "West",
-      "East"
+      "Books",
+      "Toys"
     ],
-    "splitArea": {
-      "show": false
-    }
+    "boundaryGap": true
   },
   "yAxis": {
-    "type": "category",
-    "name": "Channel",
+    "type": "value",
+    "name": "Revenue (sum)",
     "nameLocation": "middle",
     "nameGap": 48,
     "nameTextStyle": {
@@ -93,7 +91,7 @@
       "fontSize": 12
     },
     "axisLine": {
-      "show": true,
+      "show": false,
       "lineStyle": {
         "color": "#e2e8f0"
       }
@@ -107,20 +105,26 @@
       "hideOverlap": true
     },
     "splitLine": {
-      "show": false,
+      "show": true,
       "lineStyle": {
         "color": "#e2e8f0",
         "type": "dashed"
       }
-    },
-    "data": [
-      "Online",
-      "Store"
-    ]
+    }
   },
   "tooltip": {
-    "trigger": "item",
+    "trigger": "axis",
     "confine": true,
+    "axisPointer": {
+      "type": "shadow",
+      "shadowStyle": {
+        "color": "rgba(100, 116, 139, 0.08)"
+      },
+      "lineStyle": {
+        "color": "#64748b",
+        "type": "dashed"
+      }
+    },
     "backgroundColor": "rgba(255, 255, 255, 0.98)",
     "borderWidth": 0,
     "textStyle": {
@@ -128,88 +132,77 @@
     },
     "extraCssText": "border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); padding: 8px 12px;"
   },
-  "visualMap": {
-    "type": "continuous",
-    "min": 8,
-    "max": 12.25,
-    "calculable": true,
-    "orient": "vertical",
-    "right": 0,
-    "top": "middle",
-    "itemHeight": 140,
-    "text": [
-      "Revenue (avg)",
-      ""
-    ],
+  "series": [
+    {
+      "id": "s0",
+      "name": "Store",
+      "type": "bar",
+      "data": [
+        450,
+        500
+      ],
+      "emphasis": {
+        "focus": "series"
+      },
+      "universalTransition": {
+        "enabled": true
+      },
+      "stack": "total",
+      "barMaxWidth": 56,
+      "itemStyle": {
+        "borderRadius": 0
+      }
+    },
+    {
+      "id": "s1",
+      "name": "Online",
+      "type": "bar",
+      "data": [
+        300,
+        100
+      ],
+      "emphasis": {
+        "focus": "series"
+      },
+      "universalTransition": {
+        "enabled": true
+      },
+      "stack": "total",
+      "barMaxWidth": 56,
+      "itemStyle": {
+        "borderRadius": [
+          6,
+          6,
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "legend": {
+    "type": "scroll",
+    "orient": "horizontal",
+    "left": 0,
+    "right": "auto",
+    "top": 0,
+    "icon": "roundRect",
+    "itemWidth": 12,
+    "itemHeight": 8,
+    "itemGap": 14,
     "textStyle": {
       "color": "#475569",
-      "fontSize": 11
+      "fontSize": 12
     },
-    "inRange": {
-      "color": [
-        "#eef3ff",
-        "#7ea6f0",
-        "#3b6ee0",
-        "#1e3a8a"
-      ]
-    },
-    "outOfRange": {
-      "color": "#e2e8f0"
+    "pageTextStyle": {
+      "color": "#64748b"
     }
   },
   "grid": {
     "left": 12,
-    "right": 110,
-    "top": 24,
+    "right": 20,
+    "top": 40,
     "bottom": 8,
     "outerBoundsMode": "same",
     "outerBoundsContain": "all"
-  },
-  "series": [
-    {
-      "id": "s0",
-      "name": "Revenue (avg)",
-      "type": "heatmap",
-      "data": [
-        {
-          "name": "West · Online",
-          "value": [
-            0,
-            0,
-            10.5
-          ]
-        },
-        {
-          "name": "West · Store",
-          "value": [
-            0,
-            1,
-            8
-          ]
-        },
-        {
-          "name": "East · Online",
-          "value": [
-            1,
-            0,
-            12.25
-          ]
-        }
-      ],
-      "itemStyle": {
-        "borderColor": "#ffffff",
-        "borderWidth": 2,
-        "borderRadius": 4
-      },
-      "emphasis": {
-        "itemStyle": {
-          "shadowBlur": 12,
-          "shadowColor": "rgba(15, 23, 42, 0.35)"
-        }
-      },
-      "universalTransition": {
-        "enabled": true
-      }
-    }
-  ]
+  }
 }

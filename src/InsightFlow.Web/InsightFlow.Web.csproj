@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <!-- Blazor Web App (Interactive Server) styled with Tailwind CSS v4; charts rendered by Vega-Lite (vega-embed).
+  <!-- Blazor Web App (Interactive Server) styled with Tailwind CSS v4; charts rendered by Apache ECharts.
        References Contracts + ServiceDefaults only and talks to services over HTTP. Owned by Developer 2 after handoff.
        Front-end assets are built from npm on every build (see the FrontendBuild target below and docs/adr/0009). -->
   <PropertyGroup>
@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <!-- ===================================================================================== -->
-  <!-- Front-end build: npm ci -> Tailwind CLI -> copy vendored Vega bundles into wwwroot.    -->
+  <!-- Front-end build: npm ci -> Tailwind CLI -> copy the vendored ECharts bundle into wwwroot. -->
   <!-- Set SkipNpm=true to build without Node (generated CSS/JS must then already exist).      -->
   <!-- ===================================================================================== -->
   <PropertyGroup>
@@ -22,7 +22,7 @@
     <_RunFrontendBuild Condition="'$(SkipNpm)' != 'true' and '$(DesignTimeBuild)' != 'true'">true</_RunFrontendBuild>
     <_NpmInstallStamp>$(MSBuildProjectDirectory)/node_modules/.package-lock.json</_NpmInstallStamp>
     <_TailwindOutput>wwwroot/css/app.css</_TailwindOutput>
-    <_VegaOutputDir>wwwroot/lib/vega/</_VegaOutputDir>
+    <_ChartLibOutputDir>wwwroot/lib/echarts/</_ChartLibOutputDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -43,17 +43,18 @@
     <Exec Command="npm run build:css --silent" WorkingDirectory="$(MSBuildProjectDirectory)" />
   </Target>
 
-  <Target Name="CopyVegaAssets" Condition="'$(_RunFrontendBuild)' == 'true'" DependsOnTargets="NpmInstall">
+  <Target Name="CopyChartAssets" Condition="'$(_RunFrontendBuild)' == 'true'" DependsOnTargets="NpmInstall">
     <ItemGroup>
-      <_VegaFiles Include="node_modules/vega/build/vega.min.js;node_modules/vega-lite/build/vega-lite.min.js;node_modules/vega-embed/build/vega-embed.min.js" />
+      <!-- Apache-2.0: the LICENSE and NOTICE files travel with the redistributed bundle. -->
+      <_ChartLibFiles Include="node_modules/echarts/dist/echarts.min.js;node_modules/echarts/LICENSE;node_modules/echarts/NOTICE" />
     </ItemGroup>
-    <Copy SourceFiles="@(_VegaFiles)" DestinationFolder="$(_VegaOutputDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_ChartLibFiles)" DestinationFolder="$(_ChartLibOutputDir)" SkipUnchangedFiles="true" />
   </Target>
 
   <!-- Generated files do not exist at evaluation time on a clean clone, so register them as static web assets here. -->
-  <Target Name="FrontendBuild" BeforeTargets="BeforeBuild" DependsOnTargets="TailwindBuild;CopyVegaAssets">
+  <Target Name="FrontendBuild" BeforeTargets="BeforeBuild" DependsOnTargets="TailwindBuild;CopyChartAssets">
     <ItemGroup>
-      <_GeneratedWebAssets Include="$(_TailwindOutput);$(_VegaOutputDir)*.js" />
+      <_GeneratedWebAssets Include="$(_TailwindOutput);$(_ChartLibOutputDir)*" />
       <Content Include="@(_GeneratedWebAssets)" Exclude="@(Content)" />
     </ItemGroup>
   </Target>

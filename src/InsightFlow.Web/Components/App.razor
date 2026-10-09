@@ -15,10 +15,8 @@
 
 <body class="h-full">
     <Routes @rendermode="InteractiveServer" />
-    @* Vega bundles are vendored from npm into wwwroot/lib/vega at build time (no CDN). *@
-    <script src="@Assets["lib/vega/vega.min.js"]"></script>
-    <script src="@Assets["lib/vega/vega-lite.min.js"]"></script>
-    <script src="@Assets["lib/vega/vega-embed.min.js"]"></script>
+    @* Apache ECharts is vendored from npm into wwwroot/lib/echarts at build time (no CDN). *@
+    <script src="@Assets["lib/echarts/echarts.min.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

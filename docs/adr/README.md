@@ -14,7 +14,7 @@ the old one; don't rewrite history.
 | [0006](0006-analytical-engine-duckdb.md) | DuckDB over Parquet extracts (D6) | Accepted |
 | [0007](0007-ai-writes-duckdb-sql-only.md) | AI writes DuckDB SQL only, in a sandbox (D7) | Accepted |
 | [0008](0008-ai-runtime-agent-framework.md) | AI runtime: Agent Framework on IChatClient (D8) | Accepted |
-| [0009](0009-ui-blazor-tailwind-vega-lite.md) | UI: Blazor Web App + Tailwind CSS + Vega-Lite (D9, amended) | Accepted (amends D9) |
+| [0009](0009-ui-blazor-tailwind-vega-lite.md) | UI: Blazor Web App + Tailwind CSS + Vega-Lite (D9, amended) | Accepted; renderer superseded by 0028 |
 | [0010](0010-metadata-postgres-efcore.md) | Metadata in PostgreSQL via EF Core 10 (D10) | Accepted |
 | [0011](0011-query-cache-redis.md) | Query result cache in Redis (D11) | Accepted |
 | [0012](0012-data-threads-dag.md) | Data Threads as a DAG of immutable dataset versions (D12) | Accepted |
@@ -33,3 +33,4 @@ the old one; don't rewrite history.
 | [0025](0025-ai-provider-sdks.md) | AI provider SDKs: OpenAI SDK for Azure OpenAI, official Anthropic SDK | Accepted |
 | [0026](0026-duckdb-in-agents-and-interface-refinements.md) | DuckDB in Agents; refinements to the prompt's interfaces | Accepted |
 | [0027](0027-web-bff-proxy.md) | Web BFF proxy for uploads/downloads; services stay internal | Accepted |
+| [0028](0028-charts-apache-echarts.md) | Charts rendered with Apache ECharts (replaces Vega-Lite) | Accepted |

@@ -44,8 +44,8 @@
     }
   },
   "xAxis": {
-    "type": "category",
-    "name": "Region",
+    "type": "value",
+    "name": "Quantity",
     "nameLocation": "middle",
     "nameGap": 30,
     "nameTextStyle": {
@@ -54,7 +54,7 @@
       "fontSize": 12
     },
     "axisLine": {
-      "show": true,
+      "show": false,
       "lineStyle": {
         "color": "#e2e8f0"
       }
@@ -68,23 +68,17 @@
       "hideOverlap": true
     },
     "splitLine": {
-      "show": false,
+      "show": true,
       "lineStyle": {
         "color": "#e2e8f0",
         "type": "dashed"
       }
     },
-    "data": [
-      "West",
-      "East"
-    ],
-    "splitArea": {
-      "show": false
-    }
+    "scale": true
   },
   "yAxis": {
-    "type": "category",
-    "name": "Channel",
+    "type": "value",
+    "name": "Revenue",
     "nameLocation": "middle",
     "nameGap": 48,
     "nameTextStyle": {
@@ -93,7 +87,7 @@
       "fontSize": 12
     },
     "axisLine": {
-      "show": true,
+      "show": false,
       "lineStyle": {
         "color": "#e2e8f0"
       }
@@ -107,16 +101,13 @@
       "hideOverlap": true
     },
     "splitLine": {
-      "show": false,
+      "show": true,
       "lineStyle": {
         "color": "#e2e8f0",
         "type": "dashed"
       }
     },
-    "data": [
-      "Online",
-      "Store"
-    ]
+    "scale": true
   },
   "tooltip": {
     "trigger": "item",
@@ -128,88 +119,52 @@
     },
     "extraCssText": "border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); padding: 8px 12px;"
   },
-  "visualMap": {
-    "type": "continuous",
-    "min": 8,
-    "max": 12.25,
-    "calculable": true,
-    "orient": "vertical",
-    "right": 0,
-    "top": "middle",
-    "itemHeight": 140,
-    "text": [
-      "Revenue (avg)",
-      ""
-    ],
-    "textStyle": {
-      "color": "#475569",
-      "fontSize": 11
+  "dataZoom": [
+    {
+      "type": "inside",
+      "xAxisIndex": 0,
+      "filterMode": "none"
     },
-    "inRange": {
-      "color": [
-        "#eef3ff",
-        "#7ea6f0",
-        "#3b6ee0",
-        "#1e3a8a"
-      ]
-    },
-    "outOfRange": {
-      "color": "#e2e8f0"
+    {
+      "type": "inside",
+      "yAxisIndex": 0,
+      "filterMode": "none"
     }
-  },
-  "grid": {
-    "left": 12,
-    "right": 110,
-    "top": 24,
-    "bottom": 8,
-    "outerBoundsMode": "same",
-    "outerBoundsContain": "all"
-  },
+  ],
   "series": [
     {
       "id": "s0",
-      "name": "Revenue (avg)",
-      "type": "heatmap",
+      "name": "Revenue",
+      "type": "scatter",
       "data": [
-        {
-          "name": "West · Online",
-          "value": [
-            0,
-            0,
-            10.5
-          ]
-        },
-        {
-          "name": "West · Store",
-          "value": [
-            0,
-            1,
-            8
-          ]
-        },
-        {
-          "name": "East · Online",
-          "value": [
-            1,
-            0,
-            12.25
-          ]
-        }
+        [
+          1,
+          2.5
+        ],
+        [
+          3,
+          7.25
+        ]
       ],
+      "symbolSize": 9,
       "itemStyle": {
-        "borderColor": "#ffffff",
-        "borderWidth": 2,
-        "borderRadius": 4
+        "opacity": 0.75
       },
       "emphasis": {
-        "itemStyle": {
-          "shadowBlur": 12,
-          "shadowColor": "rgba(15, 23, 42, 0.35)"
-        }
+        "focus": "series",
+        "scale": 1.6
       },
       "universalTransition": {
         "enabled": true
       }
     }
-  ]
+  ],
+  "grid": {
+    "left": 12,
+    "right": 20,
+    "top": 28,
+    "bottom": 8,
+    "outerBoundsMode": "same",
+    "outerBoundsContain": "all"
+  }
 }

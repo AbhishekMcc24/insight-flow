@@ -14,7 +14,7 @@ DuckDB SQL over Parquet extracts. The AI writes DuckDB SQL only, and it always r
 | .NET SDK | 10.0.401+ (pinned in `global.json`) | |
 | Aspire CLI | 13.6+ | `aspire run` |
 | Docker Desktop (or Podman) | running | Postgres, Redis and Azurite run as containers |
-| Node.js | 22+ (npm 10+) | Builds Tailwind CSS and vendors Vega-Lite for `InsightFlow.Web` (runs automatically during `dotnet build`) |
+| Node.js | 22+ (npm 10+) | Builds Tailwind CSS and vendors Apache ECharts for `InsightFlow.Web` (runs automatically during `dotnet build`) |
 
 ## Run locally
 
@@ -103,7 +103,7 @@ Manual and deliberate: see [docs/deploy.md](docs/deploy.md) (`aspire publish` to
 | `src/InsightFlow.Connectors` | Data source connectors and the extract pipeline |
 | `src/InsightFlow.Api` | Public REST API (workspace explorer, connections, datasets) |
 | `src/InsightFlow.Worker` | Quartz.NET background jobs |
-| `src/InsightFlow.Web` | Blazor Web App + Tailwind CSS v4 + Vega-Lite |
+| `src/InsightFlow.Web` | Blazor Web App + Tailwind CSS v4 + Apache ECharts |
 | `tests/` | Unit, architecture, integration tests and benchmarks |
 | `evals/InsightFlow.Evals` | AI accuracy harness |
 | `docs/` | Architecture, ADRs, deploy guide, Developer 2 handoff, benchmarks, original prompt |

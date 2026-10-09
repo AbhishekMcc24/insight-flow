@@ -1,113 +1,209 @@
 {
-  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-  "width": "container",
-  "height": "container",
-  "autosize": {
-    "type": "fit",
-    "contains": "padding"
+  "backgroundColor": "transparent",
+  "color": [
+    "#3b6ee0",
+    "#f28e2b",
+    "#2fa37c",
+    "#e15759",
+    "#8e6ad8",
+    "#d4a72c",
+    "#4fb3d9",
+    "#b07aa1",
+    "#ff9da7",
+    "#9c755f"
+  ],
+  "textStyle": {
+    "fontFamily": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "color": "#475569"
   },
-  "background": "transparent",
-  "data": {
-    "values": [
-      {
-        "x": "2025-01-01",
-        "y": 12,
-        "color": "Online"
-      },
-      {
-        "x": "2025-01-01",
-        "y": 7,
-        "color": "Store"
-      },
-      {
-        "x": "2025-02-01",
-        "y": 15,
-        "color": "Online"
-      }
-    ]
+  "animationDuration": 600,
+  "animationDurationUpdate": 450,
+  "animationEasing": "cubicOut",
+  "animationEasingUpdate": "cubicInOut",
+  "aria": {
+    "enabled": true
   },
-  "mark": {
-    "type": "line",
-    "tooltip": true,
-    "point": true,
-    "interpolate": "monotone"
-  },
-  "encoding": {
-    "x": {
-      "field": "x",
-      "type": "temporal",
-      "title": "Order date (month)",
-      "timeUnit": "utcyearmonth"
+  "toolbox": {
+    "right": 4,
+    "top": 0,
+    "itemSize": 13,
+    "iconStyle": {
+      "borderColor": "#64748b"
     },
-    "y": {
-      "field": "y",
-      "type": "quantitative",
-      "title": "Quantity (count)",
-      "axis": {
-        "format": "~s"
+    "emphasis": {
+      "iconStyle": {
+        "borderColor": "#3b6ee0"
       }
     },
-    "color": {
-      "field": "color",
-      "type": "nominal",
-      "title": "Channel",
-      "sort": null
-    },
-    "tooltip": [
-      {
-        "field": "x",
-        "type": "temporal",
-        "title": "Order date (month)",
-        "timeUnit": "utcyearmonth"
-      },
-      {
-        "field": "y",
-        "type": "quantitative",
-        "title": "Quantity (count)",
-        "format": ",.2~f"
-      },
-      {
-        "field": "color",
-        "type": "nominal",
-        "title": "Channel"
+    "feature": {
+      "saveAsImage": {
+        "title": "Save as PNG",
+        "pixelRatio": 2,
+        "backgroundColor": "#ffffff"
       }
-    ]
-  },
-  "config": {
-    "font": "Inter, ui-sans-serif, system-ui, sans-serif",
-    "view": {
-      "stroke": null
-    },
-    "range": {
-      "category": [
-        "#3b6ee0",
-        "#f28e2b",
-        "#2fa37c",
-        "#e15759",
-        "#8e6ad8",
-        "#d4a72c",
-        "#4fb3d9",
-        "#b07aa1",
-        "#ff9da7",
-        "#9c755f"
-      ]
-    },
-    "mark": {
-      "color": "#3b6ee0"
-    },
-    "axis": {
-      "labelColor": "#475569",
-      "titleColor": "#475569",
-      "gridColor": "#e2e8f0",
-      "domainColor": "#e2e8f0",
-      "tickColor": "#e2e8f0",
-      "labelFontSize": 11,
-      "titleFontSize": 12,
-      "titleFontWeight": 500
-    },
-    "legend": {
-      "labelColor": "#475569",
-      "titleColor": "#475569"
     }
+  },
+  "xAxis": {
+    "type": "category",
+    "name": "Order date (month)",
+    "nameLocation": "middle",
+    "nameGap": 30,
+    "nameTextStyle": {
+      "color": "#64748b",
+      "fontWeight": 500,
+      "fontSize": 12
+    },
+    "axisLine": {
+      "show": true,
+      "lineStyle": {
+        "color": "#e2e8f0"
+      }
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#475569",
+      "fontSize": 11,
+      "hideOverlap": true
+    },
+    "splitLine": {
+      "show": false,
+      "lineStyle": {
+        "color": "#e2e8f0",
+        "type": "dashed"
+      }
+    },
+    "data": [
+      "Jan 2025",
+      "Feb 2025"
+    ],
+    "boundaryGap": false
+  },
+  "yAxis": {
+    "type": "value",
+    "name": "Quantity (count)",
+    "nameLocation": "middle",
+    "nameGap": 48,
+    "nameTextStyle": {
+      "color": "#64748b",
+      "fontWeight": 500,
+      "fontSize": 12
+    },
+    "axisLine": {
+      "show": false,
+      "lineStyle": {
+        "color": "#e2e8f0"
+      }
+    },
+    "axisTick": {
+      "show": false
+    },
+    "axisLabel": {
+      "color": "#475569",
+      "fontSize": 11,
+      "hideOverlap": true
+    },
+    "splitLine": {
+      "show": true,
+      "lineStyle": {
+        "color": "#e2e8f0",
+        "type": "dashed"
+      }
+    }
+  },
+  "tooltip": {
+    "trigger": "axis",
+    "confine": true,
+    "axisPointer": {
+      "type": "line",
+      "shadowStyle": {
+        "color": "rgba(100, 116, 139, 0.08)"
+      },
+      "lineStyle": {
+        "color": "#64748b",
+        "type": "dashed"
+      }
+    },
+    "backgroundColor": "rgba(255, 255, 255, 0.98)",
+    "borderWidth": 0,
+    "textStyle": {
+      "color": "#0f172a"
+    },
+    "extraCssText": "border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); padding: 8px 12px;"
+  },
+  "series": [
+    {
+      "id": "s0",
+      "name": "Online",
+      "type": "line",
+      "data": [
+        12,
+        15
+      ],
+      "emphasis": {
+        "focus": "series"
+      },
+      "universalTransition": {
+        "enabled": true
+      },
+      "smooth": true,
+      "smoothMonotone": "x",
+      "symbol": "circle",
+      "symbolSize": 6,
+      "showSymbol": true,
+      "lineStyle": {
+        "width": 2.5
+      }
+    },
+    {
+      "id": "s1",
+      "name": "Store",
+      "type": "line",
+      "data": [
+        7,
+        null
+      ],
+      "emphasis": {
+        "focus": "series"
+      },
+      "universalTransition": {
+        "enabled": true
+      },
+      "smooth": true,
+      "smoothMonotone": "x",
+      "symbol": "circle",
+      "symbolSize": 6,
+      "showSymbol": true,
+      "lineStyle": {
+        "width": 2.5
+      }
+    }
+  ],
+  "legend": {
+    "type": "scroll",
+    "orient": "horizontal",
+    "left": 0,
+    "right": "auto",
+    "top": 0,
+    "icon": "roundRect",
+    "itemWidth": 12,
+    "itemHeight": 8,
+    "itemGap": 14,
+    "textStyle": {
+      "color": "#475569",
+      "fontSize": 12
+    },
+    "pageTextStyle": {
+      "color": "#64748b"
+    }
+  },
+  "grid": {
+    "left": 12,
+    "right": 20,
+    "top": 40,
+    "bottom": 8,
+    "outerBoundsMode": "same",
+    "outerBoundsContain": "all"
   }
 }

@@ -1,5 +1,5 @@
 ---
-description: Blazor + Tailwind + Vega-Lite conventions for InsightFlow.Web
+description: Blazor + Tailwind + Apache ECharts conventions for InsightFlow.Web
 globs: src/InsightFlow.Web/**,tests/InsightFlow.Web.Tests/**
 alwaysApply: false
 ---
@@ -15,7 +15,8 @@ alwaysApply: false
 - Large files go through the BFF endpoints (`/bff/workspace/...`), never over the SignalR circuit. State-changing
   BFF calls must send the `X-InsightFlow-Request` header.
 - Charts: build a `VizSpec`, call `QueryApiClient.VizAsync`, render with `<VizRenderer Spec Result />`. Extend
-  `Charts/VegaLiteSpecBuilder.cs` for new encodings, with a golden test in `tests/InsightFlow.Web.Tests`.
+  `Charts/EChartsOptionBuilder.cs` for new encodings, with a golden test in `tests/InsightFlow.Web.Tests`. JS-only bits
+  (formatters) go in `wwwroot/js/echartsInterop.js`.
 - JS interop: ES modules in `wwwroot/js/`, imported with `JS.InvokeAsync<IJSObjectReference>("import", "./js/x.js")`.
   Dispose modules and `DotNetObjectReference`s (`IAsyncDisposable`) and catch `JSDisconnectedException` on dispose.
 - Front-end packages: pin exact versions in `package.json` (+ `package-lock.json`), vendored by the MSBuild step.
