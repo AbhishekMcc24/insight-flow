@@ -48,7 +48,7 @@ public sealed class DatasetVersion : ITenantOwned
     /// <summary>Natural-language request that led to the SQL, if any (shown in the thread, never logged).</summary>
     public string? Prompt { get; private init; }
 
-    /// <summary>Blob path of the Parquet file (see <see cref="StoragePaths.Extract"/>).</summary>
+    /// <summary>Relative path of the Parquet file (see <see cref="StoragePaths.Extract"/>).</summary>
     public string ParquetPath { get; private init; }
 
     public DatasetSchema Schema { get; private init; }
@@ -59,7 +59,7 @@ public sealed class DatasetVersion : ITenantOwned
 
     public DateTimeOffset CreatedAt { get; private init; }
 
-    /// <summary>Ids are allocated before the Parquet file is written because the blob path contains the id.</summary>
+    /// <summary>Ids are allocated before the Parquet file is written because the storage path contains the id.</summary>
     public static Guid NewId() => Guid.CreateVersion7();
 
     public static DatasetVersion CreateSource(

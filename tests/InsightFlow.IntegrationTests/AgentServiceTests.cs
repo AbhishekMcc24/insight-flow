@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using Azure.Storage.Blobs;
 using InsightFlow.Agents.Ai;
 using InsightFlow.Contracts;
 using InsightFlow.Contracts.Agents;
@@ -27,7 +26,7 @@ using AgentServiceProgram = agentservice::Program;
 namespace InsightFlow.IntegrationTests;
 
 /// <summary>
-/// AgentService end to end on the real infrastructure started by the AppHost (PostgreSQL, Redis, Azurite), with only
+/// AgentService end to end on the real infrastructure started by the AppHost (PostgreSQL, Redis, local files), with only
 /// the model replaced by a scripted client: the derived-field flow persists a child DatasetVersion + Parquet + Data
 /// Thread and charts it; the analyst streams SSE. Without AI keys the real AgentService answers 503.
 /// </summary>
@@ -83,8 +82,8 @@ public sealed class AgentServiceTests(AppHostFixture fixture)
         (await db.ThreadNodes.CountAsync(n => n.ThreadId == result.ThreadId, Ct)).ShouldBe(2);
         (await db.ThreadNodes.SingleAsync(n => n.Id == result.ThreadNodeId, Ct)).VizSpec!.DatasetVersionId.ShouldBe(derived.Id);
 
-        var blobs = new BlobServiceClient(await fixture.App.GetConnectionStringAsync("blobs", Ct));
-        (await blobs.GetBlobContainerClient("extracts").GetBlobClient(StoragePaths.Extract(Contoso, derived.Id)).ExistsAsync(Ct)).Value.ShouldBeTrue();
+        var root = await fixture.App.GetConnectionStringAsync("storage", Ct);
+        LocalStorage.Exists(root!, StoragePaths.Extract(Contoso, derived.Id)).ShouldBeTrue();
     }
 
     [Fact]
@@ -143,14 +142,14 @@ public sealed class AgentServiceTests(AppHostFixture fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
-    /// <summary>AgentService in-process, wired to the AppHost's real Postgres/Redis/Azurite, with the scripted model.</summary>
+    /// <summary>AgentService in-process, wired to the AppHost's real Postgres, Redis and file directory, with the scripted model.</summary>
     private async Task<WebApplicationFactory<AgentServiceProgram>> CreateFactoryAsync(ScriptedModel model)
     {
         var settings = new Dictionary<string, string?>
         {
             ["ConnectionStrings:insightflow"] = fixture.ConnectionString,
             ["ConnectionStrings:redis"] = await fixture.App.GetConnectionStringAsync("redis", Ct),
-            ["ConnectionStrings:blobs"] = await fixture.App.GetConnectionStringAsync("blobs", Ct),
+            ["FileStorage:Root"] = await fixture.App.GetConnectionStringAsync("storage", Ct),
         };
 
         return new WebApplicationFactory<AgentServiceProgram>().WithWebHostBuilder(builder =>
@@ -175,10 +174,8 @@ public sealed class AgentServiceTests(AppHostFixture fixture)
         await RetailDataGenerator.WriteDenormalizedAsync(file, Rows, csv: false, Ct);
         try
         {
-            var blobs = new BlobServiceClient(await fixture.App.GetConnectionStringAsync("blobs", Ct));
-            var container = blobs.GetBlobContainerClient("extracts");
-            await container.CreateIfNotExistsAsync(cancellationToken: Ct);
-            await container.GetBlobClient(StoragePaths.Extract(Contoso, id)).UploadAsync(file, Ct);
+            var root = await fixture.App.GetConnectionStringAsync("storage", Ct);
+            await LocalStorage.CopyNewAsync(root!, StoragePaths.Extract(Contoso, id), file, Ct);
         }
         finally
         {

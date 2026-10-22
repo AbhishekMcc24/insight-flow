@@ -104,25 +104,20 @@ public sealed class PipelineAndWriterTests
         await Should.ThrowAsync<InvalidOperationException>(() => pipeline.RunAsync(new ExtractRequest(profile), foreign, "x", Ct));
     }
 
-    public static readonly TheoryData<IDataSourceConnector, DataSourceKind> Stubs = new()
+    [Fact]
+    public void RegisteredConnectors_AreImplemented()
     {
-        { new ExcelConnector(), DataSourceKind.Excel },
-        { new PostgreSqlConnector(), DataSourceKind.PostgreSql },
-        { new MySqlDbConnector(), DataSourceKind.MySql },
-        { new OracleConnector(), DataSourceKind.Oracle },
-        { new MongoDbConnector(), DataSourceKind.MongoDb },
-        { new CosmosDbConnector(), DataSourceKind.CosmosDb },
-    };
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddInsightFlowConnectors(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
-    [Theory]
-    [MemberData(nameof(Stubs))]
-    public async Task StubConnectors_AreRegisteredAndThrowNotImplemented(IDataSourceConnector stub, DataSourceKind kind)
-    {
-        stub.Kind.ShouldBe(kind);
-        var profile = ConnectionProfile.ForStoredFile(RetailModel.Tenant, kind, Guid.NewGuid(), "x");
+        var stubs = services
+            .Where(s => s.ServiceType == typeof(IDataSourceConnector))
+            .Select(s => s.ImplementationType!)
+            .Where(t => typeof(NotImplementedConnector).IsAssignableFrom(t))
+            .Select(t => t.Name)
+            .ToList();
 
-        var ex = await Should.ThrowAsync<NotImplementedException>(() => stub.TestAsync(profile, Ct));
-        ex.Message.ShouldContain("TODO(dev2)");
+        stubs.ShouldBeEmpty();
     }
 
     [Fact]

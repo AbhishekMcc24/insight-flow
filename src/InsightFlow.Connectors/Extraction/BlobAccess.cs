@@ -1,5 +1,3 @@
-using Azure;
-using Azure.Storage.Blobs;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 using Microsoft.Extensions.Options;
@@ -26,7 +24,7 @@ public sealed class LocalFile(string path) : IAsyncDisposable
     }
 }
 
-/// <summary>Gives file connectors local, readable copies of uploaded files (which live in Blob Storage).</summary>
+/// <summary>Gives file connectors local, readable copies of uploaded files (which live under <see cref="LocalStorage"/>).</summary>
 public interface ISourceFileAccessor
 {
     Task<bool> ExistsAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken);
@@ -35,29 +33,33 @@ public interface ISourceFileAccessor
     Task<LocalFile> DownloadAsync(TenantId tenant, Guid storedFileId, string extension, CancellationToken cancellationToken);
 }
 
-/// <summary>Uploads a finished Parquet extract to its immutable blob path.</summary>
+/// <summary>Copies a finished Parquet extract to its immutable path in the shared storage directory.</summary>
 public interface IExtractUploader
 {
     Task UploadAsync(TenantId tenant, Guid datasetVersionId, string localParquetPath, CancellationToken cancellationToken);
 }
 
-internal sealed class BlobSourceFileAccessor(BlobServiceClient blobs, IOptions<ConnectorOptions> options) : ISourceFileAccessor
+internal sealed class DirectorySourceFileAccessor(IOptions<ConnectorOptions> options) : ISourceFileAccessor
 {
-    private BlobContainerClient Container => blobs.GetBlobContainerClient(options.Value.FilesContainer);
-
-    public async Task<bool> ExistsAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken) =>
-        (await Container.GetBlobClient(StoragePaths.File(tenant, storedFileId)).ExistsAsync(cancellationToken)).Value;
+    public Task<bool> ExistsAsync(TenantId tenant, Guid storedFileId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(LocalStorage.Exists(options.Value.StorageRoot, StoragePaths.File(tenant, storedFileId)));
+    }
 
     public async Task<LocalFile> DownloadAsync(TenantId tenant, Guid storedFileId, string extension, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(options.Value.WorkDirectory);
         var safeExtension = extension.All(c => char.IsAsciiLetterOrDigit(c) || c == '.') ? extension : string.Empty;
         var path = Path.Combine(options.Value.WorkDirectory, $"{Guid.NewGuid():N}{safeExtension}");
+        var source = LocalStorage.Resolve(options.Value.StorageRoot, StoragePaths.File(tenant, storedFileId));
         try
         {
-            await Container.GetBlobClient(StoragePaths.File(tenant, storedFileId)).DownloadToAsync(path, cancellationToken);
+            await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 81_920, useAsync: true);
+            await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81_920, useAsync: true);
+            await input.CopyToAsync(output, cancellationToken);
         }
-        catch (RequestFailedException ex) when (ex.Status == 404)
+        catch (FileNotFoundException ex)
         {
             throw new ConnectorException("The uploaded file no longer exists.", ex);
         }
@@ -66,19 +68,19 @@ internal sealed class BlobSourceFileAccessor(BlobServiceClient blobs, IOptions<C
     }
 }
 
-internal sealed class BlobExtractUploader(BlobServiceClient blobs, IOptions<ConnectorOptions> options) : IExtractUploader
+internal sealed class DirectoryExtractUploader(IOptions<ConnectorOptions> options) : IExtractUploader
 {
-    private int _containerEnsured;
-
     public async Task UploadAsync(TenantId tenant, Guid datasetVersionId, string localParquetPath, CancellationToken cancellationToken)
     {
-        var container = blobs.GetBlobContainerClient(options.Value.ExtractsContainer);
-        if (Interlocked.CompareExchange(ref _containerEnsured, 1, 0) == 0)
+        var relative = StoragePaths.Extract(tenant, datasetVersionId);
+        try
         {
-            await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            // Extracts are immutable: never overwrite (the QueryService cache relies on it).
+            await LocalStorage.CopyNewAsync(options.Value.StorageRoot, relative, localParquetPath, cancellationToken);
         }
-
-        // Extracts are immutable: never overwrite (the QueryService cache relies on it).
-        await container.GetBlobClient(StoragePaths.Extract(tenant, datasetVersionId)).UploadAsync(localParquetPath, cancellationToken);
+        catch (IOException ex) when (LocalStorage.Exists(options.Value.StorageRoot, relative))
+        {
+            throw new InvalidOperationException($"Extract {datasetVersionId} already exists; extracts are immutable.", ex);
+        }
     }
 }

@@ -7,7 +7,6 @@ using Quartz;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddServiceDefaults();
-builder.AddAzureBlobServiceClient("blobs");
 
 var connectionString = builder.Configuration.GetConnectionString("insightflow");
 builder.Services.AddInsightFlowPersistenceForJobs(connectionString);

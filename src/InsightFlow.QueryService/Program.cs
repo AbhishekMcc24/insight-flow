@@ -17,7 +17,6 @@ builder.Services.AddInsightFlowPersistence(
 builder.EnrichNpgsqlDbContext<InsightFlowDbContext>();
 
 builder.AddRedisDistributedCache("redis");
-builder.AddAzureBlobServiceClient("blobs");
 builder.Services.AddInsightFlowQueryEngine(builder.Configuration);
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, ContractsJsonContext.Default));

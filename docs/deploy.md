@@ -13,7 +13,7 @@ publishes, Aspire turns the local containers into Azure resources and the projec
 | `aca` | Container Apps environment + Azure Container Registry + Log Analytics | Hosts all services |
 | `postgres` / `insightflow` | Azure Database for PostgreSQL Flexible Server | Password auth; connection string in Key Vault (see "Security") |
 | `redis` | Azure Managed Redis | Access-key auth; key in Key Vault |
-| `storage` (`blobs`, `extracts`, `files`) | Storage account + blob containers | Managed identity (role assignments are generated) |
+| `storage-root` | Directory on the server (`FileStorage__Root`) | Uploaded files and Parquet extracts. Not an Azure Storage account. Set `Parameters:storage-root` before deploy. |
 | `keyvault` | Key Vault | Created in publish mode only; app secrets (`ISecretStore`) and infra connection strings |
 | `migrations` | Container App, 1 replica | Migrates, then idles (`Migrations__KeepAlive=true`; there are no Container Apps Jobs in Aspire 13.6) |
 | `queryservice`, `agentservice`, `api` | Container Apps, internal ingress | Replicas 1–5 / 1–3 / 1–5 |

@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using Azure.Storage.Blobs;
 using InsightFlow.Connectors;
 using InsightFlow.Domain.Connections;
 using InsightFlow.Domain.Modeling;
@@ -20,7 +19,6 @@ namespace InsightFlow.Worker.Development;
 /// </summary>
 internal sealed partial class DevelopmentSampleDataService(
     IServiceScopeFactory scopes,
-    BlobServiceClient blobs,
     IOptions<ConnectorOptions> options,
     TimeProvider clock,
     ILogger<DevelopmentSampleDataService> logger) : BackgroundService
@@ -86,9 +84,7 @@ internal sealed partial class DevelopmentSampleDataService(
             var bytes = buffer.ToArray();
 
             var fileId = StoredFile.NewId();
-            var container = blobs.GetBlobContainerClient(options.Value.FilesContainer);
-            await container.CreateIfNotExistsAsync(cancellationToken: ct);
-            await container.GetBlobClient(StoragePaths.File(Contoso, fileId)).UploadAsync(new BinaryData(bytes), ct);
+            await LocalStorage.WriteNewAsync(options.Value.StorageRoot, StoragePaths.File(Contoso, fileId), new MemoryStream(bytes), ct);
 
             var now = clock.GetUtcNow();
             var stored = StoredFile.Create(fileId, Contoso, FileName, "text/csv", bytes.Length, Convert.ToHexStringLower(SHA256.HashData(bytes)), "system", now);
