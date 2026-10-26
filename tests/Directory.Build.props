@@ -8,6 +8,9 @@
     <OutputType>Exe</OutputType>
     <!-- Exit code 8 = "zero tests ran"; projects scaffolded ahead of their milestone must not fail the run. -->
     <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --ignore-exit-code 8</TestingPlatformCommandLineArguments>
+    <!-- CI builds (ContinuousIntegrationBuild) rewrite source paths to "/_/...". Golden.cs finds its snapshot files through
+         [CallerFilePath], so tests need the real path; test assemblies are never shipped, so determinism of paths is not needed. -->
+    <DeterministicSourcePaths>false</DeterministicSourcePaths>
   </PropertyGroup>
 
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
