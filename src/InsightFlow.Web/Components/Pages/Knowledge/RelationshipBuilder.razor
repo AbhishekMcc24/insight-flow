@@ -1,0 +1,628 @@
+@inject KnowledgeApiClient Knowledge
+@* Step 4: the relationship builder. Pick a table on each side, choose a column on each, and link them. Columns you do not want in the
+   knowledge base can be removed here; that only changes the knowledge base, never the source database. *@
+
+<section class="if-card overflow-hidden" aria-labelledby="rel-heading">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+        <span class="grid size-10 place-items-center rounded-xl bg-brand-600 text-white shadow-card"><Icon Name="graph" Class="size-5" /></span>
+        <div class="min-w-0 flex-1">
+            <h2 id="rel-heading" class="text-lg font-bold text-ink dark:text-slate-100">Relationship builder</h2>
+            <p class="text-sm text-ink-soft">Choose a table on each side, pick one column from each, and link them. Remove columns you do not need.</p>
+        </div>
+        <span class="rounded-full bg-white px-3 py-1.5 text-sm font-medium text-ink shadow-card ring-1 ring-line dark:bg-slate-900 dark:text-slate-100">@Definitions.Relationships.Count relationship@(Definitions.Relationships.Count == 1 ? "" : "s")</span>
+        <Button Variant="ButtonVariant.Primary" OnClick="() => _assistantOpen = true" Disabled="@(Definitions.Tables.Count < 2)" Title="@(Definitions.Tables.Count < 2 ? "Add at least two tables first" : null)"><Icon Name="shield" /> Find with AI</Button>
+    </header>
+
+    <div class="space-y-5 p-5">
+        <div class="flex flex-col gap-2 empty:hidden"><Alert Message="@_error" /><Alert Message="@_notice" Error="false" OnDismiss="() => _notice = null" /></div>
+
+        @if (Definitions.Tables.Count < 1)
+        {
+            <div class="grid place-items-center px-6 py-14 text-center">
+                <span class="mb-4 grid size-16 place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-slate-800" aria-hidden="true"><Icon Name="graph" Class="size-8" /></span>
+                <h3 class="text-base font-bold text-ink dark:text-slate-100">Add tables first</h3>
+                <p class="mt-1 max-w-sm text-sm text-ink-soft">Import tables in step 2, then come back to link their columns.</p>
+            </div>
+        }
+        else
+        {
+            <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_21rem_minmax(0,1fr)]">
+                @Pane("From", _from, _fromCol, id => _fromCol = id, t => _from = t, _to)
+
+                @* ── centre: the link ── *@
+                <div class="order-first space-y-4 xl:order-none xl:sticky xl:top-4" data-testid="link-panel">
+                    <div class="rounded-2xl border border-brand-200 bg-gradient-to-b from-brand-50 to-white p-4 shadow-card dark:border-brand-900/60 dark:from-slate-800 dark:to-slate-900">
+                        <h3 class="text-sm font-bold text-ink dark:text-slate-100">New relationship</h3>
+                        <div class="mt-3 flex items-center gap-2 text-sm" aria-live="polite">
+                            <div class="@($"min-w-0 flex-1 rounded-xl border px-3 py-2 {(FromColumn is null ? "border-dashed border-line text-ink-muted" : "border-brand-300 bg-white font-medium text-ink dark:bg-slate-900 dark:text-slate-100")}")">
+                                @if (FromColumn is null)
+                                {
+                                    <span>Pick a column</span>
+                                }
+                                else
+                                {
+                                    <span class="block truncate font-mono text-xs text-ink-soft">@_from</span>
+                                    <span class="block truncate font-mono">@FromColumn.Name</span>
+                                }
+                            </div>
+                            <span class="grid size-8 shrink-0 place-items-center rounded-full bg-brand-600 text-white" aria-hidden="true"><Icon Name="arrow-right" Class="size-4" /></span>
+                            <div class="@($"min-w-0 flex-1 rounded-xl border px-3 py-2 {(ToColumn is null ? "border-dashed border-line text-ink-muted" : "border-brand-300 bg-white font-medium text-ink dark:bg-slate-900 dark:text-slate-100")}")">
+                                @if (ToColumn is null)
+                                {
+                                    <span>Pick a column</span>
+                                }
+                                else
+                                {
+                                    <span class="block truncate font-mono text-xs text-ink-soft">@_to</span>
+                                    <span class="block truncate font-mono">@ToColumn.Name</span>
+                                }
+                            </div>
+                        </div>
+                        <label class="mt-3 block">
+                            <span class="@UiStyles.Label">Kind</span>
+                            <select class="@UiStyles.Input" @bind="_kind">
+                                <option value="ForeignKey">Foreign key: “from” points at “to”</option>
+                                <option value="SameAttribute">Same attribute in both tables</option>
+                                <option value="DerivedFrom">Derived from</option>
+                            </select>
+                        </label>
+                        <label class="mt-3 block">
+                            <span class="@UiStyles.Label">Why (optional)</span>
+                            <input class="@UiStyles.Input" @bind="_reason" maxlength="300" placeholder="e.g. orders.customer_id is the buyer" />
+                        </label>
+                        <div class="mt-4 flex gap-2">
+                            <div class="flex-1 [&>button]:w-full"><Button Variant="ButtonVariant.Primary" OnClick="CreateAsync" Busy="_busy" Disabled="@(FromColumn is null || ToColumn is null || FromColumn.Id == ToColumn.Id || _busy)"><Icon Name="plus" /> Create relationship</Button></div>
+                            <Button OnClick="Swap" Title="Swap sides" Disabled="@(_from is null && _to is null)" aria-label="Swap sides"><Icon Name="sort" /></Button>
+                        </div>
+                    </div>
+
+                    @if (_from is not null && _to is not null)
+                    {
+                        <div class="rounded-2xl border border-line p-4 dark:border-slate-700">
+                            <h3 class="text-sm font-bold text-ink dark:text-slate-100">Linked between these tables</h3>
+                            @if (Between.Count == 0)
+                            {
+                                <p class="mt-1 text-sm text-ink-soft">No links yet.</p>
+                            }
+                            else
+                            {
+                                <ul class="mt-2 flex flex-col gap-2" data-testid="between">
+                                    @foreach (var r in Between)
+                                    {
+                                        <li class="flex items-center gap-2 rounded-xl bg-brand-50 px-3 py-2 text-xs dark:bg-slate-800">
+                                            <span class="min-w-0 flex-1 truncate font-mono">@r.FromColumn → @r.ToColumn <span class="@UiStyles.Badge ml-1">@r.Kind</span></span>
+                                            <button type="button" class="rounded-md p-1 text-ink-soft hover:bg-white hover:text-danger" aria-label="@($"Remove relationship {r.FromColumn} to {r.ToColumn}")" @onclick="() => RemoveRelationshipAsync(r)"><Icon Name="trash" Class="size-4" /></button>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @Pane("To", _to, _toCol, id => _toCol = id, t => _to = t, _from)
+            </div>
+
+            @* ── draw relationships: the same diagram as Publish, but you can drag between columns ── *@
+            <div class="rounded-2xl border border-line dark:border-slate-700" data-testid="draw-panel">
+                <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 dark:border-slate-700">
+                    <span class="grid size-8 place-items-center rounded-lg bg-brand-600 text-white" aria-hidden="true"><Icon Name="graph" Class="size-4" /></span>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="text-sm font-bold text-ink dark:text-slate-100">Draw relationships</h3>
+                        <p class="text-xs text-ink-soft">Drag from a column's dot onto another column. Click a line to remove it.</p>
+                    </div>
+                </div>
+                <div class="p-3">
+                    <ErDiagram Interactive="true" Tables="Definitions.Tables" Relationships="Definitions.Relationships" OnLink="OnDrawLinkAsync" OnRemoveRelationship="RemoveDrawnAsync" OnRemoveTable="id => _removeTable = Definitions.Tables.FirstOrDefault(t => t.Id == id)" />
+                </div>
+            </div>
+
+            @* ── all relationships ── *@
+            <div class="rounded-2xl border border-line dark:border-slate-700">
+                <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 dark:border-slate-700">
+                    <h3 class="flex-1 text-sm font-bold text-ink dark:text-slate-100">All relationships</h3>
+                    <label class="relative block w-full sm:w-64">
+                        <span class="sr-only">Search relationships</span>
+                        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-ink-muted"><Icon Name="search" Class="size-4" /></span>
+                        <input type="search" class="@UiStyles.Input pl-9" placeholder="Search relationships…" @bind="_filter" @bind:event="oninput" />
+                    </label>
+                </div>
+                @if (AllShown.Count == 0)
+                {
+                    <p class="p-6 text-center text-sm text-ink-soft">@(Definitions.Relationships.Count == 0 ? "No relationships yet. Foreign keys are imported with their tables; add the rest above." : $"Nothing matches “{_filter}”.")</p>
+                }
+                else
+                {
+                    <div class="max-h-96 overflow-auto">
+                        <table class="min-w-full text-sm" data-testid="relationships">
+                            <thead class="sticky top-0 bg-brand-50 dark:bg-slate-800">
+                                <tr>
+                                    <th scope="col" class="@UiStyles.TableHead">From</th>
+                                    <th scope="col" class="@UiStyles.TableHead">To</th>
+                                    <th scope="col" class="@UiStyles.TableHead">Kind</th>
+                                    <th scope="col" class="@UiStyles.TableHead">Confidence</th>
+                                    <th scope="col" class="@UiStyles.TableHead">Source</th>
+                                    <th scope="col" class="@UiStyles.TableHead"><span class="sr-only">Remove</span></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-line dark:divide-slate-800">
+                                @foreach (var r in AllShown)
+                                {
+                                    <tr class="transition-colors hover:bg-mist/60 dark:hover:bg-slate-800/40">
+                                        <td class="@UiStyles.TableCell"><span class="font-medium">@r.FromTable</span><span class="text-ink-muted">.</span><span class="font-mono text-xs">@r.FromColumn</span></td>
+                                        <td class="@UiStyles.TableCell"><span class="font-medium">@r.ToTable</span><span class="text-ink-muted">.</span><span class="font-mono text-xs">@r.ToColumn</span></td>
+                                        <td class="@UiStyles.TableCell"><span class="@UiStyles.Badge" title="@r.Reason">@r.Kind</span></td>
+                                        <td class="@UiStyles.TableCell tabular-nums">@r.Confidence.ToString("P0")</td>
+                                        <td class="@UiStyles.TableCell text-ink-soft">@r.Source</td>
+                                        <td class="@UiStyles.TableCell text-right">
+                                            <button type="button" class="rounded-control p-1.5 text-ink-soft hover:bg-mist hover:text-danger" aria-label="@($"Remove relationship {r.FromTable}.{r.FromColumn} to {r.ToTable}.{r.ToColumn}")" @onclick="() => RemoveRelationshipAsync(r)"><Icon Name="trash" /></button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+<AssistantPanel Mode="relationships" @bind-Open="_assistantOpen" Definitions="Definitions" OnApplied="OnAssistantAppliedAsync" />
+
+<Modal Title="Link these columns" Open="_drawn is not null" OpenChanged="_ => _drawn = null">
+    @if (_drawn is { } d)
+    {
+        <div data-testid="draw-modal">
+            <div class="flex items-center gap-2 text-xs font-mono text-ink-soft">
+                <span class="min-w-0 flex-1 truncate">@d.FromTable.DisplayName</span>
+                <Icon Name="arrow-right" Class="size-4 shrink-0" />
+                <span class="min-w-0 flex-1 truncate">@d.ToTable.DisplayName</span>
+            </div>
+            <ul class="mt-2 flex flex-col gap-2" data-testid="draw-pairs">
+                @foreach (var pair in d.Pairs)
+                {
+                    <li class="flex items-center gap-2 rounded-xl border border-brand-300 bg-brand-50 px-3 py-2 text-sm dark:bg-slate-800">
+                        <span class="min-w-0 flex-1 truncate font-mono font-medium">@ColumnName(d.FromTable, pair.From)</span>
+                        <Icon Name="arrow-right" Class="size-4 shrink-0 text-brand-600" />
+                        <span class="min-w-0 flex-1 truncate font-mono font-medium">@ColumnName(d.ToTable, pair.To)</span>
+                        @if (d.Pairs.Count > 1)
+                        {
+                            <button type="button" class="rounded-md p-1 text-ink-soft hover:bg-white hover:text-danger" aria-label="Remove this column pair" @onclick="() => d.Pairs.Remove(pair)"><Icon Name="trash" Class="size-4" /></button>
+                        }
+                    </li>
+                }
+            </ul>
+            <div class="mt-3 rounded-xl border border-dashed border-line p-3 dark:border-slate-700" data-testid="draw-add-pair">
+                <p class="text-xs font-semibold text-ink dark:text-slate-100">Composite key? Add another column pair</p>
+                <p class="mt-0.5 text-[11px] text-ink-soft">All the pairs must match together, and they are saved as one relationship.</p>
+                <div class="mt-2 flex items-center gap-2">
+                    <select class="@UiStyles.Input min-w-0 flex-1" @bind="d.AddFrom" aria-label="Column of @d.FromTable.DisplayName" data-testid="draw-add-from">
+                        <option value="@Guid.Empty">Choose a column…</option>
+                        @foreach (var c in d.FromTable.Columns.Where(c => d.Pairs.All(p => p.From != c.Id)))
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                    <Icon Name="arrow-right" Class="size-4 shrink-0 text-ink-soft" />
+                    <select class="@UiStyles.Input min-w-0 flex-1" @bind="d.AddTo" aria-label="Column of @d.ToTable.DisplayName" data-testid="draw-add-to">
+                        <option value="@Guid.Empty">Choose a column…</option>
+                        @foreach (var c in d.ToTable.Columns)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                    <Button OnClick="AddPair" Disabled="@(d.AddFrom == Guid.Empty || d.AddTo == Guid.Empty || d.Pairs.Count >= 16)" data-testid="draw-add-pair-button"><Icon Name="plus" /> Add pair</Button>
+                </div>
+            </div>
+        </div>
+        <label class="mt-3 block">
+            <span class="@UiStyles.Label">Kind</span>
+            <select class="@UiStyles.Input" @bind="_drawKind" data-testid="draw-kind">
+                <option value="ForeignKey">Foreign key: “from” points at “to”</option>
+                <option value="SameAttribute">Same attribute in both tables</option>
+                <option value="DerivedFrom">Derived from</option>
+            </select>
+        </label>
+        <label class="mt-3 block">
+            <span class="@UiStyles.Label">Why (optional)</span>
+            <input class="@UiStyles.Input" @bind="_drawReason" maxlength="300" placeholder="e.g. orders.customer_id is the buyer" />
+        </label>
+        <div class="mt-5 flex justify-end gap-2">
+            <Button OnClick="() => _drawn = null">Cancel</Button>
+            <Button Variant="ButtonVariant.Primary" Busy="_busy" OnClick="CreateDrawnAsync" data-testid="draw-create"><Icon Name="plus" /> Create relationship</Button>
+        </div>
+    }
+</Modal>
+
+<Modal Title="Relationship not possible" Open="_typeWarning is not null" OpenChanged="_ => _typeWarning = null">
+    @if (_typeWarning is { } w)
+    {
+        <div class="flex gap-3" data-testid="type-warning">
+            <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200" aria-hidden="true"><Icon Name="alert" Class="size-5" /></span>
+            <div class="min-w-0 text-sm">
+                <p>These two columns hold different kinds of data, so they cannot be related.</p>
+                <ul class="mt-3 space-y-1.5">
+                    <li class="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 dark:bg-slate-800"><span class="min-w-0 flex-1 truncate font-mono font-medium">@w.From.Name</span><DataTypeChip Type="@w.From.DataType" /></li>
+                    <li class="flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 dark:bg-slate-800"><span class="min-w-0 flex-1 truncate font-mono font-medium">@w.To.Name</span><DataTypeChip Type="@w.To.DataType" /></li>
+                </ul>
+                <p class="mt-3 text-ink-soft">Pick columns whose data types match (for example number with number, text with text).</p>
+            </div>
+        </div>
+        <div class="mt-5 flex justify-end"><Button Variant="ButtonVariant.Primary" OnClick="() => _typeWarning = null" data-testid="type-warning-ok">OK</Button></div>
+    }
+</Modal>
+
+<Modal Title="Remove column" Open="_removeColumn is not null" OpenChanged="_ => _removeColumn = null">
+    <p class="text-sm">
+        Remove <strong class="font-mono">@_removeColumn?.Column.Name</strong> from <strong>@_removeColumn?.Table</strong> in the knowledge base?
+        Relationships that use it are removed too. <span class="font-medium">Your source database is not changed.</span>
+    </p>
+    <div class="mt-5 flex justify-end gap-2">
+        <Button OnClick="() => _removeColumn = null">Cancel</Button>
+        <Button Variant="ButtonVariant.Danger" Busy="_busy" OnClick="ConfirmRemoveColumnAsync">Remove column</Button>
+    </div>
+</Modal>
+
+<RemoveTablesDialog Tables="@(_removeTable is null ? [] : [_removeTable])" Definitions="Definitions" Open="_removeTable is not null" OpenChanged="v => { if (!v) _removeTable = null; }" Busy="_busy" OnConfirm="ConfirmRemoveTableAsync" />
+
+@code {
+    private string? _from;
+    private string? _to;
+    private Guid? _fromCol;
+    private Guid? _toCol;
+    private string _kind = "ForeignKey";
+    private string _reason = "";
+    private string _filter = "";
+    private bool _busy;
+    private bool _assistantOpen;
+    private string? _error;
+    private string? _notice;
+    private (string Table, KnowledgeColumnDto Column)? _removeColumn;
+    private KnowledgeTableDto? _removeTable;
+
+    [Parameter, EditorRequired] public KnowledgeDefinitionsDto Definitions { get; set; } = default!;
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private KnowledgeTableDto? TableOf(string? name) =>
+        name is null ? null : Definitions.Tables.FirstOrDefault(t => string.Equals(t.DisplayName, name, StringComparison.OrdinalIgnoreCase));
+
+    private KnowledgeColumnDto? FromColumn => TableOf(_from)?.Columns.FirstOrDefault(c => c.Id == _fromCol);
+
+    private KnowledgeColumnDto? ToColumn => TableOf(_to)?.Columns.FirstOrDefault(c => c.Id == _toCol);
+
+    private IReadOnlyList<string> TableNames => [.. Definitions.Tables.Select(t => t.DisplayName)];
+
+    private List<KnowledgeRelationshipDto> Between =>
+        [.. Definitions.Relationships.Where(r =>
+            (string.Equals(r.FromTable, _from, StringComparison.OrdinalIgnoreCase) && string.Equals(r.ToTable, _to, StringComparison.OrdinalIgnoreCase))
+            || (string.Equals(r.FromTable, _to, StringComparison.OrdinalIgnoreCase) && string.Equals(r.ToTable, _from, StringComparison.OrdinalIgnoreCase)))];
+
+    private List<KnowledgeRelationshipDto> AllShown =>
+        [.. Definitions.Relationships.Where(r => _filter.Trim().Length == 0
+            || $"{r.FromTable}.{r.FromColumn} {r.ToTable}.{r.ToColumn} {r.Kind}".Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase))];
+
+    protected override void OnParametersSet()
+    {
+        // The knowledge base can change underneath us (a table or column removed); drop selections that no longer exist.
+        if (_from is not null && TableOf(_from) is null)
+        {
+            (_from, _fromCol) = (null, null);
+        }
+
+        if (_to is not null && TableOf(_to) is null)
+        {
+            (_to, _toCol) = (null, null);
+        }
+
+        if (_fromCol is not null && FromColumn is null)
+        {
+            _fromCol = null;
+        }
+
+        if (_toCol is not null && ToColumn is null)
+        {
+            _toCol = null;
+        }
+    }
+
+    /// <summary>One side of the builder: a searchable table picker and that table's columns.</summary>
+    private RenderFragment Pane(string side, string? table, Guid? selected, Action<Guid?> select, Action<string?> setTable, string? other) => __builder =>
+    {
+        var t = TableOf(table);
+        <div class="rounded-2xl border border-line dark:border-slate-700" data-testid="@($"pane-{side.ToLowerInvariant()}")">
+            <div class="flex items-center gap-3 border-b border-line px-4 py-3 dark:border-slate-700">
+                <span class="rounded-full bg-brand-600 px-2.5 py-0.5 text-[11px] font-bold tracking-[0.12em] text-white uppercase">@side</span>
+                <div class="min-w-0 flex-1">
+                    <SearchSelect Items="TableNames" Value="@table" ValueChanged="v => { setTable(v); select(null); }" Placeholder="Search tables…" EmptyText="No tables" />
+                </div>
+                @if (t is not null)
+                {
+                    <button type="button" class="rounded-lg p-2 text-ink-soft transition hover:bg-red-50 hover:text-danger" title="Remove this table from the knowledge base" aria-label="@($"Remove table {t.DisplayName} from the knowledge base")" @onclick="() => _removeTable = t"><Icon Name="trash" Class="size-5" /></button>
+                }
+            </div>
+            @if (t is null)
+            {
+                <p class="px-4 py-10 text-center text-sm text-ink-soft">Choose a table to see its columns.</p>
+            }
+            else
+            {
+                <p class="border-b border-line px-4 py-2 text-xs text-ink-soft dark:border-slate-700">
+                    @t.Columns.Count columns · @t.Source@(string.IsNullOrWhiteSpace(t.Description) ? "" : " · " + t.Description)
+                </p>
+                <ul class="max-h-[26rem] overflow-auto p-1.5" role="radiogroup" aria-label="@($"{side} column")">
+                    @foreach (var c in t.Columns)
+                    {
+                        var isSelected = selected == c.Id;
+                        var links = Definitions.Relationships.Count(r => r.FromColumnId == c.Id || r.ToColumnId == c.Id);
+                        <li class="@($"group flex items-center gap-1 rounded-xl transition {(isSelected ? "bg-brand-100 ring-1 ring-brand-500 dark:bg-brand-900/40" : "hover:bg-mist dark:hover:bg-slate-800")}")">
+                            <button type="button" role="radio" aria-checked="@UiStyles.Aria(isSelected)" @onclick="() => select(isSelected ? null : c.Id)"
+                                    class="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left">
+                                <span class="@($"grid size-4 shrink-0 place-items-center rounded-full border-2 transition {(isSelected ? "border-brand-600 bg-brand-600" : "border-slate-300 dark:border-slate-600")}")" aria-hidden="true">
+                                    @if (isSelected)
+                                    {
+                                        <span class="size-1.5 rounded-full bg-white"></span>
+                                    }
+                                </span>
+                                <span class="@($"min-w-0 flex-1 truncate font-mono text-[13px] {(c.IsPrimaryKey ? "font-semibold" : "")}")">@c.Name</span>
+                                <DataTypeChip Type="@c.DataType" />
+                                @if (c.IsPrimaryKey)
+                                {
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" title="Primary key"><Icon Name="key" Class="size-3" />PK</span>
+                                }
+                                @if (links > 0)
+                                {
+                                    <span class="inline-flex items-center gap-1 rounded-md bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" title="@($"{links} relationship{(links == 1 ? "" : "s")}")"><Icon Name="graph" Class="size-3" />@links</span>
+                                }
+                            </button>
+                            <button type="button" class="mr-1 rounded-lg p-1.5 text-ink-muted opacity-60 transition group-hover:opacity-100 hover:bg-red-50 hover:text-danger focus-visible:opacity-100"
+                                    title="Remove this column from the knowledge base" aria-label="@($"Remove column {c.Name} from the knowledge base")" @onclick="() => _removeColumn = (t.DisplayName, c)"><Icon Name="trash" Class="size-4" /></button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    };
+
+    private async Task OnAssistantAppliedAsync()
+    {
+        _notice = "Your accepted changes were saved.";
+        await OnChanged.InvokeAsync();
+    }
+
+    /// <summary>A link being drawn: the two tables, and the column pairs so far (more than one makes it a composite key).</summary>
+    private sealed class DrawDraft(KnowledgeTableDto fromTable, KnowledgeTableDto toTable, Guid from, Guid to)
+    {
+        public KnowledgeTableDto FromTable { get; } = fromTable;
+
+        public KnowledgeTableDto ToTable { get; } = toTable;
+
+        public List<(Guid From, Guid To)> Pairs { get; } = [(from, to)];
+
+        public Guid AddFrom { get; set; }
+
+        public Guid AddTo { get; set; }
+    }
+
+    private DrawDraft? _drawn;
+    private string _drawKind = "ForeignKey";
+    private string _drawReason = "";
+
+    private (KnowledgeColumnDto From, KnowledgeColumnDto To)? _typeWarning;
+
+    /// <summary>Columns of different kinds of data cannot be related: shows the warning popup and returns true when that is the case.</summary>
+    private bool WarnIfIncompatible(KnowledgeColumnDto from, KnowledgeColumnDto to)
+    {
+        if (ColumnTypeCompatibility.AreCompatible(from.DataType, to.DataType))
+        {
+            return false;
+        }
+
+        _typeWarning = (from, to);
+        return true;
+    }
+
+    private static string ColumnName(KnowledgeTableDto table, Guid columnId) => table.Columns.FirstOrDefault(c => c.Id == columnId)?.Name ?? "?";
+
+    /// <summary>A line was dragged between two columns in the diagram: ask for the kind (and any further pairs) before saving.</summary>
+    private Task OnDrawLinkAsync((Guid From, Guid To) link)
+    {
+        var from = Definitions.Tables.FirstOrDefault(t => t.Columns.Any(c => c.Id == link.From));
+        var to = Definitions.Tables.FirstOrDefault(t => t.Columns.Any(c => c.Id == link.To));
+        var fromColumn = from?.Columns.FirstOrDefault(c => c.Id == link.From);
+        var toColumn = to?.Columns.FirstOrDefault(c => c.Id == link.To);
+        if (from is null || to is null || fromColumn is null || toColumn is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (WarnIfIncompatible(fromColumn, toColumn))
+        {
+            StateHasChanged();
+            return Task.CompletedTask;
+        }
+
+        _error = null;
+        (_drawKind, _drawReason) = ("ForeignKey", "");
+        _drawn = new DrawDraft(from, to, link.From, link.To);
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void AddPair()
+    {
+        if (_drawn is { } d && d.AddFrom != Guid.Empty && d.AddTo != Guid.Empty && !d.Pairs.Contains((d.AddFrom, d.AddTo)))
+        {
+            var a = d.FromTable.Columns.FirstOrDefault(c => c.Id == d.AddFrom);
+            var b = d.ToTable.Columns.FirstOrDefault(c => c.Id == d.AddTo);
+            if (a is not null && b is not null && WarnIfIncompatible(a, b))
+            {
+                return;
+            }
+
+            d.Pairs.Add((d.AddFrom, d.AddTo));
+            (d.AddFrom, d.AddTo) = (Guid.Empty, Guid.Empty);
+        }
+    }
+
+    private async Task CreateDrawnAsync()
+    {
+        if (_drawn is not { } d)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var text = string.Join(", ", d.Pairs.Select(p => $"{ColumnName(d.FromTable, p.From)} → {ColumnName(d.ToTable, p.To)}"));
+            if (d.Pairs.Count == 1)
+            {
+                await Knowledge.AddRelationshipAsync(new SaveKnowledgeRelationshipRequest(d.Pairs[0].From, d.Pairs[0].To, _drawKind, _drawReason), CancellationToken.None);
+            }
+            else
+            {
+                await Knowledge.AddCompositeRelationshipAsync(
+                    new SaveCompositeRelationshipRequest([.. d.Pairs.Select(p => new ColumnPairDto(p.From, p.To))], _drawKind, _drawReason), CancellationToken.None);
+            }
+
+            _notice = d.Pairs.Count == 1
+                ? $"Linked {d.FromTable.DisplayName}.{ColumnName(d.FromTable, d.Pairs[0].From)} → {d.ToTable.DisplayName}.{ColumnName(d.ToTable, d.Pairs[0].To)}."
+                : $"Linked {d.FromTable.DisplayName} → {d.ToTable.DisplayName} as one composite key ({d.Pairs.Count} column pairs: {text}).";
+            _drawn = null;
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _drawn = null;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveDrawnAsync(Guid relationshipId)
+    {
+        var r = Definitions.Relationships.FirstOrDefault(x => x.Id == relationshipId);
+        if (r is null)
+        {
+            return;
+        }
+
+        await RemoveRelationshipAsync(r);
+        if (_error is null)
+        {
+            _notice = $"Removed {r.FromTable}.{r.FromColumn} → {r.ToTable}.{r.ToColumn}.";
+        }
+    }
+
+    private void Swap()
+    {
+        (_from, _to) = (_to, _from);
+        (_fromCol, _toCol) = (_toCol, _fromCol);
+    }
+
+    private async Task CreateAsync()
+    {
+        if (FromColumn is null || ToColumn is null)
+        {
+            return;
+        }
+
+        if (WarnIfIncompatible(FromColumn, ToColumn))
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Knowledge.AddRelationshipAsync(new SaveKnowledgeRelationshipRequest(FromColumn.Id, ToColumn.Id, _kind, _reason), CancellationToken.None);
+            _notice = $"Linked {_from}.{FromColumn.Name} → {_to}.{ToColumn.Name}.";
+            (_fromCol, _toCol, _reason) = (null, null, "");
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveRelationshipAsync(KnowledgeRelationshipDto r)
+    {
+        _error = null;
+        try
+        {
+            await Knowledge.DeleteRelationshipAsync(r.Id, CancellationToken.None);
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ConfirmRemoveColumnAsync()
+    {
+        if (_removeColumn is not { } target)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Knowledge.RemoveColumnAsync(target.Column.Id, CancellationToken.None);
+            _notice = $"Column “{target.Column.Name}” removed from {target.Table}.";
+            _removeColumn = null;
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _removeColumn = null;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ConfirmRemoveTableAsync()
+    {
+        if (_removeTable is not { } table)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Knowledge.RemoveTablesAsync([table.Id], CancellationToken.None);
+            _notice = $"Table “{table.DisplayName}” removed from the knowledge base"
+                + (result.Relationships > 0 ? $", together with {result.Relationships} relationship{(result.Relationships == 1 ? "" : "s")}." : ".");
+            _removeTable = null;
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _removeTable = null;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,15 +1,15 @@
 {
   "backgroundColor": "transparent",
   "color": [
-    "#3b6ee0",
-    "#f28e2b",
-    "#2fa37c",
-    "#e15759",
-    "#8e6ad8",
-    "#d4a72c",
-    "#4fb3d9",
+    "#176b73",
+    "#e8963a",
+    "#62c9c7",
+    "#d8605b",
+    "#7a6bc9",
+    "#c9a227",
+    "#4f8fd9",
     "#b07aa1",
-    "#ff9da7",
+    "#8fb339",
     "#9c755f"
   ],
   "textStyle": {
@@ -32,7 +32,7 @@
     },
     "emphasis": {
       "iconStyle": {
-        "borderColor": "#3b6ee0"
+        "borderColor": "#176b73"
       }
     },
     "feature": {
@@ -56,7 +56,7 @@
     "axisLine": {
       "show": true,
       "lineStyle": {
-        "color": "#e2e8f0"
+        "color": "#dce7ea"
       }
     },
     "axisTick": {
@@ -70,7 +70,7 @@
     "splitLine": {
       "show": false,
       "lineStyle": {
-        "color": "#e2e8f0",
+        "color": "#dce7ea",
         "type": "dashed"
       }
     },
@@ -94,7 +94,7 @@
     "axisLine": {
       "show": false,
       "lineStyle": {
-        "color": "#e2e8f0"
+        "color": "#dce7ea"
       }
     },
     "axisTick": {
@@ -108,7 +108,7 @@
     "splitLine": {
       "show": true,
       "lineStyle": {
-        "color": "#e2e8f0",
+        "color": "#dce7ea",
         "type": "dashed"
       }
     }
@@ -167,11 +167,11 @@
           "colorStops": [
             {
               "offset": 0,
-              "color": "rgba(59, 110, 224, 0.4)"
+              "color": "rgba(23, 107, 115, 0.4)"
             },
             {
               "offset": 1,
-              "color": "rgba(59, 110, 224, 0.04)"
+              "color": "rgba(23, 107, 115, 0.04)"
             }
           ]
         }

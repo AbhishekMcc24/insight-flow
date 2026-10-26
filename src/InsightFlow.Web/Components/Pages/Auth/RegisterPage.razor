@@ -1,0 +1,25 @@
+@page "/register"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@inject NavigationManager Navigation
+@inject IOptions<InsightFlowAuthOptions> Auth
+
+<PageTitle>Create your account · Insight Flow</PageTitle>
+
+<AuthForm Mode="register" ReturnUrl="@AuthRedirect.Safe(ReturnUrl)" Code="@Error" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? State { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Auth.Value.Mode != AuthenticationMode.Development && State is not null && (await State).User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo(AuthRedirect.Safe(ReturnUrl));
+        }
+    }
+}

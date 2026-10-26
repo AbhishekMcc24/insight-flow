@@ -18,9 +18,9 @@ namespace InsightFlow.Web.Charts;
 /// </summary>
 public static class EChartsOptionBuilder
 {
-    /// <summary>Categorical palette (Tailwind-like hues); the brand blue comes first.</summary>
+    /// <summary>Categorical palette: the brand teal comes first, then hues that stay distinguishable from it.</summary>
     public static readonly IReadOnlyList<string> Palette =
-        ["#3b6ee0", "#f28e2b", "#2fa37c", "#e15759", "#8e6ad8", "#d4a72c", "#4fb3d9", "#b07aa1", "#ff9da7", "#9c755f"];
+        ["#176b73", "#e8963a", "#62c9c7", "#d8605b", "#7a6bc9", "#c9a227", "#4f8fd9", "#b07aa1", "#8fb339", "#9c755f"];
 
     /// <summary>Above this many points per series, line/scatter switch to ECharts' large-data rendering.</summary>
     public const int LargeThreshold = 2_000;
@@ -551,12 +551,12 @@ public static class EChartsOptionBuilder
     {
         public static Theme For(bool dark) => dark
             ? new("#cbd5e1", "#94a3b8", "#1e293b", "#0f172a", "rgba(15, 23, 42, 0.96)", "#e2e8f0",
-                "rgba(148, 163, 184, 0.12)", "#1e293b", "rgba(59, 110, 224, 0.25)",
+                "rgba(148, 163, 184, 0.12)", "#1e293b", "rgba(98, 201, 199, 0.25)",
                 // Dark mode: low values recede into the background, high values are the brightest.
-                ["#1e293b", "#1e3a8a", "#3b6ee0", "#93c5fd"])
-            : new("#475569", "#64748b", "#e2e8f0", "#ffffff", "rgba(255, 255, 255, 0.98)", "#0f172a",
-                "rgba(100, 116, 139, 0.08)", "#f1f5f9", "rgba(59, 110, 224, 0.18)",
-                ["#eef3ff", "#7ea6f0", "#3b6ee0", "#1e3a8a"]);
+                ["#1e293b", "#155e63", "#2c8990", "#62c9c7"])
+            : new("#475569", "#64748b", "#dce7ea", "#ffffff", "rgba(255, 255, 255, 0.98)", "#0f172a",
+                "rgba(100, 116, 139, 0.08)", "#f1f5f9", "rgba(23, 107, 115, 0.18)",
+                ["#eaf6f5", "#9fd9d6", "#2c8990", "#155e63"]);
     }
 
     // ---------------------------------------------------------------------------------------------

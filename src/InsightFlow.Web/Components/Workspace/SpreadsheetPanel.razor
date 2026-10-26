@@ -1,0 +1,474 @@
+@using InsightFlow.Contracts.Documents
+@implements IDisposable
+@inject DocumentsApiClient Documents
+@* Spreadsheets for questions. After Excel files are uploaded in the Explorer: choose which ones to prepare, watch the pipeline (open, parse each
+   sheet with DuckDB, save as tables), answer any problem DuckDB hit, and when it is ready ask questions of the data. *@
+
+<div class="flex h-full min-h-0 flex-col overflow-auto" data-testid="spreadsheets">
+    <div class="mx-auto flex w-full max-w-4xl flex-col gap-5 p-5">
+        <header>
+            <h2 class="text-xl font-extrabold text-ink dark:text-slate-100">Spreadsheets for questions</h2>
+            <p class="mt-1 text-sm text-ink-soft">Upload Excel files in the Explorer, choose the ones to prepare, and ask questions of their data once they are ready. Only Excel (.xlsx, .xlsm, .xls) is supported for now.</p>
+            <ol class="mt-3 flex flex-wrap gap-2 text-xs font-semibold" aria-label="Steps">
+                @foreach (var (n, label, done) in Stages)
+                {
+                    <li class="@($"inline-flex items-center gap-2 rounded-full px-3 py-1 {(done ? "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100" : "bg-slate-100 text-ink-soft dark:bg-slate-800")}")">
+                        <span class="@($"grid size-5 place-items-center rounded-full text-[11px] {(done ? "bg-brand-600 text-white" : "bg-white text-ink-soft dark:bg-slate-900")}")">@(done ? "✓" : n)</span> @label
+                    </li>
+                }
+            </ol>
+        </header>
+
+        <Alert Message="@_error" OnDismiss="() => _error = null" />
+
+        @* ── 1. Choose files ── *@
+        <section class="if-card overflow-hidden" aria-labelledby="sp-files">
+            <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+                <h3 id="sp-files" class="flex-1 text-sm font-bold text-ink dark:text-slate-100">Choose the files to prepare</h3>
+                <Button Small="true" OnClick="LoadFilesAsync" Disabled="_loading"><Icon Name="sort" Class="size-4" /> Refresh</Button>
+                <Button Small="true" Variant="ButtonVariant.Primary" Busy="_starting" Disabled="@(_chosen.Count == 0 || _starting || RunActive)" OnClick="StartAsync" data-testid="prepare">
+                    Prepare @(_chosen.Count == 0 ? "" : _chosen.Count) file@(_chosen.Count == 1 ? "" : "s")
+                </Button>
+            </header>
+            @if (_files is null)
+            {
+                <div class="flex justify-center p-8 text-brand-500"><Spinner /></div>
+            }
+            else if (_files.Count == 0)
+            {
+                <div class="p-8 text-center">
+                    <p class="text-sm font-semibold text-ink dark:text-slate-100">No Excel files yet</p>
+                    <p class="mt-1 text-sm text-ink-soft">Drag Excel files onto a folder in the Explorer (or use Upload). They appear here by themselves.</p>
+                </div>
+            }
+            else
+            {
+                <div class="flex items-center gap-2 border-b border-line px-4 py-2 text-xs text-ink-soft dark:border-slate-800">
+                    <button type="button" class="font-medium underline hover:text-brand-700" @onclick="SelectAllNotReady">Select files that are not ready</button>
+                    <span aria-hidden="true">·</span>
+                    <button type="button" class="font-medium underline hover:text-brand-700" @onclick="() => _chosen.Clear()">Clear</button>
+                </div>
+                <ul class="divide-y divide-line dark:divide-slate-800" data-testid="file-list">
+                    @foreach (var f in _files)
+                    {
+                        <li class="flex items-start gap-3 px-4 py-2.5">
+                            <input type="checkbox" class="mt-1 size-4 accent-brand-600" id="@($"f-{f.ItemId}")" disabled="@(!f.Supported || RunActive)"
+                                   checked="@_chosen.Contains(f.ItemId)" @onchange="e => Toggle(f.ItemId, (bool)e.Value!)" aria-label="@($"Prepare {f.Name}")" />
+                            <label for="@($"f-{f.ItemId}")" class="min-w-0 flex-1 cursor-pointer">
+                                <span class="block truncate text-sm font-semibold text-ink dark:text-slate-100">@f.Name</span>
+                                <span class="block truncate text-xs text-ink-soft">@f.FolderPath · @Size(f.SizeBytes)</span>
+                                @if (f.Note is { } note)
+                                {
+                                    <span class="mt-0.5 block text-xs text-amber-800 dark:text-amber-200">@note</span>
+                                }
+                            </label>
+                            <span class="@($"shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold {StateClass(f.State)}")" data-testid="file-state">@StateLabel(f)</span>
+                            @if (f.State == "Ready")
+                            {
+                                <button type="button" class="shrink-0 text-xs text-ink-soft underline hover:text-danger" @onclick="() => RemoveAsync(f)">Remove from questions</button>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        @* ── 2. The pipeline ── *@
+        @if (_run is { Files.Count: > 0 } run)
+        {
+            <section class="if-card overflow-hidden" aria-labelledby="sp-run" data-testid="run">
+                <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+                    <h3 id="sp-run" class="flex-1 text-sm font-bold text-ink dark:text-slate-100">Preparing @(string.Join(", ", run.Files.Take(3)))@(run.Files.Count > 3 ? $" and {run.Files.Count - 3} more" : "")</h3>
+                    <span class="@($"rounded-full px-2.5 py-0.5 text-xs font-semibold {RunClass(run.Status)}")" data-testid="run-status">@RunLabel(run.Status)</span>
+                </header>
+                <div class="space-y-4 p-4">
+                    <ol class="flex flex-col gap-2" aria-label="Pipeline steps" data-testid="steps">
+                        @foreach (var s in run.Steps)
+                        {
+                            <li class="flex items-start gap-3 text-sm">
+                                @switch (s.State)
+                                {
+                                    case "Done":
+                                        <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-success text-xs font-bold text-white" aria-label="Done">✓</span>
+                                        break;
+                                    case "Running":
+                                        <span class="mt-0.5 grid size-5 shrink-0 place-items-center text-brand-500" aria-label="Running"><Spinner /></span>
+                                        break;
+                                    case "Failed":
+                                        <span class="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-danger text-xs font-bold text-white" aria-label="Failed">!</span>
+                                        break;
+                                    default:
+                                        <span class="mt-0.5 size-5 shrink-0 rounded-full border-2 border-slate-300 dark:border-slate-600" aria-label="Waiting"></span>
+                                        break;
+                                }
+
+                                <span class="min-w-0 flex-1">
+                                    <span class="@(s.State == "Pending" ? "text-ink-soft" : "font-medium text-ink dark:text-slate-100")">@s.Title</span>
+                                    @if (!string.IsNullOrWhiteSpace(s.Detail))
+                                    {
+                                        <span class="block text-xs text-ink-soft">@s.Detail</span>
+                                    }
+                                </span>
+                            </li>
+                        }
+                    </ol>
+
+                    @if (run.Error is { } failure)
+                    {
+                        <Alert Message="@failure" />
+                    }
+
+                    @* Problems DuckDB could not get past: what, where, and what to do. *@
+                    @foreach (var p in run.Problems.Where(p => p.Chosen is null && run.Status == "NeedsInput"))
+                    {
+                        <article class="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30" data-testid="problem" aria-label="Problem to resolve">
+                            <p class="flex flex-wrap items-center gap-2 text-sm font-semibold text-amber-950 dark:text-amber-100">
+                                <span aria-hidden="true">⚠</span> @p.FileName@(p.Sheet is null ? "" : $" › {p.Sheet}")
+                            </p>
+                            <p class="mt-1 text-sm text-amber-950 dark:text-amber-100" data-testid="problem-message">@p.Message</p>
+                            @if (!string.IsNullOrWhiteSpace(p.Technical))
+                            {
+                                <details class="mt-1 text-xs text-amber-900 dark:text-amber-200">
+                                    <summary class="cursor-pointer">DuckDB said</summary>
+                                    <p class="mt-1 font-mono break-words">@p.Technical</p>
+                                </details>
+                            }
+
+                            <fieldset class="mt-3 flex flex-col gap-1.5">
+                                <legend class="sr-only">What should happen?</legend>
+                                @foreach (var o in p.Options)
+                                {
+                                    var chosen = Pick(p.Id) == o.Key;
+                                    <label class="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-white/60 dark:hover:bg-slate-900/40">
+                                        <input type="radio" class="mt-1 size-4 accent-brand-600" name="@($"p-{p.Id}")" checked="@chosen" @onchange="() => SetPick(p.Id, o.Key)" />
+                                        <span class="min-w-0 flex-1">
+                                            @o.Label
+                                            @if (o.NeedsText && chosen)
+                                            {
+                                                <input class="@UiStyles.Input mt-1" placeholder="@o.TextHint" @bind="_texts[p.Id]" @bind:event="oninput" aria-label="@o.Label" />
+                                            }
+                                        </span>
+                                    </label>
+                                }
+                            </fieldset>
+                            <div class="mt-2"><Alert Message="@_problemErrors.GetValueOrDefault(p.Id)" /></div>
+                            <div class="mt-2"><Button Small="true" Variant="ButtonVariant.Primary" Busy="_resolving == p.Id" Disabled="@(Pick(p.Id) is null || _resolving is not null)" OnClick="() => ResolveAsync(run, p)" data-testid="problem-apply">Apply and continue</Button></div>
+                        </article>
+                    }
+
+                    @if (run.Problems.Any(p => p.Chosen is not null))
+                    {
+                        <details class="text-xs text-ink-soft">
+                            <summary class="cursor-pointer">Your earlier answers (@run.Problems.Count(p => p.Chosen is not null))</summary>
+                            <ul class="mt-1 list-disc space-y-0.5 pl-5">
+                                @foreach (var p in run.Problems.Where(p => p.Chosen is not null))
+                                {
+                                    <li>@p.FileName@(p.Sheet is null ? "" : $" › {p.Sheet}"): @(p.Options.FirstOrDefault(o => o.Key == p.Chosen)?.Label ?? p.Chosen)@(p.Text is null ? "" : $" ({p.Text})")</li>
+                                }
+                            </ul>
+                        </details>
+                    }
+
+                    @if (run.Sheets.Count > 0)
+                    {
+                        <div class="overflow-x-auto rounded-xl border border-line dark:border-slate-700">
+                            <table class="min-w-full text-sm" data-testid="sheets">
+                                <thead class="bg-brand-50 dark:bg-slate-800">
+                                    <tr>
+                                        <th scope="col" class="@UiStyles.TableHead">File › sheet</th>
+                                        <th scope="col" class="@UiStyles.TableHead">Table</th>
+                                        <th scope="col" class="@UiStyles.TableHead text-right">Rows</th>
+                                        <th scope="col" class="@UiStyles.TableHead text-right">Columns</th>
+                                        <th scope="col" class="@UiStyles.TableHead">Note</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-line dark:divide-slate-800">
+                                    @foreach (var s in run.Sheets)
+                                    {
+                                        <tr>
+                                            <td class="@UiStyles.TableCell">@s.FileName › @s.Sheet</td>
+                                            <td class="@UiStyles.TableCell font-mono text-xs">@(s.Table ?? "—")</td>
+                                            <td class="@UiStyles.TableCell text-right tabular-nums">@(s.Status == "Ready" ? s.Rows.ToString("N0") : "—")</td>
+                                            <td class="@UiStyles.TableCell text-right tabular-nums">@(s.Status == "Ready" ? s.Columns : "—")</td>
+                                            <td class="@UiStyles.TableCell text-xs text-ink-soft">@(s.Status == "Skipped" ? "Skipped. " : "")@s.Note</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @* ── 3. Ask ── *@
+        @if (_summary is { TableCount: > 0 } summary)
+        {
+            <SpreadsheetAsk Summary="summary" />
+        }
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<SpreadsheetFileDto>? _files;
+    private IngestRunDto? _run;
+    private DocumentSummaryDto? _summary;
+    private readonly HashSet<Guid> _chosen = [];
+    private readonly Dictionary<Guid, string> _picks = [];
+    private readonly Dictionary<Guid, string> _texts = [];
+    private readonly Dictionary<Guid, string> _problemErrors = [];
+    private CancellationTokenSource? _cts;
+    private string? _error;
+    private bool _loading;
+    private bool _starting;
+    private Guid? _resolving;
+
+    private bool RunActive => _run?.Status is "Pending" or "Running";
+
+    private IEnumerable<(string N, string Label, bool Done)> Stages =>
+    [
+        ("1", "Upload in the Explorer", _files is { Count: > 0 }),
+        ("2", "Choose files", _run is not null),
+        ("3", "Prepare with DuckDB", _run?.Status == "Succeeded"),
+        ("4", "Ask questions", _summary is { TableCount: > 0 }),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _cts = new CancellationTokenSource();
+        await LoadFilesAsync();
+        try
+        {
+            _run = await Documents.GetLatestRunAsync(_cts.Token);
+            _summary = await Documents.GetSummaryAsync(_cts.Token);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+
+        if (RunActive)
+        {
+            _ = PollAsync();
+        }
+
+        _ = WatchFilesAsync();
+    }
+
+    /// <summary>Called by the page when the Explorer's files changed (upload, delete).</summary>
+    public async Task RefreshAsync()
+    {
+        await LoadFilesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Safety net: picks up files uploaded by other means every few seconds while nothing is being prepared.</summary>
+    private async Task WatchFilesAsync()
+    {
+        var token = _cts?.Token ?? CancellationToken.None;
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (!RunActive && !_loading)
+                {
+                    await RefreshAsync();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left.
+        }
+    }
+
+    private async Task LoadFilesAsync()
+    {
+        _loading = true;
+        try
+        {
+            _files = await Documents.ListFilesAsync(_cts?.Token ?? CancellationToken.None);
+            _chosen.RemoveWhere(id => _files.All(f => f.ItemId != id));
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Toggle(Guid id, bool on) => _ = on ? _chosen.Add(id) : _chosen.Remove(id);
+
+    private void SelectAllNotReady()
+    {
+        foreach (var f in _files?.Where(f => f.Supported && f.State != "Ready") ?? [])
+        {
+            _chosen.Add(f.ItemId);
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        _starting = true;
+        _error = null;
+        try
+        {
+            _run = await Documents.StartRunAsync([.. _chosen], _cts?.Token ?? CancellationToken.None);
+            _chosen.Clear();
+            await LoadFilesAsync();
+            _ = PollAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    /// <summary>Follows the run while the Worker is on it, and shows each step as it changes.</summary>
+    private async Task PollAsync()
+    {
+        var token = _cts?.Token ?? CancellationToken.None;
+        try
+        {
+            while (!token.IsCancellationRequested && _run is { Status: "Pending" or "Running" } current)
+            {
+                await Task.Delay(1_200, token);
+                _run = await Documents.GetRunAsync(current.Id, token);
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (!token.IsCancellationRequested)
+            {
+                await LoadFilesAsync();
+                _summary = await Documents.GetSummaryAsync(token);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left.
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string? Pick(Guid problemId) => _picks.GetValueOrDefault(problemId);
+
+    private void SetPick(Guid problemId, string option)
+    {
+        _picks[problemId] = option;
+        _texts.TryAdd(problemId, string.Empty);
+    }
+
+    private async Task ResolveAsync(IngestRunDto run, IngestProblemDto problem)
+    {
+        if (Pick(problem.Id) is not { } option)
+        {
+            return;
+        }
+
+        _resolving = problem.Id;
+        _error = null;
+        _problemErrors.Remove(problem.Id);
+        try
+        {
+            _run = await Documents.ResolveAsync(run.Id, problem.Id, option, _texts.GetValueOrDefault(problem.Id), _cts?.Token ?? CancellationToken.None);
+            if (RunActive)
+            {
+                _ = PollAsync();
+            }
+        }
+        catch (ServiceCallException ex)
+        {
+            // Say it on the card (the page-level message can be scrolled out of sight), and refresh: the run may have moved on already.
+            _problemErrors[problem.Id] = ex.Message;
+            try
+            {
+                _run = await Documents.GetLatestRunAsync(_cts?.Token ?? CancellationToken.None);
+                _summary = await Documents.GetSummaryAsync(_cts?.Token ?? CancellationToken.None);
+                await LoadFilesAsync();
+            }
+            catch (ServiceCallException)
+            {
+                // The message above already tells the person something went wrong.
+            }
+        }
+        finally
+        {
+            _resolving = null;
+        }
+    }
+
+    private async Task RemoveAsync(SpreadsheetFileDto file)
+    {
+        try
+        {
+            await Documents.RemoveFromIndexAsync(file.ItemId, _cts?.Token ?? CancellationToken.None);
+            await LoadFilesAsync();
+            _summary = await Documents.GetSummaryAsync(_cts?.Token ?? CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string Size(long bytes) => bytes switch
+    {
+        < 1_024 => $"{bytes} B",
+        < 1_048_576 => $"{bytes / 1_024.0:0.#} KB",
+        _ => $"{bytes / 1_048_576.0:0.#} MB",
+    };
+
+    private static string StateLabel(SpreadsheetFileDto f) => f.State switch
+    {
+        "Ready" => $"Ready · {f.Sheets} sheet{(f.Sheets == 1 ? "" : "s")}, {f.Rows:N0} rows",
+        "Preparing" => "Preparing…",
+        "NeedsInput" => "Needs your answer",
+        "Skipped" => "Skipped",
+        _ => f.Supported ? "Not prepared" : "Not supported",
+    };
+
+    private static string StateClass(string state) => state switch
+    {
+        "Ready" => "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+        "Preparing" => "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
+        "NeedsInput" => "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+        _ => "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
+    };
+
+    private static string RunLabel(string status) => status switch
+    {
+        "Pending" => "Waiting to start",
+        "Running" => "Running",
+        "NeedsInput" => "Needs your answer",
+        "Succeeded" => "Ready",
+        _ => "Failed",
+    };
+
+    private static string RunClass(string status) => status switch
+    {
+        "Succeeded" => "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+        "Failed" => "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+        "NeedsInput" => "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+        _ => "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
+    };
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}
+

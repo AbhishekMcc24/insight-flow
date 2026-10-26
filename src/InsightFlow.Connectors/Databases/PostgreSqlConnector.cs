@@ -19,7 +19,7 @@ namespace InsightFlow.Connectors.Databases;
 /// <item>The requested table must be one returned by discovery and is quoted, never interpolated. Rows stream into the writer.</item>
 /// </list>
 /// </summary>
-public sealed class PostgreSqlConnector(ISecretStore secrets, IOptions<ConnectorOptions> options) : IDataSourceConnector
+public sealed class PostgreSqlConnector(ISecretStore secrets, IOptions<ConnectorOptions> options) : IDataSourceConnector, ISchemaDescriber, IDatabaseCatalog
 {
     public DataSourceKind Kind => DataSourceKind.PostgreSql;
 
@@ -58,6 +58,91 @@ public sealed class PostgreSqlConnector(ISecretStore secrets, IOptions<Connector
             var name = reader.GetString(1);
             yield return new SourceTable($"{schema}.{name}", name, schema, reader.GetString(2) == "VIEW" ? "view" : "table");
         }
+    }
+
+    public async Task<IReadOnlyList<string>> ListDatabasesAsync(ConnectionProfile profile, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY datname",
+            connection);
+        var names = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
+
+    public async Task<SourceSchema> DescribeAsync(ConnectionProfile profile, IReadOnlyCollection<string>? tableIds, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+
+        var columns = new List<(string, string, string, SourceColumn)>();
+        await using (var command = new NpgsqlCommand(
+            """
+            SELECT c.table_schema, c.table_name, t.table_type, c.column_name, c.data_type, c.character_maximum_length, c.is_nullable
+            FROM information_schema.columns c
+            JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+            WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema')
+            ORDER BY c.table_schema, c.table_name, c.ordinal_position
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var type = SchemaAssembly.TypeWithLength(reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetValue(5));
+                columns.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2) == "VIEW" ? "view" : "table",
+                    new SourceColumn(reader.GetString(3), type, reader.GetString(6) == "YES", false)));
+            }
+        }
+
+        var primaryKeys = new List<(string, string, string)>();
+        await using (var command = new NpgsqlCommand(
+            """
+            SELECT k.table_schema, k.table_name, k.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage k
+              ON k.constraint_name = tc.constraint_name AND k.constraint_schema = tc.constraint_schema
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                primaryKeys.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+            }
+        }
+
+        var foreignKeys = new List<SourceForeignKey>();
+        await using (var command = new NpgsqlCommand(
+            """
+            SELECT n1.nspname, c1.relname, a1.attname, n2.nspname, c2.relname, a2.attname
+            FROM pg_constraint con
+            JOIN pg_class c1 ON c1.oid = con.conrelid
+            JOIN pg_namespace n1 ON n1.oid = c1.relnamespace
+            JOIN pg_class c2 ON c2.oid = con.confrelid
+            JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+            CROSS JOIN LATERAL unnest(con.conkey, con.confkey) AS k(ck, fk)
+            JOIN pg_attribute a1 ON a1.attrelid = con.conrelid AND a1.attnum = k.ck
+            JOIN pg_attribute a2 ON a2.attrelid = con.confrelid AND a2.attnum = k.fk
+            WHERE con.contype = 'f'
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                foreignKeys.Add(new SourceForeignKey(
+                    $"{reader.GetString(0)}.{reader.GetString(1)}", reader.GetString(2), $"{reader.GetString(3)}.{reader.GetString(4)}", reader.GetString(5)));
+            }
+        }
+
+        return SchemaAssembly.Assemble(columns, primaryKeys, foreignKeys, tableIds);
     }
 
     public async Task<ExtractResult> ExtractAsync(ExtractRequest request, IExtractWriter writer, CancellationToken cancellationToken)

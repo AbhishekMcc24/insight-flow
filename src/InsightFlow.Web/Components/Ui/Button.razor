@@ -19,13 +19,13 @@
     [Parameter(CaptureUnmatchedValues = true)] public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
     private string Classes =>
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 "
+        "inline-flex items-center justify-center gap-1.5 rounded-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 "
         + (Small ? "px-2 py-1 text-xs " : "px-3 py-1.5 text-sm ")
         + Variant switch
         {
-            ButtonVariant.Primary => "bg-brand-600 text-white shadow-xs hover:bg-brand-700",
-            ButtonVariant.Danger => "bg-red-600 text-white shadow-xs hover:bg-red-700",
-            ButtonVariant.Ghost => "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
-            _ => "border border-slate-300 bg-white text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
+            ButtonVariant.Primary => "bg-brand-600 text-white shadow-xs hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600",
+            ButtonVariant.Danger => "bg-danger text-white shadow-xs hover:brightness-90",
+            ButtonVariant.Ghost => "text-ink-soft hover:bg-mist hover:text-brand-700 dark:text-slate-300 dark:hover:bg-slate-800",
+            _ => "border border-line bg-white text-ink shadow-xs hover:border-brand-300 hover:bg-mist dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
         };
 }

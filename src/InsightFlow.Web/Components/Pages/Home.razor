@@ -3,57 +3,136 @@
 
 <PageTitle>Insight Flow</PageTitle>
 
-<section class="mx-auto max-w-4xl px-6 py-12">
-    <h1 class="text-3xl font-semibold tracking-tight">Insight Flow</h1>
-    <p class="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
-        Governed BI meets AI-first exploration. Drop files into your workspace, turn them into datasets, and explore by
-        picking fields or asking in plain English.
-    </p>
-    <div class="mt-6 flex gap-3">
-        <a href="workspace" class="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-xs hover:bg-brand-700">Open workspace</a>
-        <a href="slice" class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Build a chart</a>
+<div class="if-hero relative overflow-hidden">
+    <section class="mx-auto grid max-w-7xl items-center gap-8 px-4 pt-10 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:pt-14 lg:pb-24">
+        <div>
+            <p class="text-xs font-medium tracking-[0.3em] text-ink-soft">WELCOME TO</p>
+            <h1 class="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-6xl dark:text-slate-100">Insight <span class="text-brand-700 dark:text-brand-400">Flow</span></h1>
+            <p class="mt-5 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg dark:text-slate-400">
+                Governed BI meets AI-first exploration. Drop files into your workspace, turn them into datasets, and explore by
+                picking fields or asking in plain English.
+            </p>
+            <div class="mt-7 flex flex-wrap gap-3">
+                <a href="workspace" class="inline-flex items-center gap-2 rounded-control bg-brand-700 px-5 py-3 text-sm font-medium text-white shadow-card transition hover:bg-brand-800 hover:shadow-card-hover">
+                    <Icon Name="folder" Class="size-5" /> Open workspace <Icon Name="arrow-right" Class="size-4" />
+                </a>
+                <a href="slice" class="inline-flex items-center gap-2 rounded-control border border-brand-600/40 bg-white/80 px-5 py-3 text-sm font-medium text-brand-700 transition hover:border-brand-600 hover:bg-white dark:bg-slate-900 dark:text-brand-300">
+                    <Icon Name="chart" Class="size-5" /> Build a chart <Icon Name="arrow-right" Class="size-4" />
+                </a>
+            </div>
+        </div>
+        <div class="hidden justify-self-end lg:block" aria-hidden="true">
+            <svg viewBox="0 0 440 300" class="w-full max-w-md drop-shadow-[0_18px_30px_rgba(21,94,99,0.18)]">
+                <ellipse cx="220" cy="272" rx="190" ry="14" fill="var(--color-brand-200)" opacity="0.7" />
+                <path d="M70 250 L96 60 Q98 48 110 48 H330 Q342 48 344 60 L370 250 Z" fill="var(--color-brand-700)" />
+                <path d="M84 238 L106 66 Q108 58 116 58 H324 Q332 58 334 66 L356 238 Z" fill="#f3faf9" />
+                <path d="M40 252 H400 Q410 252 408 262 L404 266 Q402 270 396 270 H44 Q38 270 36 266 L32 262 Q30 252 40 252 Z" fill="var(--color-brand-600)" />
+                <rect x="130" y="150" width="30" height="70" rx="5" fill="var(--color-brand-400)" />
+                <rect x="172" y="120" width="30" height="100" rx="5" fill="var(--color-brand-500)" />
+                <rect x="214" y="92" width="30" height="128" rx="5" fill="var(--color-brand-700)" />
+                <circle cx="282" cy="100" r="5" fill="var(--color-brand-500)" />
+                <rect x="294" y="96" width="30" height="8" rx="4" fill="var(--color-brand-200)" />
+                <circle cx="282" cy="124" r="5" fill="var(--color-brand-400)" />
+                <rect x="294" y="120" width="22" height="8" rx="4" fill="var(--color-brand-200)" />
+                <circle cx="282" cy="148" r="5" fill="var(--color-brand-300)" />
+                <rect x="294" y="144" width="26" height="8" rx="4" fill="var(--color-brand-200)" />
+            </svg>
+        </div>
+    </section>
+</div>
+
+<section class="relative z-10 mx-auto -mt-12 max-w-7xl px-4 pb-12 sm:px-8 lg:-mt-16" aria-labelledby="dashboard-heading">
+    <div class="flex items-center gap-3">
+        <span class="grid size-9 place-items-center rounded-control bg-brand-100 text-brand-700 dark:bg-brand-900/40"><Icon Name="chart" Class="size-5" /></span>
+        <h2 id="dashboard-heading" class="text-lg font-semibold tracking-wide text-ink uppercase dark:text-slate-100">Dashboard</h2>
     </div>
 
-    <h2 class="mt-12 text-sm font-semibold uppercase tracking-wide text-slate-500">Datasets</h2>
-    <Alert Message="@_error" />
-    @if (_datasets is null)
+    <div class="mt-4"><Alert Message="@_error" /></div>
+
+    @if (_stats is null)
     {
-        <Spinner Class="mt-4 text-slate-400" />
-    }
-    else if (_datasets.Count == 0)
-    {
-        <p class="mt-3 text-sm text-slate-500">No datasets yet. Upload a CSV or Parquet file in the workspace and choose “Create dataset”.</p>
+        <div class="flex justify-center p-12 text-brand-500"><Spinner /></div>
     }
     else
     {
-        <ul class="mt-3 divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
-            @foreach (var dataset in _datasets.Take(10))
-            {
-                <li class="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <Icon Name="dataset" Class="text-brand-500" />
-                    <a class="flex-1 font-medium hover:underline" href="workspace?datasetVersionId=@dataset.DatasetVersionId">@dataset.Name</a>
-                    <span class="text-xs text-slate-500">@dataset.FolderName</span>
-                </li>
-            }
-        </ul>
+        <dl class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="kpis">
+            @Kpi("Documents uploaded", _stats.TotalDocuments.ToString("N0"), $"{_stats.DocumentsLast7Days:N0} in the last 7 days", "file")
+            @Kpi("Datasets", _stats.TotalDatasets.ToString("N0"), $"{_stats.ExtractsSucceeded:N0} extracts succeeded", "dataset")
+            @Kpi("Storage used", FormatBytes(_stats.TotalBytes), $"across {_stats.TotalDocuments:N0} documents", "folder")
+            @Kpi("Rows processed", _stats.TotalRowsProcessed.ToString("N0"), _stats.ExtractsFailed > 0 ? $"{_stats.ExtractsFailed:N0} extracts failed" : "no failed extracts", "thread")
+        </dl>
+
+        @if (_stats.TotalDocuments == 0)
+        {
+            <p class="if-card mt-4 p-8 text-center text-sm text-ink-soft">
+                No documents yet. Upload a CSV or Parquet file in the <a class="font-medium text-brand-700 underline" href="workspace">workspace</a> and the statistics will appear here.
+            </p>
+        }
+        else
+        {
+            <div class="mt-4 grid gap-4 lg:grid-cols-3">
+                <div class="if-card p-4 lg:col-span-2">
+                    <h3 class="text-sm font-semibold text-ink dark:text-slate-100">Documents uploaded, last 30 days</h3>
+                    <div class="mt-2 h-72"><StatChart Option="d => DashboardCharts.UploadsOverTime(_stats.UploadsByDay, d)" AriaLabel="Line chart of documents uploaded per day over the last 30 days" /></div>
+                </div>
+                <div class="if-card p-4">
+                    <h3 class="text-sm font-semibold text-ink dark:text-slate-100">Documents by file type</h3>
+                    <div class="mt-2 h-72"><StatChart Option="d => DashboardCharts.DocumentsByType(_stats.ByFileType, d)" AriaLabel="Donut chart of documents by file type" /></div>
+                </div>
+                <div class="if-card p-4 lg:col-span-2">
+                    <h3 class="text-sm font-semibold text-ink dark:text-slate-100">Documents by folder</h3>
+                    <div class="mt-2 h-72"><StatChart Option="d => DashboardCharts.DocumentsByFolder(_stats.ByFolder, d)" AriaLabel="Bar chart of documents per folder" /></div>
+                </div>
+                <div class="if-card p-4">
+                    <h3 class="text-sm font-semibold text-ink dark:text-slate-100">Extract runs</h3>
+                    <div class="mt-2 h-72"><StatChart Option="d => DashboardCharts.ExtractOutcomes(_stats.ExtractsSucceeded, _stats.ExtractsFailed, _stats.ExtractsInProgress, d)" AriaLabel="Bar chart of extract runs by outcome" /></div>
+                </div>
+            </div>
+        }
     }
     @* TODO(dev2): recent threads, workbooks and dashboards. *@
 </section>
 
 @code {
-    private IReadOnlyList<DatasetSummaryDto>? _datasets;
+    private WorkspaceStatsDto? _stats;
     private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _datasets = await Workspace.ListDatasetsAsync(CancellationToken.None);
+            _stats = await Workspace.GetStatsAsync(CancellationToken.None);
         }
         catch (ServiceCallException ex)
         {
-            _datasets = [];
             _error = ex.Message;
+            _stats = new WorkspaceStatsDto(0, 0, 0, 0, 0, 0, 0, 0, [], [], []);
         }
+    }
+
+    private static RenderFragment Kpi(string label, string value, string hint, string icon) => __builder =>
+    {
+        <div class="if-card flex items-center gap-4 p-4">
+            <span class="grid size-12 shrink-0 place-items-center rounded-control bg-brand-100 text-brand-700 dark:bg-brand-900/40"><Icon Name="@icon" Class="size-6" /></span>
+            <div class="min-w-0">
+                <dt class="text-xs font-medium tracking-wide text-ink-soft uppercase">@label</dt>
+                <dd class="truncate text-2xl font-bold text-ink tabular-nums dark:text-slate-100">@value</dd>
+                <dd class="truncate text-xs text-ink-soft">@hint</dd>
+            </div>
+        </div>
+    };
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{bytes:N0} B" : $"{size:0.#} {units[unit]}";
     }
 }

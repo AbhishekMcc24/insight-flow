@@ -44,6 +44,18 @@ public sealed class AiOptions
 
     /// <summary>Per-tenant monthly budgets, keyed by tenant id.</summary>
     public Dictionary<string, long> TenantMonthlyTokenBudgets { get; set; } = [];
+
+    /// <summary>A large AI request (writing descriptions or skills for many tables) asks for confirmation when its estimated cost is at least this many US dollars...</summary>
+    public decimal WarnAboveCostUsd { get; set; } = 0.05m;
+
+    /// <summary>...or, when the model has no price, when it would use at least this many tokens.</summary>
+    public long WarnAboveTokens { get; set; } = 40_000;
+
+    /// <summary>Context window overrides in tokens, keyed by model-name prefix (for example <c>gpt-4.1</c>). Used to decide when a long conversation is summarized.</summary>
+    public Dictionary<string, int> ContextWindows { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Price overrides in US dollars per million tokens, keyed by model-name prefix (for example <c>gpt-4.1</c>). Used for the cost shown after each answer.</summary>
+    public Dictionary<string, ModelPrice> Pricing { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>

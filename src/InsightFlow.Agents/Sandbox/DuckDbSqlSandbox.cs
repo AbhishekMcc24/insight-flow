@@ -26,6 +26,10 @@ public sealed partial class DuckDbSqlSandbox(
     IOptions<SandboxOptions> options,
     ILogger<DuckDbSqlSandbox> logger) : ISqlSandbox
 {
+    /// <summary>Table names are interpolated into SQL, so they must be plain lower-case identifiers.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex("^[a-z_][a-z0-9_]{0,63}$")]
+    private static partial System.Text.RegularExpressions.Regex SafeIdentifier();
+
     public static string InputTableName(int index) => index == 0 ? "input" : string.Create(CultureInfo.InvariantCulture, $"input_{index + 1}");
 
     public async Task<SandboxResult> RunAsync(SandboxRequest request, CancellationToken cancellationToken)
@@ -34,7 +38,11 @@ public sealed partial class DuckDbSqlSandbox(
         using var activity = AgentsTelemetry.ActivitySource.StartActivity("sandbox.run");
         var started = Stopwatch.GetTimestamp();
         var settings = options.Value;
-        var inputNames = request.Inputs.Select((_, i) => InputTableName(i)).ToList();
+        var inputNames = request.InputNames is { } named ? [.. named] : request.Inputs.Select((_, i) => InputTableName(i)).ToList();
+        if (inputNames.Count != request.Inputs.Count || inputNames.Any(n => !SafeIdentifier().IsMatch(n)) || inputNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != inputNames.Count)
+        {
+            throw new InvalidOperationException("Sandbox input names must be unique, safe identifiers, one per input.");
+        }
 
         if (request.Inputs.Count == 0 || request.Inputs.Any(v => v.TenantId != request.Tenant))
         {

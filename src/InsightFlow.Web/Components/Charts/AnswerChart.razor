@@ -1,0 +1,70 @@
+@using InsightFlow.Contracts.Query
+@using InsightFlow.Web.Charts
+@* The chart of an answer. It opens as the type asked for (or the best fit) and a "Chart type" list offers every type that can draw these rows, so
+   the person can switch to a pie, a funnel or a heatmap without asking again. Shows nothing when the rows cannot be drawn as a chart. *@
+
+@if (_types.Count > 0 && _type is not null)
+{
+    <div class="space-y-2" data-testid="answer-chart">
+        <div class="flex flex-wrap items-center gap-2">
+            <label for="@_id" class="text-xs font-medium text-ink-soft">Chart type</label>
+            <select id="@_id" class="rounded-control border border-line bg-white px-2 py-1 text-xs text-ink dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" value="@_type" @onchange="OnChanged" data-testid="chart-type">
+                @foreach (var group in _types.GroupBy(t => t.Group))
+                {
+                    <optgroup label="@group.Key">
+                        @foreach (var t in group)
+                        {
+                            <option value="@t.Key" selected="@(t.Key == _type)">@t.Label</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+            <span class="text-xs text-ink-soft">@_types.Count of @ChartTypes.All.Count types fit these rows</span>
+            <ExportToPlayground Kind="chart" Result="Result" Spec="@CurrentSpec" Title="@Title" />
+        </div>
+        <div class="h-80 rounded-xl border border-line bg-white p-2 dark:border-slate-700 dark:bg-slate-900" data-testid="chart">
+            <StatChart Option="BuildOption" AriaLabel="@($"{Label(_type)} chart of the result")" />
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _id = "chart-type-" + Guid.NewGuid().ToString("N")[..8];
+    private IReadOnlyList<ChartTypeInfo> _types = [];
+    private string? _type;
+    private QueryResult? _seenResult;
+    private ChartSpecDto? _seenSpec;
+
+    [Parameter, EditorRequired] public QueryResult? Result { get; set; }
+
+    /// <summary>What the AI (or the person's wording) chose; null picks the best fit.</summary>
+    [Parameter] public ChartSpecDto? Spec { get; set; }
+
+    /// <summary>Caption for the chart when it is added to the Playground (usually the question).</summary>
+    [Parameter] public string? Title { get; set; }
+
+    private ChartSpecDto CurrentSpec => Spec is null ? new ChartSpecDto(_type!) : Spec with { Type = _type! };
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Result, _seenResult) && ReferenceEquals(Spec, _seenSpec))
+        {
+            return;
+        }
+
+        _seenResult = Result;
+        _seenSpec = Spec;
+        _types = ChartFactory.Compatible(Result);
+        _type = ChartFactory.Choose(Result, Spec?.Type);
+    }
+
+    private string BuildOption(bool dark)
+    {
+        var spec = Spec is null ? new ChartSpecDto(_type!) : Spec with { Type = _type! };
+        return ChartFactory.Build(Result!, spec, dark) ?? "{}";
+    }
+
+    private void OnChanged(ChangeEventArgs e) => _type = e.Value?.ToString() ?? _type;
+
+    private static string Label(string? type) => ChartTypes.All.FirstOrDefault(t => t.Key == type)?.Label ?? "Chart";
+}

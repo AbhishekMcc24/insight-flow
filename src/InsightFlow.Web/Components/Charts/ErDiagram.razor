@@ -1,0 +1,645 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@* The knowledge base as an entity-relationship diagram: tables are cards listing their columns, and every relationship is a line from the
+   exact linked column to the exact linked column (no labels on the lines, so nothing overlaps). Read-only by default (the Publish step).
+   With Interactive on (the Relationship builder) you can drag from a column's dot to another column to link them, click a line to remove it,
+   and expand a card to reach every column. Pure SVG rendered by Blazor; only the drag itself runs in the browser (wwwroot/js/erDiagram.js),
+   so it stays smooth. It follows the light/dark theme. Relationships are also listed in text in the Relationships step. *@
+
+<div class="overflow-hidden rounded-2xl border border-line bg-white dark:border-slate-700 dark:bg-slate-900">
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-brand-50/70 px-4 py-2.5 text-xs text-ink-soft dark:border-slate-700 dark:bg-slate-800/50" data-testid="diagram-toolbar">
+        <ul class="flex flex-wrap items-center gap-x-4 gap-y-1" aria-label="Legend">
+            <li class="flex items-center gap-1.5"><svg viewBox="0 0 28 8" class="w-7" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" stroke="@KindColor("ForeignKey")" stroke-width="2.5" /></svg> Foreign key</li>
+            <li class="flex items-center gap-1.5"><svg viewBox="0 0 28 8" class="w-7" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" stroke="@KindColor("SameAttribute")" stroke-width="2.5" stroke-dasharray="6 4" /></svg> Same attribute</li>
+            <li class="flex items-center gap-1.5"><svg viewBox="0 0 28 8" class="w-7" aria-hidden="true"><line x1="0" y1="4" x2="28" y2="4" stroke="@KindColor("DerivedFrom")" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round" /></svg> Derived from</li>
+            <li class="flex items-center gap-1.5"><span class="inline-flex items-center gap-1 rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">PK</span> Primary key</li>
+        </ul>
+        @if (Interactive)
+        {
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 font-medium text-brand-700 ring-1 ring-brand-200 dark:bg-slate-900 dark:text-brand-300 dark:ring-brand-900" data-testid="diagram-hint">
+                <Icon Name="graph" Class="size-3.5" /> Drag from a column's dot to another column to link them · click a line to remove it · drag a table's header to move it
+            </span>
+            @if (_moved || _collapsed.Count > 0)
+            {
+                <button type="button" class="rounded-md border border-line bg-white px-2.5 py-1 font-medium text-ink hover:border-brand-300 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" @onclick="ResetLayout" data-testid="diagram-reset">Reset layout</button>
+            }
+        }
+        <span class="ml-auto flex items-center gap-1" role="group" aria-label="Zoom">
+            <button type="button" class="rounded-md border border-line bg-white px-2 py-1 font-semibold text-ink hover:border-brand-300 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" aria-label="Zoom out" @onclick="() => Zoom(-0.15)">−</button>
+            <button type="button" class="min-w-14 rounded-md border border-line bg-white px-2 py-1 font-medium tabular-nums text-ink hover:border-brand-300 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" aria-label="Reset zoom" @onclick="ResetZoom">@(_fit ? "Fit" : $"{_zoom:P0}")</button>
+            <button type="button" class="rounded-md border border-line bg-white px-2 py-1 font-semibold text-ink hover:border-brand-300 hover:text-brand-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" aria-label="Zoom in" @onclick="() => Zoom(0.15)">+</button>
+        </span>
+    </div>
+
+    <div class="relative">
+    <div data-pan class="max-h-[44rem] cursor-grab overflow-auto bg-[radial-gradient(circle,var(--color-line)_1px,transparent_1px)] [background-size:22px_22px] dark:[background-image:radial-gradient(circle,#334155_1px,transparent_1px)]" data-testid="diagram-scroll">
+        @if (_layout.Cards.Count == 0)
+        {
+            <p class="p-10 text-center text-sm text-ink-soft">There are no tables to draw yet.</p>
+        }
+        else
+        {
+            <div class="relative inline-block min-w-full align-top" @onclick="() => _selectedEdge = null">
+                <svg @ref="_svg" viewBox="0 0 @F(_layout.Width) @F(_layout.Height)" role="img" aria-labelledby="@($"{_uid}-title {_uid}-desc")" class="block max-w-none select-none" style="@SvgStyle" data-testid="diagram">
+                    <title id="@($"{_uid}-title")">Knowledge graph diagram</title>
+                    <desc id="@($"{_uid}-desc")">@_layout.Cards.Count tables and @_layout.Edges.Count relationships. Each line joins the two linked columns.</desc>
+                    <defs>
+                        <filter id="@($"{_uid}-shadow")" x="-10%" y="-10%" width="130%" height="140%">
+                            <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#155e63" flood-opacity="0.14" />
+                        </filter>
+                        @foreach (var kind in new[] { "ForeignKey", "SameAttribute", "DerivedFrom" })
+                        {
+                            <marker id="@($"{_uid}-arrow-{kind}")" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+                                <path d="M 1 1 L 11 6 L 1 11 Z" fill="@KindColor(kind)" />
+                            </marker>
+                        }
+                    </defs>
+
+                    @* ── lines (below the cards, so a line never crosses text) ── *@
+                    @foreach (var e in _layout.Edges)
+                    {
+                        var on = Highlighted(e);
+                        var color = KindColor(e.Kind);
+                        var chosen = Mate(_selectedEdge, e);
+                        <g class="@(on ? "" : "opacity-20")" style="transition: opacity .15s" data-edge-from="@e.FromTableId" data-edge-to="@e.ToTableId">
+                            <path d="@e.Path" fill="none" stroke="transparent" stroke-width="18" style="cursor: pointer" data-edge="@e.RelationshipId"
+                                  @onmouseenter="() => _hoverEdge = e.RelationshipId" @onmouseleave="() => _hoverEdge = null"
+                                  @onclick="() => SelectEdge(e.RelationshipId)" @onclick:stopPropagation="true">
+                                <title>@e.Tooltip</title>
+                            </path>
+                            <path d="@e.Path" fill="none" stroke="@color" stroke-width="@(chosen || Mate(_hoverEdge, e) ? 4.5 : 2.5)" stroke-dasharray="@Dash(e.Kind)" stroke-linecap="round" pointer-events="none"
+                                  marker-end="@(Interactive ? $"url(#{_uid}-arrow-{e.Kind})" : null)" />
+                            <circle cx="@F(e.X1)" cy="@F(e.Y1)" r="4.5" fill="@color" stroke="white" stroke-width="1.5" pointer-events="none" />
+                            @if (!Interactive)
+                            {
+                                <circle cx="@F(e.X2)" cy="@F(e.Y2)" r="4.5" fill="@color" stroke="white" stroke-width="1.5" pointer-events="none" />
+                            }
+                        </g>
+                    }
+
+                    @* ── cards ── *@
+                    @foreach (var c in _layout.Cards)
+                    {
+                        var dim = _hoverEdge is not null ? !EdgeTouches(c.TableId) : _hoverCard is not null && _hoverCard != c.TableId && !Neighbour(c.TableId);
+                        var footer = !c.IsScrollable && !c.IsCollapsed && (c.HiddenColumns > 0 || (c.IsExpanded && c.Rows.Count > (c.IsLinked ? ErDiagramLayout.MaxRows : ErDiagramLayout.UnlinkedRows)));
+                        <g data-card="@c.TableId" class="@(dim ? "opacity-40" : "")" style="transition: opacity .15s" @onmouseenter="() => _hoverCard = c.TableId" @onmouseleave="() => _hoverCard = null">
+                            <rect x="@F(c.X)" y="@F(c.Y)" width="@F(c.Width)" height="@F(c.Height)" rx="14" class="fill-white stroke-line dark:fill-slate-900 dark:stroke-slate-600" stroke-width="1.5" filter="@($"url(#{_uid}-shadow)")" />
+                            @if (c.IsCollapsed)
+                            {
+                                <rect x="@F(c.X)" y="@F(c.Y)" width="@F(c.Width)" height="@F(Math.Max(c.Height, ErDiagramLayout.HeaderHeight))" rx="14" class="@HeaderFill(c)" pointer-events="none" />
+                            }
+                            else
+                            {
+                                <path d="@HeaderPath(c)" class="@HeaderFill(c)" pointer-events="none" />
+                            }
+                            @* The header is the grab handle for moving the card. *@
+                            <rect data-drag="@c.TableId" x="@F(c.X)" y="@F(c.Y)" width="@F(c.Width)" height="@F(ErDiagramLayout.HeaderHeight)" fill="transparent" style="@(Interactive ? "cursor: grab" : null)"><title>@(Interactive ? "Drag to move this table" : c.Title)</title></rect>
+                            @Txt(c.X + 16, c.Y + 22, "fill-white", 14, Fit(c.Title, Interactive ? 22 : 27), "display", 700, title: c.Title)
+                            @Txt(c.X + 16, c.Y + 39, "fill-white/75", 10.5, Fit(c.Subtitle, 40), title: c.Subtitle)
+                            @if (Interactive)
+                            {
+                                var hiddenCount = c.IsCollapsed ? c.HiddenColumns : 0;
+                                var fold = c.IsCollapsed ? $"Expand {c.Title}" + (hiddenCount > 0 ? $" ({hiddenCount} more columns)" : "") : (c.IsLinked ? $"Collapse {c.Title} to its linked columns" : $"Collapse {c.Title}");
+                                <g data-nodrag role="button" tabindex="0" style="cursor: pointer" aria-expanded="@UiStyles.Aria(!c.IsCollapsed)" aria-label="@fold"
+                                   @onclick="() => ToggleCollapse(c.TableId)" @onclick:stopPropagation="true" @onkeydown="e => ToggleCollapseOnKey(e, c.TableId)">
+                                    <title>@fold</title>
+                                    <circle cx="@F(c.X + c.Width - 24)" cy="@F(c.Y + 24)" r="13" class="fill-white/15 hover:fill-white/30" />
+                                    <path d="@(c.IsCollapsed ? ChevronRight(c.X + c.Width - 24, c.Y + 24) : ChevronDown(c.X + c.Width - 24, c.Y + 24))" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
+                                </g>
+                                <g data-nodrag role="button" tabindex="0" style="cursor: pointer" aria-label="Remove table @c.Title and its relationships" data-testid="card-remove"
+                                   @onclick="() => OnRemoveTable.InvokeAsync(c.TableId)" @onclick:stopPropagation="true" @onkeydown="e => RemoveOnKey(e, c.TableId)">
+                                    <title>Remove this table (and its connectors)</title>
+                                    <circle cx="@F(c.X + c.Width - 54)" cy="@F(c.Y + 24)" r="13" class="fill-white/15 hover:fill-red-500/70" />
+                                    <path transform="translate(@F(c.X + c.Width - 54 - 8) @F(c.Y + 24 - 8)) scale(0.667)" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />
+                                </g>
+                            }
+
+                            @foreach (var r in c.Rows)
+                            {
+                                var rowTop = r.Y - ErDiagramLayout.RowHeight / 2;
+                                var active = _hoverEdge is { } he && _layout.Edges.Any(e => Mate(he, e) && (e.FromColumnId == r.ColumnId || e.ToColumnId == r.ColumnId));
+                                <g class="er-row">
+                                    @if (active)
+                                    {
+                                        <rect x="@F(c.X + 4)" y="@F(rowTop + 2)" width="@F(c.Width - 8)" height="@F(ErDiagramLayout.RowHeight - 4)" rx="7" class="fill-brand-100 dark:fill-brand-900/50" />
+                                    }
+                                    else if (r.IsLinked)
+                                    {
+                                        <rect x="@F(c.X + 4)" y="@F(rowTop + 2)" width="@F(c.Width - 8)" height="@F(ErDiagramLayout.RowHeight - 4)" rx="7" class="fill-brand-50 dark:fill-brand-900/25" />
+                                    }
+                                    @if (Interactive)
+                                    {
+                                        @* The drop target for a dragged line: the whole row. *@
+                                        <rect data-row data-column-id="@r.ColumnId" x="@F(c.X + 1)" y="@F(rowTop + 1)" width="@F(c.Width - 2)" height="@F(ErDiagramLayout.RowHeight - 2)" rx="7" fill="transparent" stroke="transparent" />
+                                    }
+                                    @Txt(c.X + (r.IsKey ? 38 : 16), r.Y + 4.2, "fill-ink dark:fill-slate-100", 12.5, Fit(r.Name, r.IsKey ? 17 : 20), "mono", r.IsLinked || r.IsKey ? 600 : 400, title: $"{r.Name} ({r.Type})")
+                                    @if (r.IsKey)
+                                    {
+                                        <rect x="@F(c.X + 12)" y="@F(r.Y - 8)" width="22" height="16" rx="4" class="fill-amber-100 dark:fill-amber-900/50" pointer-events="none" />
+                                        @Txt(c.X + 23, r.Y + 3.8, "fill-amber-800 dark:fill-amber-200", 9.5, "PK", "sans", 700, "middle")
+                                    }
+                                    @Txt(c.X + c.Width - (c.IsScrollable && c.TotalRows > c.Rows.Count ? 24 : 14), r.Y + 4, "fill-ink-soft", 11, Fit(r.Type, 15), "mono", anchor: "end")
+
+                                    @if (Interactive)
+                                    {
+                                        @* Connector dots on both sides of the row: press and drag to another column. *@
+                                        <circle data-handle data-column-id="@r.ColumnId" data-x="@F(c.X)" data-y="@F(r.Y)" data-side="left" cx="@F(c.X)" cy="@F(r.Y)" r="7"
+                                                class="er-handle fill-white stroke-brand-600" stroke-width="2.5" style="touch-action: none"><title>Drag to link @r.Name</title></circle>
+                                        <circle data-handle data-column-id="@r.ColumnId" data-x="@F(c.X + c.Width)" data-y="@F(r.Y)" data-side="right" cx="@F(c.X + c.Width)" cy="@F(r.Y)" r="7"
+                                                class="er-handle fill-white stroke-brand-600" stroke-width="2.5" style="touch-action: none"><title>Drag to link @r.Name</title></circle>
+                                    }
+                                </g>
+                            }
+
+                            @if (c.IsScrollable && c.TotalRows > c.Rows.Count)
+                            {
+                                var trackTop = c.Y + ErDiagramLayout.HeaderHeight + ErDiagramLayout.CardPadding;
+                                var trackH = c.Rows.Count * ErDiagramLayout.RowHeight;
+                                var thumbH = Math.Max(26, trackH * c.Rows.Count / c.TotalRows);
+                                var maxStart = c.TotalRows - c.Rows.Count;
+                                var thumbY = trackTop + (trackH - thumbH) * c.FirstRow / maxStart;
+                                var trackX = c.X + c.Width - 11;
+                                @* A scrollbar for the card's columns: wheel over the card, or press the track / drag the thumb. Ticks mark linked columns. *@
+                                <g data-testid="card-scrollbar">
+                                    <rect data-scrollbar data-card-id="@c.TableId" data-track-y="@F(trackTop)" data-track-h="@F(trackH)" data-total="@c.TotalRows" data-visible="@c.Rows.Count" data-thumb="@F(thumbH)"
+                                          x="@F(trackX - 6)" y="@F(trackTop)" width="18" height="@F(trackH)" fill="transparent" style="cursor: ns-resize"><title>Scroll columns: @(c.FirstRow + 1)–@(c.FirstRow + c.Rows.Count) of @c.TotalRows</title></rect>
+                                    <rect x="@F(trackX)" y="@F(trackTop)" width="6" height="@F(trackH)" rx="3" class="fill-slate-200 dark:fill-slate-700" pointer-events="none" />
+                                    @foreach (var i in c.LinkedIndexes ?? [])
+                                    {
+                                        <rect x="@F(trackX - 2)" y="@F(trackTop + (i + 0.5) / c.TotalRows * trackH - 1.5)" width="10" height="3" rx="1.5" class="fill-brand-500" pointer-events="none" />
+                                    }
+                                    <rect x="@F(trackX)" y="@F(thumbY)" width="6" height="@F(thumbH)" rx="3" class="fill-slate-400 dark:fill-slate-400" fill-opacity="0.75" pointer-events="none" />
+                                </g>
+                            }
+
+                            @if (footer)
+                            {
+                                var textY = c.Y + c.Height - ErDiagramLayout.CardPadding - ErDiagramLayout.RowHeight / 2 + 4;
+                                @if (Interactive)
+                                {
+                                    <g role="button" tabindex="0" style="cursor: pointer" aria-label="@(c.IsExpanded ? $"Show fewer columns of {c.Title}" : $"Show all {c.Rows.Count + c.HiddenColumns} columns of {c.Title}")"
+                                       @onclick="() => ToggleExpand(c.TableId)" @onclick:stopPropagation="true" @onkeydown="e => ToggleOnKey(e, c.TableId)">
+                                        <rect x="@F(c.X + 6)" y="@F(textY - 16)" width="@F(c.Width - 12)" height="24" rx="8" class="fill-brand-50 hover:fill-brand-100 dark:fill-slate-800" />
+                                        @Txt(c.X + c.Width / 2, textY, "fill-brand-700 dark:fill-brand-300", 11, c.IsExpanded ? "Show fewer columns" : $"+ {c.HiddenColumns} more columns · show all", "sans", 600, "middle")
+                                    </g>
+                                }
+                                else
+                                {
+                                    @Txt(c.X + 16, textY, "fill-ink-soft", 11, $"+ {c.HiddenColumns} more column{(c.HiddenColumns == 1 ? "" : "s")}")
+                                }
+                            }
+                        </g>
+                    }
+
+                    @if (_layout.UnlinkedTop is { } top)
+                    {
+                        @Txt(ErDiagramLayout.Margin, top + 22, "fill-ink-soft", 12, "NOT LINKED YET", "display", 700, spacing: 1.4)
+                    }
+                </svg>
+
+                @* ── the line that was clicked: its details and the way to remove it ── *@
+                @if (Interactive && SelectedEdge is { } selected)
+                {
+                    <div class="absolute z-10 w-72 -translate-x-1/2 -translate-y-[115%] rounded-xl border border-line bg-white p-3 text-sm shadow-card-hover dark:border-slate-600 dark:bg-slate-900"
+                         style="left: @(F(selected.MidX * _zoom))px; top: @(F(selected.MidY * _zoom))px" role="dialog" aria-label="Selected relationship" data-testid="edge-popover" @onclick:stopPropagation="true">
+                        <p class="flex items-center gap-2 text-xs font-semibold text-ink-soft"><span class="@UiStyles.Badge">@selected.Kind</span> <span class="tabular-nums">@selected.Confidence.ToString("P0")</span>@if (selected.GroupId is not null) {<span class="@UiStyles.Badge" data-testid="edge-composite">Composite · @GroupEdges(selected).Count columns</span>}</p>
+                        <ul class="mt-1.5 space-y-1 text-xs leading-relaxed break-words text-ink dark:text-slate-100">
+                            @foreach (var member in GroupEdges(selected))
+                            {
+                                <li>@EdgeLabel(member)</li>
+                            }
+                        </ul>
+                        @if (selected.GroupId is not null)
+                        {
+                            <p class="mt-1.5 text-[11px] text-ink-soft">All these pairs must match together, so they are removed together.</p>
+                        }
+                        <div class="mt-3 flex justify-end gap-2">
+                            <Button Small="true" OnClick="() => _selectedEdge = null">Close</Button>
+                            <Button Small="true" Variant="ButtonVariant.Danger" OnClick="() => DeleteSelectedAsync(selected)" data-testid="edge-remove"><Icon Name="trash" Class="size-4" /> Remove relationship</Button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (_layout.Cards.Count > 1)
+    {
+        var miniW = 200.0;
+        var miniH = Math.Clamp(miniW * _layout.Height / Math.Max(1, _layout.Width), 56, 150);
+        <div class="pointer-events-none absolute right-3 bottom-3 z-20">
+            <svg data-minimap data-testid="minimap" viewBox="0 0 @F(_layout.Width) @F(_layout.Height)" width="@F(miniW)" height="@F(miniH)" preserveAspectRatio="xMidYMid meet"
+                 class="pointer-events-auto cursor-pointer rounded-lg border border-line bg-white/90 shadow-card-hover backdrop-blur dark:border-slate-600 dark:bg-slate-900/90"
+                 role="img" aria-label="Minimap of the whole diagram: press or drag to move around">
+                <title>Minimap: press or drag to move around</title>
+                @foreach (var e in _layout.Edges)
+                {
+                    <line x1="@F(e.X1)" y1="@F(e.Y1)" x2="@F(e.X2)" y2="@F(e.Y2)" stroke="@KindColor(e.Kind)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-opacity="0.6" />
+                }
+
+                @foreach (var c in _layout.Cards)
+                {
+                    <rect x="@F(c.X)" y="@F(c.Y)" width="@F(c.Width)" height="@F(c.Height)" rx="14" class="@MiniFill(c)" fill-opacity="0.85" />
+                }
+
+                <rect data-mm-view x="0" y="0" width="@F(_layout.Width)" height="@F(_layout.Height)" class="fill-brand-500/15 stroke-brand-600" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none" />
+            </svg>
+        </div>
+    }
+    </div>
+</div>
+
+@code {
+    private readonly string _uid = "er" + Guid.NewGuid().ToString("N")[..6];
+    private ErLayout _layout = new(0, 0, [], [], null);
+    private IReadOnlyList<KnowledgeTableDto>? _tables;
+    private IReadOnlyList<KnowledgeRelationshipDto>? _relationships;
+    private readonly HashSet<Guid> _expanded = [];
+    private readonly HashSet<Guid> _collapsed = [];
+    private readonly Dictionary<Guid, int> _scroll = [];
+    /// <summary>Where each table sits (top-left). Remembered from the first layout, so adding a relationship or table never moves the others.</summary>
+    private readonly Dictionary<Guid, (double X, double Y)> _pins = [];
+    private bool _moved;
+    private Guid? _hoverEdge;
+    private Guid? _hoverCard;
+    private Guid? _selectedEdge;
+    private double _zoom = 1;
+    private bool _fit;
+    private ElementReference _svg;
+    private string? _boundSvgId;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<ErDiagram>? _self;
+
+    [Parameter, EditorRequired] public IReadOnlyList<KnowledgeTableDto> Tables { get; set; } = [];
+
+    [Parameter, EditorRequired] public IReadOnlyList<KnowledgeRelationshipDto> Relationships { get; set; } = [];
+
+    /// <summary>Allows dragging between columns, clicking a line to remove it, and expanding cards. Off for the read-only Publish view.</summary>
+    [Parameter] public bool Interactive { get; set; }
+
+    /// <summary>Raised when the person drags a line from one column to another: (from column id, to column id).</summary>
+    [Parameter] public EventCallback<(Guid From, Guid To)> OnLink { get; set; }
+
+    /// <summary>Raised when the person asks to remove the selected line.</summary>
+    [Parameter] public EventCallback<Guid> OnRemoveRelationship { get; set; }
+
+    /// <summary>Raised when the person asks to remove a table from the knowledge base (its connectors go with it); the host confirms and does it.</summary>
+    [Parameter] public EventCallback<Guid> OnRemoveTable { get; set; }
+
+    private void RemoveOnKey(KeyboardEventArgs e, Guid tableId)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            _ = OnRemoveTable.InvokeAsync(tableId);
+        }
+    }
+
+    private KnowledgeRelationshipDto? RelationshipOf(Guid id) => Relationships.FirstOrDefault(r => r.Id == id);
+
+    private ErEdge? SelectedEdge => _selectedEdge is { } id ? _layout.Edges.FirstOrDefault(e => e.RelationshipId == id) : null;
+
+    /// <summary>True when <paramref name="e"/> is the relationship <paramref name="id"/> or another pair of the same composite relationship.</summary>
+    private bool Mate(Guid? id, ErEdge e)
+    {
+        if (id is not { } wanted)
+        {
+            return false;
+        }
+
+        if (e.RelationshipId == wanted)
+        {
+            return true;
+        }
+
+        return e.GroupId is { } g && _layout.Edges.Any(x => x.RelationshipId == wanted && x.GroupId == g);
+    }
+
+    private List<ErEdge> GroupEdges(ErEdge e) =>
+        e.GroupId is { } g ? [.. _layout.Edges.Where(x => x.GroupId == g)] : [e];
+
+    private string EdgeLabel(ErEdge e)
+    {
+        var r = RelationshipOf(e.RelationshipId);
+        return r is null ? e.Tooltip : $"{r.FromTable}.{r.FromColumn} → {r.ToTable}.{r.ToColumn}";
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Re-lay out only when the knowledge base itself changed.
+        if (!ReferenceEquals(_tables, Tables) || !ReferenceEquals(_relationships, Relationships))
+        {
+            _tables = Tables;
+            _relationships = Relationships;
+            Relayout();
+            if (_selectedEdge is { } id && _layout.Edges.All(e => e.RelationshipId != id))
+            {
+                _selectedEdge = null;
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_layout.Cards.Count == 0 || _svg.Id is null)
+        {
+            return;
+        }
+
+        if (_svg.Id == _boundSvgId)
+        {
+            // Already wired: only tell the minimap that the diagram may have a new size or place.
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("sync", _svg);
+            }
+
+            return;
+        }
+
+        _boundSvgId = _svg.Id;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/erDiagram.js");
+        _self ??= DotNetObjectReference.Create(this);
+        await _module.InvokeVoidAsync("init", _svg, _self);
+    }
+
+    /// <summary>Called by the drag script when a line is released over another column.</summary>
+    [JSInvokable]
+    public async Task OnDragConnect(string fromColumnId, string toColumnId)
+    {
+        if (Guid.TryParse(fromColumnId, out var from) && Guid.TryParse(toColumnId, out var to) && from != to)
+        {
+            _selectedEdge = null;
+            await OnLink.InvokeAsync((from, to));
+        }
+    }
+
+    private void Relayout()
+    {
+        // Forget state for tables that no longer exist.
+        var ids = Tables.Select(t => t.Id).ToHashSet();
+        _collapsed.RemoveWhere(id => !ids.Contains(id));
+        _expanded.RemoveWhere(id => !ids.Contains(id));
+        foreach (var gone in _pins.Keys.Where(id => !ids.Contains(id)).ToList())
+        {
+            _pins.Remove(gone);
+        }
+
+        // The read-only view shows only the columns that take part in a relationship (and just the header of a table with none).
+        var folded = Interactive ? _collapsed : Tables.Select(t => t.Id).ToHashSet();
+        _layout = ErDiagramLayout.Build(Tables, Relationships, _expanded, folded, null, Interactive, _scroll, Interactive ? _pins : null);
+        if (Interactive)
+        {
+            foreach (var card in _layout.Cards)
+            {
+                _pins[card.TableId] = (card.X, card.Y);
+            }
+        }
+    }
+
+    /// <summary>Folds a card down to its linked columns (header only when it has no links), or unfolds it again.</summary>
+    private void ToggleCollapse(Guid tableId)
+    {
+        if (!_collapsed.Remove(tableId))
+        {
+            _collapsed.Add(tableId);
+            _scroll.Remove(tableId);
+            _expanded.Remove(tableId);
+        }
+
+        _selectedEdge = null;
+        Relayout();
+    }
+
+    private void ToggleCollapseOnKey(KeyboardEventArgs e, Guid tableId)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            ToggleCollapse(tableId);
+        }
+    }
+
+    /// <summary>Called by the script when the wheel turns over a card: scrolls its column window by that many rows.</summary>
+    [JSInvokable]
+    public void OnCardScrolled(string tableId, int rows)
+    {
+        if (Guid.TryParse(tableId, out var id) && _layout.Cards.FirstOrDefault(c => c.TableId == id) is { } card)
+        {
+            ScrollTo(id, card.FirstRow + rows);
+        }
+    }
+
+    /// <summary>Called by the script when the scrollbar is pressed or dragged: puts the window's first row at <paramref name="firstRow"/>.</summary>
+    [JSInvokable]
+    public void OnCardScrollTo(string tableId, int firstRow)
+    {
+        if (Guid.TryParse(tableId, out var id))
+        {
+            ScrollTo(id, firstRow);
+        }
+    }
+
+    private void ScrollTo(Guid id, int firstRow)
+    {
+        _scroll[id] = Math.Max(0, firstRow);
+        Relayout();
+        // Store the clamped value, so scrolling past the end does not pile up.
+        if (_layout.Cards.FirstOrDefault(c => c.TableId == id) is { } card)
+        {
+            _scroll[id] = card.FirstRow;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>Called by the drag script when a card was moved: how far, in diagram units, from where it was.</summary>
+    [JSInvokable]
+    public void OnCardMoved(string tableId, double dx, double dy)
+    {
+        if (Guid.TryParse(tableId, out var id))
+        {
+            if (_pins.TryGetValue(id, out var at))
+            {
+                _pins[id] = (at.X + dx, at.Y + dy);
+                _moved = true;
+            }
+
+            _selectedEdge = null;
+            Relayout();
+            StateHasChanged();
+        }
+    }
+
+    private void ResetLayout()
+    {
+        _pins.Clear();
+        _moved = false;
+        _scroll.Clear();
+        _collapsed.Clear();
+        _expanded.Clear();
+        _selectedEdge = null;
+        Relayout();
+    }
+
+    private static string ChevronDown(double cx, double cy) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"M {cx - 5} {cy - 2.5} L {cx} {cy + 3} L {cx + 5} {cy - 2.5}");
+
+    private static string ChevronRight(double cx, double cy) => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"M {cx - 2.5} {cy - 5} L {cx + 3} {cy} L {cx - 2.5} {cy + 5}");
+
+    private void ToggleExpand(Guid tableId)
+    {
+        if (!_expanded.Remove(tableId))
+        {
+            _expanded.Add(tableId);
+        }
+
+        _collapsed.Remove(tableId);
+
+        _selectedEdge = null;
+        Relayout();
+    }
+
+    private void ToggleOnKey(KeyboardEventArgs e, Guid tableId)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            ToggleExpand(tableId);
+        }
+    }
+
+    private void SelectEdge(Guid id)
+    {
+        if (Interactive)
+        {
+            _selectedEdge = _selectedEdge == id ? null : id;
+        }
+    }
+
+    private async Task DeleteSelectedAsync(ErEdge edge)
+    {
+        _selectedEdge = null;
+        await OnRemoveRelationship.InvokeAsync(edge.RelationshipId);
+    }
+
+    private string SvgStyle => _fit && !Interactive ? "width: 100%; height: auto" : $"width: {F(_layout.Width * _zoom)}px; height: {F(_layout.Height * _zoom)}px";
+
+    private void Zoom(double delta)
+    {
+        _fit = false;
+        _zoom = Math.Clamp(Math.Round(_zoom + delta, 2), 0.4, 2.0);
+    }
+
+    private void ResetZoom()
+    {
+        // The interactive view always has a real scale (its popover is positioned from it), so "reset" is simply 100%.
+        _fit = !Interactive && !_fit;
+        _zoom = 1;
+    }
+
+    private bool Highlighted(ErEdge e) =>
+        _hoverEdge is { } h ? Mate(h, e)
+        : _selectedEdge is { } s ? Mate(s, e)
+        : _hoverCard is { } c ? e.FromTableId == c || e.ToTableId == c
+        : true;
+
+    private bool EdgeTouches(Guid tableId) =>
+        (_hoverEdge ?? _selectedEdge) is { } h && _layout.Edges.Any(e => Mate(h, e) && (e.FromTableId == tableId || e.ToTableId == tableId));
+
+    private bool Neighbour(Guid tableId) =>
+        _hoverCard is { } c && _layout.Edges.Any(e => (e.FromTableId == c && e.ToTableId == tableId) || (e.ToTableId == c && e.FromTableId == tableId));
+
+    /// <summary>An SVG text element. Written with the render builder because Razor reserves the "text" tag inside code blocks.</summary>
+    private static RenderFragment Txt(
+        double x, double y, string cls, double size, string text, string family = "sans", int weight = 400, string? anchor = null, string? title = null, double? spacing = null) => b =>
+    {
+        b.OpenElement(0, "text");
+        b.AddAttribute(1, "x", F(x));
+        b.AddAttribute(2, "y", F(y));
+        b.AddAttribute(3, "class", cls);
+        b.AddAttribute(4, "font-size", F(size));
+        b.AddAttribute(5, "font-weight", weight.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        b.AddAttribute(6, "style", $"font-family: var(--font-{family}); pointer-events: none");
+        if (anchor is not null)
+        {
+            b.AddAttribute(7, "text-anchor", anchor);
+        }
+
+        if (spacing is { } s)
+        {
+            b.AddAttribute(8, "letter-spacing", F(s));
+        }
+
+        b.AddContent(9, text);
+        if (title is not null)
+        {
+            b.OpenElement(10, "title");
+            b.AddContent(11, title);
+            b.CloseElement();
+        }
+
+        b.CloseElement();
+    };
+
+    private static string F(double value) => value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string Fit(string text, int max) => text.Length <= max ? text : string.Concat(text.AsSpan(0, Math.Max(1, max - 1)), "…");
+
+    private static string KindColor(string kind) => kind switch
+    {
+        "SameAttribute" => EChartsOptionBuilder.Palette[1],
+        "DerivedFrom" => EChartsOptionBuilder.Palette[4],
+        _ => EChartsOptionBuilder.Palette[0],
+    };
+
+    private static string? Dash(string kind) => kind switch
+    {
+        "SameAttribute" => "8 5",
+        "DerivedFrom" => "2 6",
+        _ => null,
+    };
+
+    private static string MiniFill(ErCard c) => c.Source switch
+    {
+        "Database" => "fill-brand-600",
+        "Dataset" => "fill-sky-600",
+        _ => "fill-amber-600",
+    };
+
+    private static string HeaderFill(ErCard c) => c.Source switch
+    {
+        "Database" => "fill-brand-700",
+        "Dataset" => "fill-sky-700",
+        _ => "fill-amber-700",
+    };
+
+    /// <summary>A card header with rounded top corners only.</summary>
+    private static string HeaderPath(ErCard c)
+    {
+        const double r = 14;
+        var x = c.X;
+        var y = c.Y;
+        var w = c.Width;
+        var h = ErDiagramLayout.HeaderHeight;
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"M {x} {y + h} V {y + r} Q {x} {y} {x + r} {y} H {x + w - r} Q {x + w} {y} {x + w} {y + r} V {y + h} Z");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _self?.Dispose();
+        if (_module is not null)
+        {
+            try
+            {
+                if (_svg.Id is not null)
+                {
+                    await _module.InvokeVoidAsync("dispose", _svg);
+                }
+
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit already gone.
+            }
+        }
+    }
+}

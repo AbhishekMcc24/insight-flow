@@ -1,0 +1,718 @@
+@page "/query"
+@implements IAsyncDisposable
+@inject KnowledgeApiClient Knowledge
+@inject AgentApiClient Agents
+@inject IJSRuntime JS
+@inject QueryChatState Chat
+@using System.Diagnostics
+@using InsightFlow.Contracts.Skills
+@* Query as a chat: the person's question is a bubble on the right, the system's answer a bubble on the left (like a messaging app). The answer
+   itself (the explanation, the chart and the rows) is always shown; everything behind it (the SQL, the tables, joins and skills, the steps
+   and their cost) is folded away and opens only when asked. Enter sends, Shift+Enter starts a new line. *@
+
+<PageTitle>Query · Insight Flow</PageTitle>
+
+<div class="flex h-full min-h-0 flex-col" data-testid="query-chat">
+    <header class="flex shrink-0 items-center gap-3 border-b border-line bg-white px-4 py-3 sm:px-8 dark:border-slate-800 dark:bg-slate-900">
+        <span class="grid size-9 shrink-0 place-items-center rounded-full bg-brand-600 text-white" aria-hidden="true"><Icon Name="search" Class="size-5" /></span>
+        <div class="min-w-0 flex-1">
+            <h1 class="text-base font-semibold text-ink dark:text-slate-100">Ask your data</h1>
+            <p class="truncate text-xs text-ink-soft" data-testid="context-meter">@(Chat.Busy ? "working on it…" : ContextText)</p>
+        </div>
+        @if (Chat.Thread.Count > 0)
+        {
+            <button type="button" class="text-xs font-medium text-ink-soft underline hover:text-brand-700" @onclick="Clear" disabled="@Chat.Busy">Start over</button>
+        }
+    </header>
+
+    <div @ref="_transcript" class="relative min-h-0 flex-1 overflow-auto bg-slate-50 px-3 py-5 sm:px-8 dark:bg-slate-950/40" role="log" aria-live="polite" aria-label="Conversation" data-testid="thread">
+        <div class="flex w-full flex-col gap-6">
+            @if (Chat.Thread.Count == 0)
+            {
+                <div class="flex items-start gap-2">
+                    @AssistantAvatar
+                    <div class="@SystemBubble" data-testid="welcome">
+                        <p class="text-sm leading-relaxed text-ink dark:text-slate-100">Hi! Ask me anything about your data, for example the questions below. I will answer first and keep the details (query, tables, steps and cost) one click away.</p>
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            @foreach (var example in Examples)
+                            {
+                                <button type="button" class="rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-medium text-brand-700 transition hover:border-brand-500 hover:bg-brand-50 dark:border-brand-900 dark:bg-slate-900 dark:text-brand-300" @onclick="() => UseExample(example)">@example</button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @foreach (var x in Chat.Thread)
+            {
+                <article class="flex flex-col gap-3" aria-label="@x.Question" data-testid="exchange">
+                    @if (x.Compaction is { Compacted: true } note)
+                    {
+                        <details class="mx-auto w-full max-w-2xl rounded-xl border border-dashed border-line bg-white/70 text-xs text-ink-soft dark:border-slate-700 dark:bg-slate-900/50" data-testid="compaction-note">
+                            <summary class="cursor-pointer list-none px-3 py-2 text-center [&::-webkit-details-marker]:hidden">
+                                Earlier messages were summarized to keep the conversation within the model's context
+                                (@(Percent(note.EstimatedTokens, note.ContextWindow)) of its window was in use). <span class="underline">What was kept</span>
+                            </summary>
+                            <div class="space-y-2 border-t border-line p-3 dark:border-slate-700">
+                                <p class="whitespace-pre-wrap text-ink dark:text-slate-100">@note.Summary</p>
+                                <UsageNote Usage="note.Usage" />
+                            </div>
+                        </details>
+                    }
+
+                    @* ───── the person's question: right ───── *@
+                    <div class="flex justify-end">
+                        <div class="max-w-[85%] rounded-2xl rounded-br-md bg-brand-600 px-4 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-white shadow-xs sm:max-w-[75%]" data-testid="user-bubble">
+                            <span class="sr-only">You asked: </span>@x.Question
+                            <span class="mt-1 block text-right text-[10px] text-brand-100">@x.At.ToString("HH:mm")</span>
+                        </div>
+                    </div>
+
+                    @* ───── the system's answer: left ───── *@
+                    <div class="flex items-start gap-2">
+                        @AssistantAvatar
+                        <div class="@SystemBubble" data-testid="system-bubble">
+                            <span class="sr-only">Answer: </span>
+                            @if (x.Running)
+                            {
+                                <div class="flex items-center gap-2 text-sm text-ink-soft" role="status" data-testid="steps">
+                                    <span class="text-brand-500" aria-hidden="true"><Spinner /></span>
+                                    <span>@(x.Steps.LastOrDefault(s => !s.Done)?.Text ?? "Working…")</span>
+                                </div>
+                            }
+
+                            <Alert Message="@x.Error" />
+
+                            @if (x.Plan is { } plan)
+                            {
+                                @if (plan.Clarification is { } ask)
+                                {
+                                    <div class="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100" role="note" data-testid="clarification">
+                                        <Icon Name="alert" Class="mt-0.5 size-5 shrink-0" />
+                                        <p>@ask</p>
+                                    </div>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(plan.Explanation))
+                                {
+                                    <p class="text-sm leading-relaxed text-ink dark:text-slate-100" data-testid="explanation">@plan.Explanation</p>
+                                }
+                            }
+
+                            @if (x.Run is { } run)
+                            {
+                                @if (run.Error is { } runError)
+                                {
+                                    <Alert Message="@runError" />
+                                }
+                                else if (run.Result is { } rows)
+                                {
+                                    <section aria-label="Result" data-testid="result">
+                                        <p class="text-xs text-ink-soft">@run.RowCount.ToString("N0") row@(run.RowCount == 1 ? "" : "s")@(run.Truncated ? " · cut at the row limit, narrow the question" : "")</p>
+                                        <div class="mt-2"><AnswerChart Result="rows" Spec="x.Plan?.Chart" Title="@x.Question" /></div>
+                                        <div class="mt-2"><ExportToPlayground Kind="table" Result="rows" Title="@x.Question" /></div>
+
+                                        <div class="mt-2 max-h-80 overflow-auto rounded-xl border border-line bg-white dark:border-slate-700 dark:bg-slate-900" data-testid="grid"><DataTable Result="rows" /></div>
+                                    </section>
+                                }
+                            }
+
+                            @* ───── folded away until asked for ───── *@
+                            @if (x.Plan is { Sql: not null } sqlPlan)
+                            {
+                                <details class="@Fold" data-testid="fold-query">
+                                    <summary class="@FoldSummary"><span>Query</span><span class="@FoldHint">SQL, joins, assumptions</span><Icon Name="chevron-down" Class="@FoldIcon" /></summary>
+                                    <div class="space-y-3 border-t border-line p-3 dark:border-slate-700">
+                                        <pre class="max-h-72 overflow-auto rounded-lg border border-line bg-slate-50 p-3 font-mono text-xs leading-relaxed text-ink dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" data-testid="sql">@sqlPlan.Sql</pre>
+                                        @if (sqlPlan.Joins.Count > 0)
+                                        {
+                                            <section aria-label="Joins used">
+                                                <h3 class="@UiStyles.Label">Joins used (from the graph)</h3>
+                                                <ul class="mt-1 flex flex-col gap-1" data-testid="joins">
+                                                    @foreach (var j in sqlPlan.Joins)
+                                                    {
+                                                        <li class="flex flex-wrap items-center gap-2 text-xs">
+                                                            <span class="font-mono">@Short(j.FromTable).@j.FromColumn</span>
+                                                            <Icon Name="arrow-right" Class="size-3.5 text-ink-soft" />
+                                                            <span class="font-mono">@Short(j.ToTable).@j.ToColumn</span>
+                                                            <span class="@UiStyles.Badge">@j.Kind</span>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            </section>
+                                        }
+
+                                        @if (sqlPlan.Assumptions.Count > 0)
+                                        {
+                                            <section aria-label="Assumptions">
+                                                <h3 class="@UiStyles.Label">Assumptions</h3>
+                                                <ul class="mt-1 list-disc space-y-0.5 pl-5 text-sm text-ink-soft" data-testid="assumptions">
+                                                    @foreach (var a in sqlPlan.Assumptions)
+                                                    {
+                                                        <li>@a</li>
+                                                    }
+                                                </ul>
+                                            </section>
+                                        }
+                                    </div>
+                                </details>
+                            }
+
+                            @if (x.Context is { } ctx)
+                            {
+                                <details class="@Fold" data-testid="fold-tables">
+                                    <summary class="@FoldSummary"><span>Tables &amp; skills</span><span class="@FoldHint">@ctx.Tables.Count table@(ctx.Tables.Count == 1 ? "" : "s")@(x.Skills.Count > 0 ? $", {x.Skills.Count} skill{(x.Skills.Count == 1 ? "" : "s")}" : "")</span><Icon Name="chevron-down" Class="@FoldIcon" /></summary>
+                                    <div class="space-y-3 border-t border-line p-3 dark:border-slate-700">
+                                        @if (x.Skills.Count > 0)
+                                        {
+                                            <section aria-label="Skills used" data-testid="skills-used">
+                                                <h3 class="@UiStyles.Label">Skills used</h3>
+                                                <ul class="mt-1 flex flex-wrap gap-2">
+                                                    @foreach (var skill in x.Skills)
+                                                    {
+                                                        <li class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100" title="@skill.Reason">
+                                                            <span class="truncate">@skill.Name</span>
+                                                            <span class="rounded bg-white px-1 text-[10px] font-semibold dark:bg-slate-900">v@(skill.Version)</span>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            </section>
+                                        }
+
+                                        <section aria-label="Tables and joins used" data-testid="context">
+                                            <h3 class="@UiStyles.Label">Tables used</h3>
+                                            <ul class="mt-1 flex flex-wrap gap-2">
+                                                @foreach (var t in ctx.Tables)
+                                                {
+                                                    <li class="@($"inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium {(t.IsBridge ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200" : "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100")}")"
+                                                        title="@(t.MatchedColumns.Count > 0 ? "Matched: " + string.Join(", ", t.MatchedColumns) : t.Name)">
+                                                        <span class="truncate font-mono">@t.Name</span>
+                                                        @if (t.IsBridge)
+                                                        {
+                                                            <span class="rounded bg-white px-1 text-[10px] font-semibold uppercase dark:bg-slate-900">bridge</span>
+                                                        }
+                                                    </li>
+                                                }
+                                            </ul>
+                                            @if (ctx.Fallback)
+                                            {
+                                                <p class="mt-2 text-xs text-amber-800 dark:text-amber-200">Nothing in the graph mentioned your words, so these are the best-connected tables. Try naming what you want (a business term from the descriptions).</p>
+                                            }
+
+                                            @if (ctx.Unconnected.Count > 0)
+                                            {
+                                                <p class="mt-2 text-xs text-amber-800 dark:text-amber-200">No relationship connects @string.Join(", ", ctx.Unconnected) to the other tables, so they are left out of the joins.</p>
+                                            }
+                                        </section>
+
+                                        @if (x.Extracts.Count > 0)
+                                        {
+                                            <section aria-label="Data used" data-testid="data-notes">
+                                                <h3 class="@UiStyles.Label">Data used</h3>
+                                                <ul class="mt-1 flex flex-col gap-1 text-xs text-ink-soft">
+                                                    @foreach (var e in x.Extracts)
+                                                    {
+                                                        <li>
+                                                            <span class="font-mono text-ink dark:text-slate-100">@Short(e.Table)</span>
+                                                            · @e.Rows.ToString("N0") rows · @(e.Cached ? "copied" : "just copied") @Ago(e.ExtractedAt)
+                                                            @if (e.Truncated)
+                                                            {
+                                                                <span class="font-medium text-amber-800 dark:text-amber-200"> · more rows exist; only the first @e.Rows.ToString("N0") are used</span>
+                                                            }
+                                                        </li>
+                                                    }
+                                                </ul>
+                                                <div class="mt-2"><Button Small="true" OnClick="() => RefreshAsync(x)" Disabled="Chat.Busy"><Icon Name="sort" Class="size-4" /> Refresh data and run again</Button></div>
+                                            </section>
+                                        }
+                                    </div>
+                                </details>
+                            }
+
+                            @if (!x.Running && x.Report.Count > 0)
+                            {
+                                <RunReport Steps="x.Report" />
+                            }
+
+                            @if (x.Plan is { Sql: not null } judged && x.Run is not null && !x.Running)
+                            {
+                                <QueryFeedbackPanel Question="@x.Question" Sql="@judged.Sql" TableIds="@judged.Tables.Select(t => t.Id).ToList()"
+                                                    ResultColumns="@(x.Run.Result?.Columns.Select(c => c.Name).ToList() ?? [])" OnRetry="() => RetryAsync(x)" />
+                            }
+
+                            <span class="block text-right text-[10px] text-ink-soft">@x.At.ToString("HH:mm")</span>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    </div>
+
+    <form class="shrink-0 border-t border-line bg-white px-3 py-3 sm:px-8 dark:border-slate-800 dark:bg-slate-900" @onsubmit="AskAsync" @onsubmit:preventDefault="true" data-testid="ask-form">
+        <div class="flex w-full items-end gap-2">
+            <label class="min-w-0 flex-1">
+                <span class="sr-only">Your question</span>
+                <textarea @ref="_composer" class="@UiStyles.Input max-h-40 resize-none rounded-2xl px-4 py-2.5 leading-relaxed" rows="1" maxlength="2000" @bind="Chat.Draft" @bind:event="oninput"
+                          placeholder="Ask a question, e.g. Total outstanding amount per customer, highest first" data-testid="question" disabled="@Chat.Busy"></textarea>
+            </label>
+            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="Chat.Busy" Disabled="@(string.IsNullOrWhiteSpace(Chat.Draft) || Chat.Busy)" aria-label="Send question" data-testid="ask"><Icon Name="arrow-right" Class="size-5" /></Button>
+        </div>
+        <p class="mt-1.5 px-1 text-[11px] text-ink-soft">Enter to send · Shift+Enter for a new line · follow-up questions build on the answers above</p>
+    </form>
+</div>
+@code {
+    private const string SystemBubble = "min-w-0 max-w-full flex-1 space-y-3 rounded-2xl rounded-bl-md border border-line bg-white p-4 shadow-xs sm:max-w-[96%] sm:flex-none dark:border-slate-700 dark:bg-slate-800";
+    private const string Fold = "group rounded-xl border border-line bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50";
+    private const string FoldSummary = "flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-semibold text-ink dark:text-slate-100 [&::-webkit-details-marker]:hidden";
+    private const string FoldHint = "min-w-0 flex-1 truncate font-normal text-ink-soft";
+    private const string FoldIcon = "size-4 shrink-0 text-ink-soft transition-transform group-open:rotate-180";
+
+    private static readonly string[] Examples =
+    [
+        "Total outstanding amount per customer, highest first",
+        "Which invoices are still unpaid?",
+        "Payments adjusted against invoices this month",
+    ];
+
+    private static RenderFragment AssistantAvatar => __builder =>
+    {
+        <span class="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200" aria-hidden="true"><Icon Name="squares" Class="size-4" /></span>
+    };
+
+    private string ContextText => Chat.Context is { ContextWindow: > 0 } c
+        ? $"Context {Percent(c.EstimatedTokens, c.ContextWindow)} used ({c.EstimatedTokens:N0} of {c.ContextWindow:N0} tokens) · summarized automatically at {Percent(c.Threshold, c.ContextWindow)}"
+        : "Ask in plain English. Every join comes from a relationship you defined.";
+
+    private static string Percent(long part, long whole) => whole <= 0 ? "0%" : $"{Math.Min(100d, part * 100d / whole):0.#}%";
+    private ElementReference _transcript;
+    private ElementReference _composer;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<QueryPage>? _self;
+    private bool _settle;
+    private bool _resetComposer;
+
+    private bool _disposed;
+
+    private void Clear() => Chat.Clear();
+
+    /// <summary>Redraws this page when the chat state changes (an answer progressed, possibly started from an earlier visit to the page).</summary>
+    private void Notify() => Chat.RaiseChanged();
+
+    private void OnChatChanged()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override void OnInitialized() => Chat.Changed += OnChatChanged;
+
+    private void UseExample(string text) => Chat.Draft = text;
+
+    /// <summary>Called by the browser when Enter (without Shift) is pressed in the question box.</summary>
+    [JSInvokable]
+    public async Task SendFromKeyboard()
+    {
+        if (!Chat.Busy && !string.IsNullOrWhiteSpace(Chat.Draft))
+        {
+            // Started from a JavaScript call, not a Blazor event, so nothing re-renders the page when the answer is finished.
+            await InvokeAsync(async () =>
+            {
+                await AskAsync();
+                Notify();
+            });
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (firstRender)
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/chatScroll.js");
+                _self = DotNetObjectReference.Create(this);
+                await _module.InvokeVoidAsync("bindEnterToSend", _composer, _self);
+
+                // Coming back to the page: the chat is still there, so show its end.
+                if (Chat.Thread.Count > 0)
+                {
+                    await _module.InvokeVoidAsync("scrollToEnd", _transcript);
+                }
+            }
+
+            if (_module is null)
+            {
+                return;
+            }
+
+            if (_resetComposer)
+            {
+                _resetComposer = false;
+                await _module.InvokeVoidAsync("resetHeight", _composer);
+            }
+
+            // While an answer is being worked on the chat follows it; when it is done a long answer is shown from its start, a short one in full.
+            if (Chat.Busy)
+            {
+                await _module.InvokeVoidAsync("scrollToEnd", _transcript);
+            }
+            else if (_settle)
+            {
+                _settle = false;
+                await _module.InvokeVoidAsync("showLatest", _transcript);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone.
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering: no browser yet.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // The chat itself lives in QueryChatState, so it survives leaving the page; only this page's hooks are released.
+        _disposed = true;
+        Chat.Changed -= OnChatChanged;
+        _self?.Dispose();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Nothing left to release.
+            }
+        }
+    }
+
+    /// <summary>The table name without its database and schema, for compact display.</summary>
+    private static string Short(string table) => table.Contains('.', StringComparison.Ordinal) ? table[(table.LastIndexOf('.') + 1)..] : table;
+
+    private Task AskAsync() => AskCoreAsync(Chat.Draft.Trim(), withHistory: true);
+
+    /// <summary>Asks the same question again after the descriptions changed, as a fresh exchange without the earlier (wrong) answers as context.</summary>
+    private Task RetryAsync(QueryExchange exchange) => AskCoreAsync(exchange.Question, withHistory: false);
+
+    private async Task AskCoreAsync(string question, bool withHistory)
+    {
+        if (question.Length == 0 || Chat.Busy)
+        {
+            return;
+        }
+
+        Chat.Busy = true;
+        var exchange = new QueryExchange(question);
+        List<QueryTurnDto> history = withHistory ? Conversation() : [];
+        Chat.Thread.Add(exchange);
+        if (withHistory)
+        {
+            Chat.Draft = "";
+            _resetComposer = true;
+        }
+        try
+        {
+            // 0. The guardrails check what was typed before anything else runs. Refused text stops here: no model, table or skill is touched.
+            var guard = new QueryStep("Checking the question…");
+            exchange.Steps.Add(guard);
+            Notify();
+
+            var timer = Stopwatch.StartNew();
+            await Agents.CheckTextAsync(question, CancellationToken.None);
+            guard.Done = true;
+            guard.Text = "Question passed the safety checks";
+            exchange.Report.Add(new ReportStep("guard", "Check the question", "No offensive language or instruction override found. Checked locally; no AI used.", timer.Elapsed.TotalMilliseconds));
+
+            // 0b. A long conversation is measured against the model's context window; at 80% of it the conversation so far is summarized and the
+            // chat carries on from the summary, so the context is kept without outgrowing the window.
+            if (withHistory && history.Count >= 2)
+            {
+                var summarizing = new QueryStep("Checking how much of the model's context the conversation uses…");
+                exchange.Steps.Add(summarizing);
+                Notify();
+                timer.Restart();
+                try
+                {
+                    var measured = await Agents.CompactConversationAsync(history, CancellationToken.None);
+                    Chat.Context = measured;
+                    if (measured.Compacted && measured.Summary is { } summary)
+                    {
+                        Chat.Summary = summary;
+                        foreach (var earlier in Chat.Thread.Where(t => t != exchange && t.Plan is not null))
+                        {
+                            Chat.Summarized.Add(earlier);
+                        }
+
+                        exchange.Compaction = measured;
+                        history = Conversation();
+                        exchange.Report.Add(new ReportStep(
+                            "compact", "Summarize the conversation",
+                            $"{Percent(measured.EstimatedTokens, measured.ContextWindow)} of the model's context window was used (limit {Percent(measured.Threshold, measured.ContextWindow)}), so the conversation so far was summarized.",
+                            timer.Elapsed.TotalMilliseconds, measured.Usage));
+                    }
+                }
+                catch (ServiceCallException)
+                {
+                    // Measuring is a help: the question goes on with the history as it is.
+                }
+
+                summarizing.Done = true;
+                summarizing.Text = exchange.Compaction is not null ? "Summarized the earlier conversation to keep its context" : "Conversation context is within limits";
+            }
+
+            // 1. An agent chooses the skills the question needs from the catalog; skills are optional, so a failure here is not fatal.
+            var choose = new QueryStep("Choosing the skills this question needs…");
+            exchange.Steps.Add(choose);
+            Notify();
+
+            timer.Restart();
+            SkillPickResponse? pick = null;
+            try
+            {
+                pick = await Agents.PickSkillsAsync(new SkillPickRequest(question, history), CancellationToken.None);
+            }
+            catch (ServiceCallException)
+            {
+                // Carry on with the table descriptions alone.
+            }
+
+            exchange.Skills.AddRange(pick?.Skills ?? []);
+            choose.Done = true;
+            choose.Text = pick is null ? "Skills could not be read; continuing without them"
+                : pick.CatalogSize == 0 ? "No skills are set up; using the table descriptions"
+                : pick.Skills.Count == 0 ? "No skill needed for this question"
+                : $"Using {pick.Skills.Count} skill{(pick.Skills.Count == 1 ? "" : "s")}: {string.Join(", ", pick.Skills.Select(s => s.Name))}";
+            exchange.Report.Add(new ReportStep(
+                "skills",
+                "Choose skills",
+                pick is null ? "Skills could not be read; the answer used table descriptions only."
+                    : pick.CatalogSize == 0 ? "No skills configured."
+                    : pick.Skills.Count == 0 ? $"None of the {pick.CatalogSize} skills applied."
+                    : $"{string.Join("; ", pick.Skills.Select(s => $"{s.Name} v{s.Version}" + (s.Always ? " (always)" : string.Empty)))} of {pick.CatalogSize} skills.",
+                timer.Elapsed.TotalMilliseconds,
+                pick?.Usage));
+
+            // 2. An agent chooses the tables the question needs from a compact catalog; the tables the chosen skills are about are always included.
+            var choosing = new QueryStep("Choosing the tables the question needs…");
+            exchange.Steps.Add(choosing);
+            Notify();
+
+            timer.Restart();
+            TablePickResponse? tablePick = null;
+            try
+            {
+                tablePick = await Agents.PickTablesAsync(new TablePickRequest(question, [.. exchange.Skills.Select(s => s.Id)], history), CancellationToken.None);
+            }
+            catch (ServiceCallException)
+            {
+                // The graph's word search takes over.
+            }
+
+            var chosenTables = tablePick?.Tables ?? [];
+            choosing.Done = true;
+            choosing.Text = chosenTables.Count > 0
+                ? $"Chose {chosenTables.Count} table{(chosenTables.Count == 1 ? "" : "s")}: {string.Join(", ", chosenTables.Select(t => Short(t.Name)))}"
+                : "No table chosen by the agent; using the graph's word search";
+            exchange.Report.Add(new ReportStep(
+                "tables",
+                "Choose tables",
+                chosenTables.Count > 0
+                    ? $"{string.Join(", ", chosenTables.Select(t => Short(t.Name) + (t.FromSkill ? " (skill)" : string.Empty)))} of {tablePick!.CatalogSize} tables ({tablePick.Considered} considered)."
+                    : "The agent could not choose; the graph's word search was used instead.",
+                timer.Elapsed.TotalMilliseconds,
+                tablePick?.Usage));
+
+            // 3. The graph connects the chosen tables over the stored relationships (adding bridge tables); nothing is joined that is not a relationship.
+            var search = new QueryStep("Connecting the tables through the relationships…");
+            exchange.Steps.Add(search);
+            Notify();
+
+            timer.Restart();
+            var context = await Knowledge.GetQueryContextAsync(
+                question, CancellationToken.None, chosenTables.Count > 0 ? [.. chosenTables.Select(t => t.Id)] : pick?.TableIds, chosenByAgent: chosenTables.Count > 0);
+            exchange.Context = context;
+            search.Done = true;
+            var bridges = context.Tables.Count(t => t.IsBridge);
+            search.Text = $"Using {context.Tables.Count} table{(context.Tables.Count == 1 ? "" : "s")} and {context.Joins.Count} join{(context.Joins.Count == 1 ? "" : "s")} from the graph" + (bridges > 0 ? $" ({bridges} bridge table{(bridges == 1 ? "" : "s")} added)" : string.Empty);
+            exchange.Report.Add(new ReportStep(
+                "graph",
+                "Connect tables and joins",
+                $"{context.Tables.Count} table{(context.Tables.Count == 1 ? "" : "s")}, {context.Joins.Count} join{(context.Joins.Count == 1 ? "" : "s")} from stored relationships" + (bridges > 0 ? $"; {bridges} bridge table{(bridges == 1 ? "" : "s")} added." : "."),
+                timer.Elapsed.TotalMilliseconds));
+
+            // 4. The AI writes the query from the chosen skills and only those tables' descriptions and relationships.
+            var write = new QueryStep("Planning the joins and writing the query…");
+            exchange.Steps.Add(write);
+            Notify();
+
+            timer.Restart();
+            exchange.Plan = await Agents.PlanQueryAsync(
+                new QueryPlanRequest(question, [.. context.Tables.Select(t => t.Id)], history, [.. exchange.Skills.Select(s => s.Id)]), CancellationToken.None);
+            write.Done = true;
+            write.Text = exchange.Plan.Clarification is null ? "Wrote the query and checked every join against the graph" : "Needs a little more from you";
+            exchange.Report.Add(new ReportStep(
+                "plan",
+                "Write the query",
+                exchange.Plan.Clarification is null
+                    ? $"Read {context.Tables.Count} table description{(context.Tables.Count == 1 ? "" : "s")} and {exchange.Plan.SkillsApplied?.Count ?? 0} skill{((exchange.Plan.SkillsApplied?.Count ?? 0) == 1 ? "" : "s")}; every join checked against the graph."
+                    : "Asked you for more detail instead of guessing.",
+                exchange.Plan.DurationMs > 0 ? exchange.Plan.DurationMs : timer.Elapsed.TotalMilliseconds,
+                exchange.Plan.Usage));
+
+            if (exchange.Plan is { Sql: not null } plan)
+            {
+                await PrepareAndRunAsync(exchange, plan, refresh: false);
+            }
+        }
+        catch (ServiceCallException ex)
+        {
+            exchange.Error = ex.Message;
+            exchange.Steps.RemoveAll(s => !s.Done);
+        }
+        finally
+        {
+            exchange.Running = false;
+            Chat.Busy = false;
+            _settle = true;
+        }
+    }
+
+    /// <summary>
+    /// Steps 4 and 5: make sure each table the query uses has a recent copy (the first question on a table copies it from the source),
+    /// then run the query in the sandbox. AI SQL never touches the live database.
+    /// </summary>
+    private async Task PrepareAndRunAsync(QueryExchange exchange, QueryPlanDto plan, bool refresh)
+    {
+        exchange.Extracts.Clear();
+        exchange.Run = null;
+        exchange.Report.RemoveAll(r => r.Key is "prepare" or "run");
+        var timer = Stopwatch.StartNew();
+        foreach (var table in plan.Tables)
+        {
+            var step = new QueryStep($"Preparing the data of {Short(table.Table)}…");
+            exchange.Steps.Add(step);
+            Notify();
+
+            var copy = await Knowledge.PrepareQueryTableAsync(table.Id, refresh, CancellationToken.None);
+            exchange.Extracts.Add(copy);
+            step.Done = true;
+            step.Text = copy.Cached ? $"Data of {Short(table.Table)} is ready (copied {Ago(copy.ExtractedAt)})" : $"Copied {copy.Rows:N0} rows of {Short(table.Table)}";
+        }
+
+        var reused = exchange.Extracts.Count(e => e.Cached);
+        exchange.Report.Add(new ReportStep(
+            "prepare",
+            "Prepare the data",
+            $"{exchange.Extracts.Count} table{(exchange.Extracts.Count == 1 ? "" : "s")}: {reused} reused, {exchange.Extracts.Count - reused} copied from the source; {exchange.Extracts.Sum(e => e.Rows):N0} rows.",
+            timer.Elapsed.TotalMilliseconds));
+
+        var run = new QueryStep("Running the query…");
+        exchange.Steps.Add(run);
+        Notify();
+
+        timer.Restart();
+        exchange.Run = await Agents.RunQueryAsync(new QueryRunRequest(plan.Sql!, plan.Tables), CancellationToken.None);
+        run.Done = true;
+        run.Text = exchange.Run.Error is null ? $"Got {exchange.Run.RowCount:N0} row{(exchange.Run.RowCount == 1 ? "" : "s")}" : "The query could not be run";
+        exchange.Report.Add(new ReportStep(
+            "run",
+            "Run in the sandbox",
+            exchange.Run.Error is null ? $"{exchange.Run.RowCount:N0} row{(exchange.Run.RowCount == 1 ? "" : "s")} from a single read-only SELECT." : "The query could not be run.",
+            exchange.Run.DurationMs > 0 ? exchange.Run.DurationMs : timer.Elapsed.TotalMilliseconds));
+    }
+
+    private async Task RefreshAsync(QueryExchange exchange)
+    {
+        if (exchange.Plan is not { Sql: not null } plan || Chat.Busy)
+        {
+            return;
+        }
+
+        Chat.Busy = true;
+        exchange.Error = null;
+        exchange.Running = true;
+        try
+        {
+            await PrepareAndRunAsync(exchange, plan, refresh: true);
+        }
+        catch (ServiceCallException ex)
+        {
+            exchange.Error = ex.Message;
+            exchange.Steps.RemoveAll(s => !s.Done);
+        }
+        finally
+        {
+            exchange.Running = false;
+            Chat.Busy = false;
+            _settle = true;
+        }
+    }
+
+    private static string Ago(DateTimeOffset at)
+    {
+        var age = DateTimeOffset.UtcNow - at;
+        return age.TotalMinutes < 1 ? "just now" : age.TotalHours < 1 ? $"{(int)age.TotalMinutes} min ago" : age.TotalDays < 1 ? $"{(int)age.TotalHours} h ago" : $"{(int)age.TotalDays} d ago";
+    }
+
+    private const int MaxExchangesSent = 40;
+    private const int DigestRows = 5;
+    private const int DigestCellLength = 40;
+
+    /// <summary>
+    /// The conversation as the model gets it: the summary of what was compacted (if any), then every later exchange as a question and an answer.
+    /// An answer carries its SQL and a short digest of its tables and first rows (<see cref="QueryTurnDto.Data"/>), so a follow-up such as "show the
+    /// details of that payment id" can use a value from an earlier result.
+    /// </summary>
+    private List<QueryTurnDto> Conversation()
+    {
+        var turns = new List<QueryTurnDto>();
+        if (Chat.Summary is not null)
+        {
+            turns.Add(new QueryTurnDto("assistant", "Summary of the conversation so far: " + Chat.Summary));
+        }
+
+        foreach (var x in Chat.Thread.Where(x => x.Plan is not null && !Chat.Summarized.Contains(x)).TakeLast(MaxExchangesSent))
+        {
+            turns.Add(new QueryTurnDto("user", x.Question));
+            turns.Add(new QueryTurnDto(
+                "assistant",
+                x.Plan!.Sql is { } sql ? $"{x.Plan.Explanation}\nSQL: {sql}" : x.Plan.Clarification ?? string.Empty,
+                Digest(x)));
+        }
+
+        return turns;
+    }
+
+    /// <summary>The tables an answer used and the first rows it returned, kept short.</summary>
+    private static string? Digest(QueryExchange x)
+    {
+        var parts = new List<string>();
+        if (x.Context is { } context && context.Tables.Count > 0)
+        {
+            parts.Add("Tables used: " + string.Join(", ", context.Tables.Select(t => Short(t.Name))));
+        }
+
+        if (x.Run is { Result: { } result } run)
+        {
+            parts.Add($"Result: {run.RowCount:N0} row{(run.RowCount == 1 ? "" : "s")}; columns: {string.Join(", ", result.Columns.Select(c => c.Name))}");
+            foreach (var row in result.Rows.Take(DigestRows))
+            {
+                parts.Add("  " + string.Join(" | ", row.Select(Cell)));
+            }
+        }
+
+        return parts.Count == 0 ? null : string.Join("\n", parts);
+    }
+
+    private static string Cell(object? value)
+    {
+        var text = value is null ? "NULL" : Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+        return text.Length > DigestCellLength ? text[..DigestCellLength] + "…" : text;
+    }
+}

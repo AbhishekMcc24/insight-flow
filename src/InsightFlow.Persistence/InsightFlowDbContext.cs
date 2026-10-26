@@ -1,6 +1,11 @@
 using System.Linq.Expressions;
 using System.Text;
+using InsightFlow.Domain.Admin;
 using InsightFlow.Domain.Connections;
+using InsightFlow.Domain.Documents;
+using InsightFlow.Domain.Knowledge;
+using InsightFlow.Domain.Playground;
+using InsightFlow.Domain.Skills;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 using InsightFlow.Domain.Workspace;
@@ -24,6 +29,38 @@ public sealed class InsightFlowDbContext(DbContextOptions<InsightFlowDbContext> 
     public const string SoftDeleteFilter = "soft_delete";
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
+
+    public DbSet<KnowledgeBaseConfig> KnowledgeBaseConfigs => Set<KnowledgeBaseConfig>();
+
+    public DbSet<KnowledgeTable> KnowledgeTables => Set<KnowledgeTable>();
+
+    public DbSet<KnowledgeDatabase> KnowledgeDatabases => Set<KnowledgeDatabase>();
+
+    public DbSet<KnowledgeColumn> KnowledgeColumns => Set<KnowledgeColumn>();
+
+    public DbSet<KnowledgeProcedure> KnowledgeProcedures => Set<KnowledgeProcedure>();
+
+    public DbSet<DocumentIngestRun> DocumentIngestRuns => Set<DocumentIngestRun>();
+
+    public DbSet<IndexedSheet> IndexedSheets => Set<IndexedSheet>();
+
+    public DbSet<QueryFeedback> QueryFeedbacks => Set<QueryFeedback>();
+
+    public DbSet<PlaygroundSheet> PlaygroundSheets => Set<PlaygroundSheet>();
+
+    public DbSet<SkillCategory> SkillCategories => Set<SkillCategory>();
+
+    public DbSet<Skill> Skills => Set<Skill>();
+
+    public DbSet<SkillVersion> SkillVersions => Set<SkillVersion>();
+
+    public DbSet<KnowledgeRelationship> KnowledgeRelationships => Set<KnowledgeRelationship>();
+
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
+
+    public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+
+    public DbSet<UserMenuAccess> UserMenuAccesses => Set<UserMenuAccess>();
 
     public DbSet<DatasetVersion> DatasetVersions => Set<DatasetVersion>();
 
@@ -69,6 +106,7 @@ public sealed class InsightFlowDbContext(DbContextOptions<InsightFlowDbContext> 
         configurationBuilder.Properties<FolderScope>().HaveConversion<string>().HaveMaxLength(32);
         configurationBuilder.Properties<ContentKind>().HaveConversion<string>().HaveMaxLength(32);
         configurationBuilder.Properties<DataSourceKind>().HaveConversion<string>().HaveMaxLength(32);
+        configurationBuilder.Properties<TenantRole>().HaveConversion<string>().HaveMaxLength(32);
         configurationBuilder.Properties<ExtractRunStatus>().HaveConversion<string>().HaveMaxLength(32);
     }
 
@@ -78,6 +116,22 @@ public sealed class InsightFlowDbContext(DbContextOptions<InsightFlowDbContext> 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InsightFlowDbContext).Assembly);
 
         modelBuilder.Entity<Tenant>().HasQueryFilter(TenantFilter, t => t.Id == CurrentTenantId);
+        ApplyTenantFilter<KnowledgeBaseConfig>(modelBuilder);
+        ApplyTenantFilter<KnowledgeDatabase>(modelBuilder);
+        ApplyTenantFilter<KnowledgeTable>(modelBuilder);
+        ApplyTenantFilter<KnowledgeProcedure>(modelBuilder);
+        ApplyTenantFilter<DocumentIngestRun>(modelBuilder);
+        ApplyTenantFilter<IndexedSheet>(modelBuilder);
+        ApplyTenantFilter<QueryFeedback>(modelBuilder);
+        ApplyTenantFilter<PlaygroundSheet>(modelBuilder);
+        ApplyTenantFilter<SkillCategory>(modelBuilder);
+        ApplyTenantFilter<Skill>(modelBuilder);
+        ApplyTenantFilter<SkillVersion>(modelBuilder);
+        ApplyTenantFilter<KnowledgeColumn>(modelBuilder);
+        ApplyTenantFilter<KnowledgeRelationship>(modelBuilder);
+        ApplyTenantFilter<AppUser>(modelBuilder);
+        ApplyTenantFilter<MenuItem>(modelBuilder);
+        ApplyTenantFilter<UserMenuAccess>(modelBuilder);
         ApplyTenantFilter<DatasetVersion>(modelBuilder);
         ApplyTenantFilter<DataThread>(modelBuilder);
         ApplyTenantFilter<ThreadNode>(modelBuilder);

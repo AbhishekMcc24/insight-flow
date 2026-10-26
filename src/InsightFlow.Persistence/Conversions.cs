@@ -14,6 +14,8 @@ namespace InsightFlow.Persistence;
 [JsonSerializable(typeof(DatasetSchema))]
 [JsonSerializable(typeof(SemanticModelDefinition))]
 [JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
+[JsonSerializable(typeof(IReadOnlyList<InsightFlow.Domain.Documents.IngestStep>))]
+[JsonSerializable(typeof(IReadOnlyList<InsightFlow.Domain.Documents.IngestProblem>))]
 internal sealed partial class PersistenceJsonContext : JsonSerializerContext;
 
 internal sealed class TenantIdConverter() : ValueConverter<TenantId, Guid>(v => v.Value, v => new TenantId(v));

@@ -8,6 +8,7 @@ namespace InsightFlow.Agents.Sandbox;
 /// <summary>
 /// What to run: AI-written SQL over one or more dataset versions (exposed as tables <c>input</c>, <c>input_2</c>, …).
 /// With <see cref="Materialize"/> the complete result is written to Parquet by trusted code (for derived datasets).
+/// <see cref="InputNames"/> optionally names the tables instead (one safe identifier per input, e.g. <c>orders</c>), for questions over several tables.
 /// </summary>
 public sealed record SandboxRequest(
     TenantId Tenant,
@@ -16,7 +17,8 @@ public sealed record SandboxRequest(
     TimeSpan? Timeout = null,
     int? RowCap = null,
     int PreviewRows = 20,
-    bool Materialize = false);
+    bool Materialize = false,
+    IReadOnlyList<string>? InputNames = null);
 
 public enum SandboxStatus
 {

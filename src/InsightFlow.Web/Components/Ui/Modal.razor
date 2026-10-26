@@ -1,0 +1,32 @@
+@* Accessible modal dialog: backdrop click and Escape close it, focus moves into the panel. Content is rendered only while Open. *@
+@if (Open)
+{
+    <div class="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4" @onclick="CloseAsync" @onkeydown="OnKeyDown">
+        <div role="dialog" aria-modal="true" aria-labelledby="@_titleId" tabindex="-1" @onclick:stopPropagation="true"
+             class="@($"if-card max-h-[92vh] w-full overflow-auto rounded-b-none p-5 sm:rounded-b-card {MaxWidth}")">
+            <div class="flex items-start gap-3">
+                <h2 id="@_titleId" class="flex-1 text-lg font-semibold text-ink dark:text-slate-100">@Title</h2>
+                <button type="button" class="rounded-control p-1 text-ink-soft hover:bg-mist hover:text-brand-700" aria-label="Close dialog" @onclick="CloseAsync">
+                    <Icon Name="close" />
+                </button>
+            </div>
+            <div class="mt-4">@ChildContent</div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _titleId = "modal-" + Guid.NewGuid().ToString("N")[..8];
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>Tailwind max-width class of the dialog on larger screens (default is a small form dialog).</summary>
+    [Parameter] public string MaxWidth { get; set; } = "sm:max-w-lg";
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task CloseAsync() => OpenChanged.InvokeAsync(false);
+
+    private Task OnKeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+}

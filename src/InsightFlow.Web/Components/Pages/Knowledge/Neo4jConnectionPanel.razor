@@ -1,0 +1,142 @@
+@inject KnowledgeApiClient Knowledge
+@* Step 1: the tenant's Neo4j connection. "Save and test" saves what is on screen first, so the result always matches the form. *@
+
+<section class="if-card overflow-hidden" aria-labelledby="conn-heading">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+        <span class="grid size-10 place-items-center rounded-xl bg-brand-600 text-white shadow-card"><Icon Name="graph" Class="size-5" /></span>
+        <div class="min-w-0 flex-1">
+            <h2 id="conn-heading" class="text-lg font-bold text-ink dark:text-slate-100">Neo4j connection</h2>
+            <p class="text-sm text-ink-soft">Where the knowledge graph is stored. The password is kept in the secret store and is never shown again.</p>
+        </div>
+        @if (Config.LastTestedAt is { } tested)
+        {
+            <span class="@($"inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-medium shadow-card ring-1 ring-line dark:bg-slate-900 {(Config.LastTestSucceeded == true ? "text-success" : "text-danger")}")" role="status" data-testid="test-status">
+                <span class="@($"size-2 rounded-full {(Config.LastTestSucceeded == true ? "bg-success" : "bg-danger")}")" aria-hidden="true"></span>
+                @(Config.LastTestSucceeded == true ? "Connected" : "Failed") · @tested.LocalDateTime.ToString("d MMM, HH:mm")
+            </span>
+        }
+    </header>
+    <div class="p-5">
+    <div class="empty:hidden"><Alert Message="@_error" /><Alert Message="@_notice" Error="false" OnDismiss="() => _notice = null" /></div>
+
+    <form class="mt-4 grid gap-4 sm:grid-cols-2" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" autocomplete="off">
+        <fieldset class="sm:col-span-2">
+            <legend class="@UiStyles.Label">Deployment</legend>
+            <div class="flex flex-wrap gap-4 text-sm">
+                <label class="flex items-center gap-2"><input type="radio" name="deployment" class="accent-brand-600" checked="@(!_useAura)" @onchange="() => _useAura = false" /> Self-hosted</label>
+                <label class="flex items-center gap-2"><input type="radio" name="deployment" class="accent-brand-600" checked="@_useAura" @onchange="() => _useAura = true" /> Neo4j Aura</label>
+            </div>
+        </fieldset>
+        <label class="sm:col-span-2">
+            <span class="@UiStyles.Label">Address</span>
+            <input class="@UiStyles.Input font-mono" @bind="_uri" placeholder="@(_useAura ? "neo4j+s://xxxx.databases.neo4j.io" : "bolt://localhost:7687")" required maxlength="500" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">User</span>
+            <input class="@UiStyles.Input" @bind="_user" required maxlength="200" autocomplete="off" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Password</span>
+            <input type="password" class="@UiStyles.Input" @bind="_password" @bind:event="oninput" maxlength="256" autocomplete="new-password"
+                   placeholder="@(Config.HasPassword ? "Stored. Leave empty to keep it." : "Required")" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Database</span>
+            <input class="@UiStyles.Input" @bind="_database" maxlength="100" />
+        </label>
+        <div class="flex flex-col justify-end gap-2 pb-1 text-sm">
+            @if (!_useAura)
+            {
+                <label class="flex items-center gap-2"><input type="checkbox" class="size-4 accent-brand-600" @bind="_encrypted" /> Encrypt the connection</label>
+            }
+            <label class="flex items-center gap-2"><input type="checkbox" class="size-4 accent-brand-600" @bind="_enabled" /> Knowledge base enabled</label>
+        </div>
+        <div class="flex flex-wrap items-center gap-3 sm:col-span-2">
+            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy == Busy.Saving">Save</Button>
+            <Button OnClick="TestAsync" Busy="_busy == Busy.Testing" Disabled="@(!Config.HasPassword && string.IsNullOrEmpty(_password))">Save and test connection</Button>
+            @if (Config.LastTestSucceeded == false && Config.LastTestMessage is not null)
+            {
+                <p class="w-full text-sm text-danger sm:w-auto sm:flex-1" role="alert">@Config.LastTestMessage</p>
+            }
+        </div>
+    </form>
+    </div>
+</section>
+
+@code {
+    private enum Busy
+    {
+        None,
+        Saving,
+        Testing,
+    }
+
+    private Busy _busy;
+    private string? _error;
+    private string? _notice;
+    private string _uri = "";
+    private string _user = "";
+    private string _password = "";
+    private string _database = "";
+    private bool _useAura;
+    private bool _encrypted;
+    private bool _enabled;
+    private KnowledgeBaseConfigDto? _loaded;
+
+    [Parameter, EditorRequired] public KnowledgeBaseConfigDto Config { get; set; } = default!;
+
+    [Parameter] public EventCallback<KnowledgeBaseConfigDto> ConfigChanged { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // Refill the form only when a different saved config arrives, never while the user is typing.
+        if (!ReferenceEquals(_loaded, Config))
+        {
+            _loaded = Config;
+            (_uri, _user, _database, _useAura, _encrypted, _enabled) = (Config.Uri, Config.User, Config.Database, Config.UseAura, Config.Encrypted, Config.Enabled);
+            _password = "";
+        }
+    }
+
+    private SaveKnowledgeBaseConfigRequest Request => new(_uri, _user, _password, _database, _useAura, _encrypted, _enabled);
+
+    private async Task SaveAsync()
+    {
+        _busy = Busy.Saving;
+        _error = null;
+        try
+        {
+            await ConfigChanged.InvokeAsync(await Knowledge.SaveConfigAsync(Request, CancellationToken.None));
+            _notice = "Connection saved.";
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = Busy.None;
+        }
+    }
+
+    private async Task TestAsync()
+    {
+        _busy = Busy.Testing;
+        _error = null;
+        try
+        {
+            await Knowledge.SaveConfigAsync(Request, CancellationToken.None);
+            var result = await Knowledge.TestAsync(CancellationToken.None);
+            await ConfigChanged.InvokeAsync(await Knowledge.GetConfigAsync(CancellationToken.None));
+            _notice = result.Succeeded ? $"Connected to Neo4j{(result.ServerAgent is null ? "" : $" ({result.ServerAgent})")}." : null;
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = Busy.None;
+        }
+    }
+}

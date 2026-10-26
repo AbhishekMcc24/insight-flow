@@ -1,0 +1,114 @@
+@inherits LayoutComponentBase
+@* The frame of the sign-in and registration screens: a deep-teal brand panel (what the product does, drawn with a small dashboard) beside the
+   form. Everything fits one screen with no scrolling: sizes follow the window height, and the optional pieces (chat bubble, assurances, footer,
+   long notes) drop away as the window gets shorter. These pages are static server-rendered (no circuit): the form posts to /auth/signin and the
+   identity provider takes over from there. *@
+
+<div class="grid h-dvh overflow-hidden bg-white lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] dark:bg-slate-950">
+    @* ───────────── brand panel ───────────── *@
+    <aside class="auth-aurora relative hidden min-h-0 overflow-hidden text-white lg:flex lg:flex-col lg:justify-between lg:gap-[clamp(0.75rem,2.5vh,2.5rem)] lg:px-12 lg:py-[clamp(1.25rem,4vh,3rem)] xl:px-16" aria-label="About Insight Flow">
+        <div class="auth-grid pointer-events-none absolute inset-0" aria-hidden="true"></div>
+        <div class="auth-orb pointer-events-none absolute -top-24 -left-24 size-96 rounded-full bg-brand-400/20 blur-3xl" aria-hidden="true"></div>
+        <div class="auth-orb pointer-events-none absolute -right-28 -bottom-32 size-[30rem] rounded-full bg-brand-500/30 blur-3xl" style="animation-delay:-6s" aria-hidden="true"></div>
+
+        <BrandLogo Size="size-14" Animated="true" OnDark="true" Class="relative" />
+
+        <div class="relative min-h-0 max-w-xl">
+            <p class="auth-rise auth-opt inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium tracking-wide text-brand-100" style="--d:.05s">
+                <span class="size-1.5 rounded-full bg-brand-300 shadow-[0_0_8px_2px_rgb(159_217_214/.7)]"></span> Governed BI + AI-first exploration
+            </p>
+            <h2 class="auth-rise mt-[clamp(0.5rem,2vh,1.25rem)] font-display text-[clamp(1.9rem,5.6vh,3.5rem)] leading-[1.05] font-extrabold tracking-tight" style="--d:.15s">
+                Data finally<br />
+                <span class="relative inline-block">
+                    <span class="auth-shine">speaks your language.</span>
+                </span>
+            </h2>
+            <p class="auth-rise auth-opt mt-4 max-w-md text-[clamp(0.8rem,1.9vh,1rem)] leading-relaxed text-brand-100/90" style="--d:.25s">
+                Ask in plain English and get governed SQL on your own semantic model. Every join comes from a relationship you defined, and every
+                answer shows how it was made.
+            </p>
+
+            @* A small dashboard, drawn in SVG: it only suggests the product. *@
+            <div class="auth-float relative mt-[clamp(0.75rem,3vh,2.25rem)] mb-8 max-w-md">
+                <div class="auth-glass rounded-2xl p-[clamp(0.75rem,2vh,1.25rem)]" aria-hidden="true">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-[11px] font-medium tracking-wide text-brand-100/70 uppercase">Outstanding by customer</div>
+                            <div class="mt-1 font-display text-[clamp(1.1rem,3vh,1.5rem)] font-bold tracking-tight">48.3 M <span class="ml-1 rounded-full bg-emerald-400/20 px-2 py-0.5 align-middle text-xs font-semibold text-emerald-200">+12.4%</span></div>
+                        </div>
+                        <div class="flex gap-1.5 text-[10px] font-medium text-brand-100/80">
+                            <span class="rounded-md bg-white/15 px-2 py-1">Bar</span><span class="rounded-md px-2 py-1">Pie</span><span class="rounded-md px-2 py-1">Line</span>
+                        </div>
+                    </div>
+                    <svg viewBox="0 0 360 130" class="mt-3 h-[clamp(4.5rem,15vh,8rem)] w-full" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="authBar" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#9fd9d6" />
+                                <stop offset="1" stop-color="#2c8990" />
+                            </linearGradient>
+                        </defs>
+                        @foreach (var y in new[] { 20, 50, 80, 110 })
+                        {
+                            <line x1="0" x2="360" y1="@y" y2="@y" stroke="white" stroke-opacity=".09" />
+                        }
+                        @for (var i = 0; i < Bars.Length; i++)
+                        {
+                            var h = Bars[i];
+                            <rect class="auth-bar" style="--d:@((0.35 + (i * 0.08)).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))s" x="@(10 + (i * 44))" y="@(115 - h)" width="28" height="@h" rx="6" fill="url(#authBar)" />
+                        }
+                        <path class="auth-line" d="M24 82 C 70 70, 100 78, 142 56 S 220 40, 260 46 S 320 22, 346 16" fill="none" stroke="#ffffff" stroke-opacity=".9" stroke-width="2.5" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+                        <circle cx="346" cy="16" r="4.5" fill="#ffd166" />
+                    </svg>
+                </div>
+
+                <div class="auth-glass auth-float-slow auth-opt absolute -right-6 -bottom-8 w-60 rounded-xl p-3 text-xs" aria-hidden="true">
+                    <div class="flex items-center gap-2 text-brand-100/80">
+                        <span class="grid size-5 place-items-center rounded-full bg-amber-300/30 text-[10px] text-amber-100">✦</span> Asked in plain English
+                    </div>
+                    <div class="mt-2 rounded-lg bg-white/10 px-3 py-2 leading-snug">Top 8 customers by outstanding amount, as a pie chart</div>
+                </div>
+            </div>
+        </div>
+
+        <ul class="auth-opt2 relative grid max-w-xl gap-3 text-sm text-brand-100/90 sm:grid-cols-3">
+            @foreach (var (title, text) in Assurances)
+            {
+                <li>
+                    <div class="flex items-center gap-2 font-semibold text-white">
+                        <svg viewBox="0 0 20 20" class="size-4 text-brand-300" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 10.5 4 4 8-9" /></svg>
+                        @title
+                    </div>
+                    <p class="mt-1 text-xs leading-snug text-brand-100/70">@text</p>
+                </li>
+            }
+        </ul>
+    </aside>
+
+    @* ───────────── form side ───────────── *@
+    <main class="relative flex h-dvh min-h-0 flex-col">
+        <div class="px-6 pt-5 lg:hidden">
+            <BrandLogo Size="size-10" Animated="true" />
+        </div>
+
+        <div class="flex min-h-0 flex-1 items-center justify-center px-6 py-4 sm:px-10">
+            <div class="auth-rise w-full max-w-md">
+                @Body
+            </div>
+        </div>
+
+        <footer class="auth-opt px-6 pb-4 text-center text-xs text-ink-muted sm:px-10">
+            © @DateTime.UtcNow.Year Insight Flow · Your data stays in your tenant
+        </footer>
+    </main>
+</div>
+
+@code {
+    private static readonly int[] Bars = [48, 70, 58, 86, 74, 96, 62, 104];
+
+    private static readonly (string Title, string Text)[] Assurances =
+    [
+        ("Sandboxed SQL", "AI-written queries run read-only, with a time limit and a row cap."),
+        ("Tenant isolation", "Every row and file is scoped to your organisation."),
+        ("Explainable", "See the query, tables, joins and cost of each answer."),
+    ];
+}

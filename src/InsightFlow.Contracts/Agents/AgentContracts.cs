@@ -4,7 +4,10 @@ using InsightFlow.Domain.Viz;
 namespace InsightFlow.Contracts.Agents;
 
 /// <summary>Body of <c>POST /api/v1/agent/analyst</c>: a plain-English question about one dataset version.</summary>
-public sealed record AnalystRequest(Guid DatasetVersionId, string Question, Guid? SemanticModelId = null);
+public sealed record AnalystRequest(Guid DatasetVersionId, string Question, Guid? SemanticModelId = null) : IUserText
+{
+    public IEnumerable<string> UserTexts => [Question];
+}
 
 /// <summary>Event kinds streamed by the analyst (SSE event names).</summary>
 public static class AgentEventTypes
@@ -47,7 +50,10 @@ public sealed record AgentEvent(
 /// Body of <c>POST /api/v1/agent/derived-field</c>: a chart spec that references a field which does not exist yet
 /// (<see cref="FieldName"/>) plus a plain-English description of how to compute it.
 /// </summary>
-public sealed record DerivedFieldRequest(VizSpec Spec, string FieldName, string Hint, Guid? ThreadId = null);
+public sealed record DerivedFieldRequest(VizSpec Spec, string FieldName, string Hint, Guid? ThreadId = null) : IUserText
+{
+    public IEnumerable<string> UserTexts => [FieldName, Hint];
+}
 
 /// <summary>
 /// Result of the derived-field flow: the SQL the agent wrote, its explanation, a preview of the new dataset version, the

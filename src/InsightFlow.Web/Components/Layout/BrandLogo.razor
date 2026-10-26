@@ -1,0 +1,81 @@
+@* The Insight Flow mark. Three streams of data (the dots on the left) bend together and meet in one bright spark: the insight. The tile is the
+   product's teal; the spark is the one warm colour in the whole brand, so the eye goes straight to it. Animated, the streams flow and the
+   spark breathes. The same drawing is wwwroot/favicon.svg. *@
+
+<span class="@($"inline-flex items-center gap-3 {Class}")" data-testid="brand-logo">
+    <svg viewBox="0 0 48 48" class="@MarkClass" role="img" aria-label="Insight Flow logo" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="@_tile" x1="4" y1="2" x2="44" y2="46" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#8ae6e1" />
+                <stop offset="0.45" stop-color="#2c8990" />
+                <stop offset="1" stop-color="#0a2f32" />
+            </linearGradient>
+            <radialGradient id="@_shine" cx="0.25" cy="0.12" r="0.8">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.55" />
+                <stop offset="0.6" stop-color="#ffffff" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient id="@_spark" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stop-color="#ffffff" />
+                <stop offset="0.45" stop-color="#fff0b8" />
+                <stop offset="1" stop-color="#ffc247" />
+            </radialGradient>
+            <filter id="@_glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.4" /></filter>
+        </defs>
+
+        <rect x="1.5" y="1.5" width="45" height="45" rx="14" fill="url(#@_tile)" />
+        <rect x="1.5" y="1.5" width="45" height="45" rx="14" fill="url(#@_shine)" />
+        <rect x="2" y="2" width="44" height="44" rx="13.5" fill="none" stroke="#ffffff" stroke-opacity="0.22" />
+
+        @* streams *@
+        <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="2.6">
+            <path d="M9 15 C19 15 21 24 31 24" stroke-opacity="0.55" />
+            <path d="M9 24 H31" stroke-opacity="0.8" />
+            <path d="M9 33 C19 33 21 24 31 24" stroke-opacity="0.55" />
+            @if (Animated)
+            {
+                <g class="logo-flow" stroke-width="2.6" stroke-dasharray="1.2 9">
+                    <path d="M9 15 C19 15 21 24 31 24" />
+                    <path d="M9 24 H31" />
+                    <path d="M9 33 C19 33 21 24 31 24" />
+                </g>
+            }
+        </g>
+        <g fill="#ffffff"><circle cx="9" cy="15" r="2.1" /><circle cx="9" cy="24" r="2.1" /><circle cx="9" cy="33" r="2.1" /></g>
+
+        @* the spark *@
+        <circle class="@(Animated ? "logo-spark" : null)" cx="36.5" cy="24" r="7.5" fill="#ffc247" opacity="0.7" filter="url(#@_glow)" />
+        <path class="@(Animated ? "logo-spark" : null)" d="M36.5 12.5 C37.4 20 39 22.4 46 24 C39 25.6 37.4 28 36.5 35.5 C35.6 28 34 25.6 27 24 C34 22.4 35.6 20 36.5 12.5Z" fill="url(#@_spark)" />
+    </svg>
+
+    @if (Wordmark)
+    {
+        <span class="@($"font-display leading-none font-bold tracking-tight {WordClass}")">Insight<span class="@FlowClass">Flow</span></span>
+    }
+</span>
+
+@code {
+    private readonly string _tile = "bl-t-" + Guid.NewGuid().ToString("N")[..6];
+    private readonly string _shine = "bl-s-" + Guid.NewGuid().ToString("N")[..6];
+    private readonly string _spark = "bl-k-" + Guid.NewGuid().ToString("N")[..6];
+    private readonly string _glow = "bl-g-" + Guid.NewGuid().ToString("N")[..6];
+
+    /// <summary>Extra classes for the whole logo (colour of the wordmark text, spacing).</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Tailwind size of the mark, for example <c>size-9</c>.</summary>
+    [Parameter] public string Size { get; set; } = "size-9";
+
+    [Parameter] public bool Wordmark { get; set; } = true;
+
+    /// <summary>Streams flow and the spark breathes (the sign-in screens). Off for the app header, where it would be a distraction.</summary>
+    [Parameter] public bool Animated { get; set; }
+
+    /// <summary>For the dark brand panel: a white wordmark with a light "Flow".</summary>
+    [Parameter] public bool OnDark { get; set; }
+
+    private string MarkClass => $"{Size} shrink-0 drop-shadow-[0_6px_14px_rgba(12,58,61,0.35)]";
+
+    private string WordClass => (OnDark ? "text-white " : "text-ink dark:text-white ") + (Size is "size-14" or "size-16" ? "text-3xl" : Size is "size-12" ? "text-2xl" : "text-xl");
+
+    private string FlowClass => OnDark ? "ml-1 font-semibold text-brand-300" : "ml-1 font-semibold text-brand-600 dark:text-brand-300";
+}

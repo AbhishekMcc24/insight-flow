@@ -40,7 +40,16 @@ public abstract class ServiceClientBase(HttpClient http, ServiceCallCredentials 
     {
         using var request = new HttpRequestMessage(method, uri) { Content = content };
         await credentials.ApplyAsync(request, ct);
-        var response = await Http.SendAsync(request, completion, ct);
+        HttpResponseMessage response;
+        try
+        {
+            response = await Http.SendAsync(request, completion, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is Polly.Timeout.TimeoutRejectedException or TaskCanceledException or HttpRequestException or Polly.CircuitBreaker.BrokenCircuitException)
+        {
+            throw new ServiceCallException(HttpStatusCode.ServiceUnavailable, "The service did not answer in time. Try again in a moment.");
+        }
+
         if (response.IsSuccessStatusCode)
         {
             return response;

@@ -1,0 +1,189 @@
+@using InsightFlow.Contracts.Skills
+@using InsightFlow.Contracts.Agents
+@inject AgentApiClient Agents
+@inject SkillsApiClient Skills
+@* Generate skills with AI, the same way table and column descriptions are written: the AI reads the knowledge base (tables, column
+   descriptions, relationships) and, optionally, the stored procedures, works out which business concepts the database implements and drafts a
+   skill for each. Nothing is stored until the person ticks the skills they want and applies them. *@
+
+<CostGate @ref="_gate" />
+
+<section class="if-card mt-4 overflow-hidden" aria-labelledby="ai-skills-heading" data-testid="skill-assist">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+        <span class="grid size-8 place-items-center rounded-lg bg-brand-600 text-white" aria-hidden="true"><Icon Name="squares" Class="size-4" /></span>
+        <div class="min-w-0 flex-1">
+            <h2 id="ai-skills-heading" class="text-sm font-bold text-ink dark:text-slate-100">Generate skills with AI</h2>
+            <p class="text-xs text-ink-soft">Reads the tables, column descriptions, relationships and stored procedures, then drafts a skill for each business concept it finds. You review before anything is saved.</p>
+        </div>
+        <Button Small="true" OnClick="OnClose">Close</Button>
+    </header>
+
+    <div class="space-y-4 p-4">
+        <Alert Message="@_error" OnDismiss="() => _error = null" />
+        <div class="grid gap-3 sm:grid-cols-[14rem_1fr]">
+            <label>
+                <span class="@UiStyles.Label">Focus</span>
+                <select class="@UiStyles.Input" @bind="_categoryId" disabled="@_busy" data-testid="assist-scope">
+                    <option value="@Guid.Empty">All categories</option>
+                    @foreach (var c in Categories)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span class="@UiStyles.Label">What should the skills cover? (optional)</span>
+                <input class="@UiStyles.Input" @bind="_instruction" maxlength="1000" disabled="@_busy" data-testid="assist-instruction"
+                       placeholder="e.g. how outstanding is calculated, including payment adjustments and credit notes" />
+            </label>
+        </div>
+        <div class="flex flex-wrap items-center gap-4">
+            <label class="flex items-center gap-2 text-sm text-ink-soft">
+                <input type="checkbox" class="size-4 accent-brand-600" @bind="_useProcedures" disabled="@_busy" /> Read the stored procedures
+            </label>
+            <Button Variant="ButtonVariant.Primary" Busy="_busy" OnClick="GenerateAsync" data-testid="assist-generate"><Icon Name="search" /> @(_suggestions is null ? "Generate" : "Generate again")</Button>
+            @if (_busy)
+            {
+                <span class="text-xs text-ink-soft">Reading the knowledge base and writing skills. This can take a minute.</span>
+            }
+        </div>
+
+        @if (_suggestions is not null)
+        {
+            <p class="rounded-xl border border-line bg-slate-50 p-3 text-sm text-ink dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100" data-testid="assist-reply">@_reply</p>
+            <UsageNote Usage="_usage" />
+
+            @if (_suggestions.Count > 0)
+            {
+                <ul class="space-y-3" data-testid="assist-list">
+                    @for (var i = 0; i < _suggestions.Count; i++)
+                    {
+                        var index = i;
+                        var s = _suggestions[i];
+                        <li class="rounded-xl border border-line p-3 dark:border-slate-700">
+                            <div class="flex items-start gap-3">
+                                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@_picked.Contains(index)" @onchange="e => Toggle(index, (bool)e.Value!)" aria-label="@($"Use {s.Name}")" />
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <span class="@UiStyles.Badge">@(s.Action == "update" ? "New version" : "New skill")</span>
+                                        <span class="text-xs text-ink-soft">@s.Category@(s.NewCategory ? " (new category)" : "")</span>
+                                        <span class="text-xs text-ink-soft">· @(s.Disclosure == "Always" ? "Always in prompt" : "When relevant")</span>
+                                    </div>
+                                    <h3 class="mt-1 text-sm font-semibold text-ink dark:text-slate-100">@s.Name</h3>
+                                    <p class="text-sm text-ink-soft">@s.Description</p>
+                                    @if (s.Tables.Count > 0)
+                                    {
+                                        <p class="mt-1 flex flex-wrap gap-1">
+                                            @foreach (var t in s.Tables)
+                                            {
+                                                <span class="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-ink-soft dark:bg-slate-800">@t</span>
+                                            }
+                                        </p>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(s.Reason))
+                                    {
+                                        <p class="mt-1 text-xs italic text-ink-soft">@s.Reason</p>
+                                    }
+
+                                    <details class="mt-2 text-xs">
+                                        <summary class="cursor-pointer font-medium text-ink-soft">Instructions</summary>
+                                        <div class="@MarkdownStyle.Class mt-1">@((MarkupString)SimpleMarkdown.ToHtml(s.Instructions))</div>
+                                    </details>
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+                <div class="flex flex-wrap items-center gap-3">
+                    <Button Variant="ButtonVariant.Primary" Busy="_applying" Disabled="@(_picked.Count == 0)" OnClick="ApplyAsync" data-testid="assist-apply">Add @_picked.Count selected skill@(_picked.Count == 1 ? "" : "s")</Button>
+                    <span class="text-xs text-ink-soft">New skills start switched on. Improvements become a new version; the old one is kept.</span>
+                </div>
+            }
+        }
+    </div>
+</section>
+
+@code {
+    private List<SkillSuggestionDto>? _suggestions;
+    private readonly HashSet<int> _picked = [];
+    private string _reply = "";
+    private UsageDto? _usage;
+    private string? _error;
+    private bool _busy;
+    private bool _applying;
+    private bool _useProcedures = true;
+    private Guid _categoryId;
+    private string _instruction = "";
+
+    [Parameter, EditorRequired] public IReadOnlyList<SkillCategoryDto> Categories { get; set; } = [];
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Raised after skills were added, so the page reloads its list.</summary>
+    [Parameter] public EventCallback Applied { get; set; }
+
+    private void Toggle(int index, bool on) => _ = on ? _picked.Add(index) : _picked.Remove(index);
+
+    private CostGate _gate = default!;
+
+    private async Task GenerateAsync()
+    {
+        if (!await _gate.ConfirmAsync(new AiEstimateRequest("skills", UseProcedures: _useProcedures, CategoryId: _categoryId == Guid.Empty ? null : _categoryId)))
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var response = await Agents.AssistSkillsAsync(
+                new SkillAssistRequest(string.IsNullOrWhiteSpace(_instruction) ? null : _instruction.Trim(), null, _categoryId == Guid.Empty ? null : _categoryId, _useProcedures), CancellationToken.None);
+            _suggestions = [.. response.Suggestions];
+            _reply = response.Reply;
+            _usage = response.Usage;
+            _picked.Clear();
+            for (var i = 0; i < _suggestions.Count; i++)
+            {
+                _picked.Add(i);
+            }
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_suggestions is null)
+        {
+            return;
+        }
+
+        _applying = true;
+        _error = null;
+        try
+        {
+            var chosen = _suggestions.Where((_, i) => _picked.Contains(i)).ToList();
+            var result = await Skills.ApplySuggestionsAsync(new ApplySkillSuggestionsRequest(chosen), CancellationToken.None);
+            _reply = $"Added {result.Created} skill{(result.Created == 1 ? "" : "s")}, improved {result.Updated}." + (result.Notes.Count > 0 ? " " + string.Join(" ", result.Notes) : "");
+            _suggestions = [];
+            _picked.Clear();
+            await Applied.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+}

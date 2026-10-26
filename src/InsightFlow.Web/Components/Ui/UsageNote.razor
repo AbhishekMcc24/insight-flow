@@ -1,0 +1,31 @@
+@using InsightFlow.Contracts.Agents
+@* The cost of one AI request, shown after it ran: tokens in and out, the model and the estimated cost, as a compact line of chips.
+   Costs are estimates at the model's list price (Ai:Pricing); a model with no price shows "price not set" instead of a guess. *@
+
+@if (Usage is { Calls: > 0 } u)
+{
+    <p class="flex flex-wrap items-center gap-1.5 text-xs text-ink-soft" data-testid="usage-note" aria-label="AI usage of this request">
+        <span class="font-medium text-ink dark:text-slate-100">AI usage</span>
+        <span class="@Chip">@u.TotalTokens.ToString("N0") tokens</span>
+        <span class="@Chip">@u.InputTokens.ToString("N0") in · @u.OutputTokens.ToString("N0") out</span>
+        @if (u.Calls > 1)
+        {
+            <span class="@Chip">@u.Calls calls</span>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(u.Model))
+        {
+            <span class="@Chip font-mono">@u.Model</span>
+        }
+
+        <span class="@($"{Chip} font-semibold {(u.CostUsd is null ? "text-amber-800 dark:text-amber-200" : "text-ink dark:text-slate-100")}")" data-testid="usage-cost">
+            @(u.CostUsd is { } cost ? "~" + Money.Format(cost) : "price not set")
+        </span>
+    </p>
+}
+
+@code {
+    private const string Chip = "rounded-full bg-slate-100 px-2 py-0.5 tabular-nums dark:bg-slate-800";
+
+    [Parameter] public UsageDto? Usage { get; set; }
+}

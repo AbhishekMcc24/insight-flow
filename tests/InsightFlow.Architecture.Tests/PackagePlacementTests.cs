@@ -23,6 +23,10 @@ public sealed class PackagePlacementTests
         { "MongoDB.Driver", ["InsightFlow.Connectors"] },
         { "Microsoft.Azure.Cosmos", ["InsightFlow.Connectors"] },
         { "ExcelDataReader", ["InsightFlow.Connectors"] },
+        { "PdfPig", ["InsightFlow.Connectors"] },
+        { "MCC.Foundation.Neo4JHelper", ["InsightFlow.Connectors"] },
+        { "MCC.Foundation.Guardrails", ["InsightFlow.Agents"] }, // the front guardrail layer: vulgarity and prompt injection
+        { "Neo4j.Driver", ["InsightFlow.Connectors"] },
         { "Quartz", ["InsightFlow.Worker"] },
         { "Microsoft.AspNetCore.Components", ["InsightFlow.Web"] },
         { "Telerik", [] },

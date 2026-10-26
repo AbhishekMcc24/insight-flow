@@ -1,0 +1,32 @@
+@page "/login"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@inject NavigationManager Navigation
+@inject IOptions<InsightFlowAuthOptions> Auth
+@* Static server-rendered (see App.razor), so it is usable before anyone is signed in. *@
+
+<PageTitle>Sign in · Insight Flow</PageTitle>
+
+<AuthForm Mode="signin" ReturnUrl="@AuthRedirect.Safe(ReturnUrl ?? Legacy)" Code="@(SignedOut == "1" ? "signedout" : Error)" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")] public string? ReturnUrl { get; set; }
+
+    /// <summary>The cookie middleware names its parameter <c>ReturnUrl</c>.</summary>
+    [SupplyParameterFromQuery(Name = "ReturnUrl")] public string? Legacy { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")] public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "signedout")] public string? SignedOut { get; set; }
+
+    [CascadingParameter] private Task<AuthenticationState>? State { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Someone already signed in has no use for this page. (In development everyone is, and the screen is meant to be looked at.)
+        if (Auth.Value.Mode != AuthenticationMode.Development && State is not null && (await State).User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo(AuthRedirect.Safe(ReturnUrl ?? Legacy));
+        }
+    }
+}

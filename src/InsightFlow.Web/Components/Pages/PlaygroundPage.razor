@@ -1,0 +1,916 @@
+@page "/playground"
+@implements IAsyncDisposable
+@using System.Globalization
+@using System.Text.Json
+@using InsightFlow.Contracts.Playground
+@using InsightFlow.Contracts.Query
+@using InsightFlow.Web.Charts
+@using InsightFlow.Web.Components.Playground
+@using InsightFlow.Web.Playground
+@inject PlaygroundApiClient Api
+@inject IJSRuntime JS
+@* The Playground: sheets of free canvas, like the sheets of a workbook. Insert text, shapes, lines, images and KPI cards, drag them anywhere,
+   resize, style, align and layer them; charts and tables arrive from Query and the Workspace ("Add to Playground"). Everything is saved as you go. *@
+
+<PageTitle>Playground · Insight Flow</PageTitle>
+
+<div class="flex h-full min-h-0 flex-col" data-testid="playground">
+    @* ───────────── toolbar ───────────── *@
+    <div class="shrink-0 space-y-1 border-b border-line bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900" role="toolbar" aria-label="Playground tools">
+        <div class="flex flex-wrap items-center gap-1.5">
+            <span class="@GroupLabel">Insert</span>
+            <button type="button" class="@Btn" @onclick='() => AddElement("text")' disabled="@(!Ready)" data-testid="add-text">Text box</button>
+            <button type="button" class="@Btn" @onclick='() => AddElement("title")' disabled="@(!Ready)">Title</button>
+            <button type="button" class="@Btn" @onclick='() => AddElement("note")' disabled="@(!Ready)">Note</button>
+            <button type="button" class="@Btn" @onclick='() => AddElement("link")' disabled="@(!Ready)">Link</button>
+            <span class="mx-1 h-5 w-px bg-line dark:bg-slate-700" aria-hidden="true"></span>
+            <div class="relative">
+                <button type="button" class="@Btn" aria-haspopup="menu" aria-expanded="@UiStyles.Aria(_shapesOpen)" @onclick="() => _shapesOpen = !_shapesOpen" disabled="@(!Ready)" data-testid="shapes-menu">Shapes <Icon Name="chevron-down" Class="size-3" /></button>
+                @if (_shapesOpen)
+                {
+                    <div class="absolute left-0 top-full z-40 mt-1 grid w-44 grid-cols-1 gap-0.5 rounded-xl border border-line bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="menu">
+                        @foreach (var (key, label) in Shapes)
+                        {
+                            <button type="button" role="menuitem" class="rounded-lg px-3 py-1.5 text-left text-xs hover:bg-mist dark:hover:bg-slate-800" @onclick="() => AddElement(key)" data-testid="@($"add-{key}")">@label</button>
+                        }
+                    </div>
+                }
+            </div>
+            <button type="button" class="@Btn" @onclick='() => AddElement("line")' disabled="@(!Ready)">Line</button>
+            <button type="button" class="@Btn" @onclick='() => AddElement("arrow")' disabled="@(!Ready)">Arrow</button>
+            <label class="@($"{Btn} cursor-pointer")">Image<InputFile OnChange="OnImagePicked" accept="image/png,image/jpeg,image/gif,image/webp" class="sr-only" disabled="@(!Ready)" /></label>
+            <button type="button" class="@Btn" @onclick='() => AddElement("kpi")' disabled="@(!Ready)">KPI card</button>
+            <span class="mx-1 h-5 w-px bg-line dark:bg-slate-700" aria-hidden="true"></span>
+            <span class="@GroupLabel">Edit</span>
+            <button type="button" class="@Btn" @onclick="() => _board.Undo()" disabled="@(!_board.CanUndo)" title="Undo (Ctrl+Z)" data-testid="undo">Undo</button>
+            <button type="button" class="@Btn" @onclick="() => _board.Redo()" disabled="@(!_board.CanRedo)" title="Redo (Ctrl+Y)">Redo</button>
+            <button type="button" class="@Btn" @onclick="() => _board.DuplicateSelected()" disabled="@(!HasSelection)" title="Duplicate (Ctrl+D)" data-testid="duplicate">Duplicate</button>
+            <button type="button" class="@Btn" @onclick="() => _board.DeleteSelected()" disabled="@(!HasSelection)" title="Delete (Del)" data-testid="delete">Delete</button>
+            <button type="button" class="@Btn" @onclick="() => _board.BringToFront()" disabled="@(!HasSelection)">Bring to front</button>
+            <button type="button" class="@Btn" @onclick="() => _board.SendToBack()" disabled="@(!HasSelection)">Send to back</button>
+            <div class="relative">
+                <button type="button" class="@Btn" aria-haspopup="menu" aria-expanded="@UiStyles.Aria(_alignOpen)" @onclick="() => _alignOpen = !_alignOpen" disabled="@(_board.Selected.Count < 2)">Align <Icon Name="chevron-down" Class="size-3" /></button>
+                @if (_alignOpen)
+                {
+                    <div class="absolute left-0 top-full z-40 mt-1 w-36 rounded-xl border border-line bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="menu">
+                        @foreach (var how in new[] { "left", "center", "right", "top", "middle", "bottom" })
+                        {
+                            <button type="button" role="menuitem" class="block w-full rounded-lg px-3 py-1.5 text-left text-xs capitalize hover:bg-mist dark:hover:bg-slate-800" @onclick="() => AlignTo(how)">@how</button>
+                        }
+                    </div>
+                }
+            </div>
+            <span class="mx-1 h-5 w-px bg-line dark:bg-slate-700" aria-hidden="true"></span>
+            <span class="@GroupLabel">View</span>
+            <button type="button" class="@Btn" @onclick="() => Zoom(-0.1)" aria-label="Zoom out">−</button>
+            <span class="w-10 text-center text-xs tabular-nums text-ink-soft" data-testid="zoom">@((int)Math.Round(_scale * 100))%</span>
+            <button type="button" class="@Btn" @onclick="() => Zoom(0.1)" aria-label="Zoom in">+</button>
+            <label class="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" class="size-3.5 accent-brand-600" @bind="_snap" /> Snap</label>
+            <label class="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" class="size-3.5 accent-brand-600" @bind="_grid" /> Gridlines</label>
+            <span class="mx-1 h-5 w-px bg-line dark:bg-slate-700" aria-hidden="true"></span>
+            <div class="relative">
+                <button type="button" class="@Btn" aria-haspopup="menu" aria-expanded="@UiStyles.Aria(_exportOpen)" @onclick="() => _exportOpen = !_exportOpen" disabled="@(!Ready)" data-testid="export-menu">Export <Icon Name="chevron-down" Class="size-3" /></button>
+                @if (_exportOpen)
+                {
+                    <div class="absolute left-0 top-full z-40 mt-1 w-60 rounded-xl border border-line bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="menu">
+                        <button type="button" role="menuitem" class="@MenuItem" @onclick="ExportExcelAsync" data-testid="export-excel">Excel workbook (.xlsx), all sheets</button>
+                        <button type="button" role="menuitem" class="@MenuItem" @onclick="ExportPdfAsync" data-testid="export-pdf">PDF, this sheet</button>
+                    </div>
+                }
+            </div>
+            <span class="ml-auto text-xs text-ink-soft" role="status" data-testid="save-status">@_status</span>
+        </div>
+
+        @if (HasSelection)
+        {
+            <div class="flex flex-wrap items-center gap-2 border-t border-line pt-1.5 dark:border-slate-800" aria-label="Format selected elements" data-testid="format-bar">
+                <span class="@GroupLabel">Format</span>
+                @if (FillApplies)
+                {
+                    <label class="@Field">Fill <input type="color" value="@Hex(Primary?.Style?.Fill, "#ffffff")" @onchange="e => Apply(s => s with { Fill = e.Value?.ToString() })" class="h-6 w-7 cursor-pointer rounded border border-line" /></label>
+                    <button type="button" class="@Btn" @onclick="() => Apply(s => s with { Fill = null })" title="No fill">No fill</button>
+                }
+
+                <label class="@Field">Outline <input type="color" value="@Hex(Primary?.Style?.Stroke, "#2f528f")" @onchange="e => Apply(s => s with { Stroke = e.Value?.ToString(), StrokeWidth = Math.Max(1, s.StrokeWidth) })" class="h-6 w-7 cursor-pointer rounded border border-line" /></label>
+                <button type="button" class="@Btn" @onclick="() => Apply(s => s with { Stroke = null })" title="No outline">No outline</button>
+                <label class="@Field">Width
+                    <select class="@Mini" value="@N(Primary?.Style?.StrokeWidth ?? 1)" @onchange="e => Apply(s => s with { StrokeWidth = Num(e.Value, 1) })">
+                        @foreach (var w in new[] { 0, 1, 2, 3, 4, 6, 8 })
+                        {
+                            <option value="@w">@w px</option>
+                        }
+                    </select>
+                </label>
+                @if (TextApplies)
+                {
+                    <label class="@Field">Text <input type="color" value="@Hex(Primary?.Style?.Color, "#0f172a")" @onchange="e => Apply(s => s with { Color = e.Value?.ToString() })" class="h-6 w-7 cursor-pointer rounded border border-line" /></label>
+                    <label class="@Field">Size
+                        <select class="@Mini" value="@N(Primary?.Style?.FontSize ?? 14)" @onchange="e => Apply(s => s with { FontSize = Num(e.Value, 14) })">
+                            @foreach (var size in new[] { 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 64 })
+                            {
+                                <option value="@size">@size</option>
+                            }
+                        </select>
+                    </label>
+                    <button type="button" class="@Toggle(Primary?.Style?.Bold == true)" @onclick="() => Apply(s => s with { Bold = !s.Bold })" aria-pressed="@UiStyles.Aria(Primary?.Style?.Bold == true)" title="Bold"><b>B</b></button>
+                    <button type="button" class="@Toggle(Primary?.Style?.Italic == true)" @onclick="() => Apply(s => s with { Italic = !s.Italic })" aria-pressed="@UiStyles.Aria(Primary?.Style?.Italic == true)" title="Italic"><i>I</i></button>
+                    <button type="button" class="@Toggle(Primary?.Style?.Underline == true)" @onclick="() => Apply(s => s with { Underline = !s.Underline })" aria-pressed="@UiStyles.Aria(Primary?.Style?.Underline == true)" title="Underline"><u>U</u></button>
+                    @foreach (var (value, label) in new[] { ("left", "⟸"), ("center", "≡"), ("right", "⟹") })
+                    {
+                        <button type="button" class="@Toggle((Primary?.Style?.Align ?? "left") == value)" @onclick="() => Apply(s => s with { Align = value })" title="@($"Align {value}")" aria-label="@($"Align {value}")">@label</button>
+                    }
+
+                    @foreach (var (value, label) in new[] { ("top", "⤒"), ("middle", "↕"), ("bottom", "⤓") })
+                    {
+                        <button type="button" class="@Toggle((Primary?.Style?.VAlign ?? "middle") == value)" @onclick="() => Apply(s => s with { VAlign = value })" title="@($"Vertical {value}")" aria-label="@($"Vertical {value}")">@label</button>
+                    }
+                }
+
+                @if (RadiusApplies)
+                {
+                    <label class="@Field">Corners <input type="number" min="0" max="200" value="@N(Primary?.Style?.Radius ?? 0)" @onchange="e => Apply(s => s with { Radius = Num(e.Value, 0) })" class="@Mini w-14" /></label>
+                }
+
+                <label class="@Field">Opacity <input type="range" min="0.1" max="1" step="0.05" value="@N(Primary?.Style?.Opacity ?? 1)" @onchange="e => Apply(s => s with { Opacity = Num(e.Value, 1) })" class="w-20 accent-brand-600" /></label>
+                @if (Primary?.Type is "line" or "arrow")
+                {
+                    <button type="button" class="@Btn" @onclick="() => _board.UpdateSelected(e => e with { Flip = !e.Flip })">Flip direction</button>
+                }
+
+                <button type="button" class="@Toggle(Primary?.Locked == true)" @onclick="() => _board.UpdateSelected(e => e with { Locked = !e.Locked }, includeLocked: true)" aria-pressed="@UiStyles.Aria(Primary?.Locked == true)" title="Lock position and size">@(Primary?.Locked == true ? "Locked" : "Lock")</button>
+            </div>
+        }
+    </div>
+
+    <Alert Message="@_error" OnDismiss="() => _error = null" />
+
+    <div class="flex min-h-0 flex-1">
+        @* ───────────── canvas ───────────── *@
+        <div @ref="_viewport" tabindex="0" class="relative min-w-0 flex-1 overflow-auto bg-slate-200 outline-none dark:bg-slate-950" aria-label="Sheet canvas. Arrow keys move the selection; Delete removes it." data-testid="viewport">
+            @if (_loading)
+            {
+                <div class="flex justify-center p-12 text-brand-500"><Spinner /></div>
+            }
+            else
+            {
+                <div class="relative" style="width: @(CanvasW * _scale)px; height: @(CanvasH * _scale)px">
+                    <div @ref="_canvas" class="absolute left-0 top-0 touch-none bg-white shadow-md" data-testid="canvas" data-scale="@N(_scale)" data-snap="@(_snap ? "1" : "0")"
+                         style="@CanvasStyle">
+                        @foreach (var element in _board.Elements.OrderBy(e => e.Z))
+                        {
+                            <PlaygroundElementView @key="element.Id" Element="element" Selected="_board.Selected.Contains(element.Id)" ShowHandles="@(_board.Selected.Count == 1 && _board.Selected.Contains(element.Id) && !element.Locked)" />
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ───────────── side panel ───────────── *@
+        <aside class="w-72 shrink-0 overflow-auto border-l border-line bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Properties" data-testid="properties">
+            @if (_board.Selected.Count == 1 && Primary is { } el)
+            {
+                <h2 class="text-sm font-bold text-ink dark:text-slate-100">@TypeLabel(el.Type)</h2>
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                    @foreach (var (label, value, apply) in Geometry(el))
+                    {
+                        <label class="@Field">@label <input type="number" step="1" value="@N(value)" @onchange="e => apply(Num(e.Value, value))" class="@Mini w-full" /></label>
+                    }
+                </div>
+
+                @if (el.Type is not ("image" or "line" or "arrow"))
+                {
+                    <label class="mt-3 block">
+                        <span class="@UiStyles.Label">@(el.Type is "chart" or "table" ? "Caption" : el.Type == "kpi" ? "Label, then value on the next line" : "Text")</span>
+                        <textarea class="@UiStyles.Input" rows="@(el.Type is "title" or "link" ? 2 : 4)" maxlength="5000" value="@el.Text" @onchange="e => _board.Update(el.Id, x => x with { Text = e.Value?.ToString() })"></textarea>
+                    </label>
+                }
+
+                @if (el.Type is "link" or "image")
+                {
+                    <label class="mt-3 block">
+                        <span class="@UiStyles.Label">@(el.Type == "link" ? "Web address" : "Image address")</span>
+                        <input class="@UiStyles.Input" value="@(el.Url is { Length: > 200 } ? "(uploaded image)" : el.Url)" disabled="@(el.Url is { Length: > 200 })" placeholder="https://" @onchange="e => _board.Update(el.Id, x => x with { Url = e.Value?.ToString() })" />
+                    </label>
+                    @if (el.Type == "link" && !string.IsNullOrWhiteSpace(el.Url))
+                    {
+                        <a class="mt-1 inline-block text-xs text-brand-700 underline" href="@el.Url" target="_blank" rel="noopener noreferrer">Open the link</a>
+                    }
+                }
+
+                @if (el.Type == "chart" && el.Data is { } chartData)
+                {
+                    <label class="mt-3 block">
+                        <span class="@UiStyles.Label">Chart type</span>
+                        <select class="@UiStyles.Input" value="@(ChartFactory.Choose(chartData, el.Chart?.Type) ?? "bar")" @onchange="e => SetChartType(el.Id, e.Value?.ToString())" data-testid="element-chart-type">
+                            @foreach (var group in ChartFactory.Compatible(chartData).GroupBy(t => t.Group))
+                            {
+                                <optgroup label="@group.Key">
+                                    @foreach (var t in group)
+                                    {
+                                        <option value="@t.Key">@t.Label</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </label>
+                    <p class="mt-1 text-xs text-ink-soft">Drawn from @chartData.Rows.Count.ToString("N0") exported rows@(chartData.Truncated ? " (the export was cut at the row limit)" : "").</p>
+                }
+                else if (el.Type == "table" && el.Data is { } tableData)
+                {
+                    <fieldset class="mt-3 space-y-2" data-testid="freeze">
+                        <legend class="@UiStyles.Label">Freeze</legend>
+                        <label class="flex items-center gap-2 text-xs text-ink">
+                            <input type="checkbox" class="size-3.5 accent-brand-600" checked="@el.FreezeHeader" @onchange="e => _board.Update(el.Id, x => x with { FreezeHeader = (bool)(e.Value ?? false) })" data-testid="freeze-header" />
+                            Header row (stays visible while scrolling down)
+                        </label>
+                        <label class="flex items-center gap-2 text-xs text-ink">
+                            First
+                            <select class="@Mini" value="@el.FreezeColumns" @onchange="e => _board.Update(el.Id, x => x with { FreezeColumns = (int)Num(e.Value, 0) })" data-testid="freeze-columns">
+                                @for (var n = 0; n <= Math.Min(5, tableData.Columns.Count); n++)
+                                {
+                                    <option value="@n">@(n == 0 ? "no columns" : n == 1 ? "1 column" : $"{n} columns")</option>
+                                }
+                            </select>
+                            (stay visible while scrolling across)
+                        </label>
+                    </fieldset>
+                    <p class="mt-3 text-xs text-ink-soft">@tableData.Rows.Count.ToString("N0") rows, @tableData.Columns.Count columns, as exported@(tableData.Truncated ? " (cut at the row limit)" : "").</p>
+                }
+            }
+            else if (_board.Selected.Count > 1)
+            {
+                <h2 class="text-sm font-bold text-ink dark:text-slate-100">@_board.Selected.Count elements selected</h2>
+                <p class="mt-1 text-xs text-ink-soft">Drag to move them together. Use Format above for colour and text, Align to line them up.</p>
+            }
+            else
+            {
+                <h2 class="text-sm font-bold text-ink dark:text-slate-100">@(ActiveName ?? "Playground")</h2>
+                <p class="mt-1 text-xs text-ink-soft">@_board.Elements.Count element@(_board.Elements.Count == 1 ? "" : "s") on this sheet.</p>
+                <ul class="mt-3 list-disc space-y-1 pl-4 text-xs text-ink-soft">
+                    <li>Click an element to select it; Shift or Ctrl-click adds more, or drag a box around several.</li>
+                    <li>Drag to move, pull a handle to resize (Shift keeps the shape).</li>
+                    <li>Double-click text to edit it in place.</li>
+                    <li>Arrow keys nudge (Shift = 10 px). Ctrl+C, X, V, D, Z, Y work as in Excel.</li>
+                    <li>Charts and tables come from the “Add to Playground” button on Query and Workspace answers.</li>
+                </ul>
+            }
+        </aside>
+    </div>
+
+    @* ───────────── sheet tabs ───────────── *@
+    <nav class="flex shrink-0 items-center gap-1 overflow-x-auto border-t border-line bg-slate-100 px-2 py-1 dark:border-slate-800 dark:bg-slate-900" aria-label="Sheets" data-testid="sheet-tabs">
+        @foreach (var sheet in _sheets)
+        {
+            var active = sheet.Id == _activeId;
+            @if (_renaming == sheet.Id)
+            {
+                <input class="w-36 rounded-control border border-brand-500 bg-white px-2 py-1 text-xs dark:bg-slate-950" value="@_renameText" maxlength="60" @oninput="e => _renameText = e.Value?.ToString() ?? string.Empty"
+                       @onkeydown="e => OnRenameKey(e, sheet)" @onblur="() => CommitRenameAsync(sheet)" data-testid="rename-input" />
+            }
+            else
+            {
+                <button type="button" role="tab" aria-selected="@UiStyles.Aria(active)" @onclick="() => OpenSheetAsync(sheet.Id)" @ondblclick="() => StartRename(sheet)"
+                        class="@($"max-w-44 truncate rounded-t-md border border-b-0 px-3 py-1 text-xs {(active ? "border-line bg-white font-semibold text-brand-700 shadow-xs dark:bg-slate-800 dark:text-brand-200" : "border-transparent text-ink-soft hover:bg-white/70 dark:hover:bg-slate-800")}")"
+                        title="Double-click to rename" data-testid="sheet-tab">@sheet.Name</button>
+            }
+        }
+
+        <button type="button" class="@Btn" @onclick="AddSheetAsync" aria-label="Add a sheet" title="Add a sheet" data-testid="add-sheet"><Icon Name="plus" Class="size-3.5" /></button>
+        @if (_activeId is not null)
+        {
+            <div class="relative ml-2">
+                <button type="button" class="@Btn" aria-haspopup="menu" aria-expanded="@UiStyles.Aria(_sheetMenu)" @onclick="() => _sheetMenu = !_sheetMenu" data-testid="sheet-menu">Sheet <Icon Name="chevron-down" Class="size-3" /></button>
+                @if (_sheetMenu)
+                {
+                    <div class="absolute bottom-full left-0 z-40 mb-1 w-40 rounded-xl border border-line bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="menu">
+                        <button type="button" role="menuitem" class="@MenuItem" @onclick="RenameActive">Rename</button>
+                        <button type="button" role="menuitem" class="@MenuItem" @onclick="DuplicateSheetAsync">Duplicate</button>
+                        <button type="button" role="menuitem" class="@MenuItem" @onclick="() => MoveSheetAsync(-1)" disabled="@(ActiveIndex <= 0)">Move left</button>
+                        <button type="button" role="menuitem" class="@MenuItem" @onclick="() => MoveSheetAsync(1)" disabled="@(ActiveIndex >= _sheets.Count - 1)">Move right</button>
+                        <button type="button" role="menuitem" class="@($"{MenuItem} text-danger")" @onclick="() => { _confirmDelete = true; _sheetMenu = false; }">Delete…</button>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_confirmDelete && ActiveName is { } doomed)
+        {
+            <div class="ml-3 flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/5 px-3 py-1 text-xs" role="alertdialog" aria-label="Confirm delete" data-testid="delete-sheet-confirm">
+                <span>Delete “@doomed” and everything on it?</span>
+                <Button Small="true" Variant="ButtonVariant.Danger" OnClick="DeleteSheetAsync">Delete</Button>
+                <Button Small="true" OnClick="() => _confirmDelete = false">Keep</Button>
+            </div>
+        }
+    </nav>
+</div>
+
+@code {
+    private const string Btn = "inline-flex items-center gap-1 rounded-control border border-line bg-white px-2 py-1 text-xs font-medium text-ink hover:border-brand-300 hover:bg-mist disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800";
+    private const string GroupLabel = "text-[10px] font-semibold uppercase tracking-wide text-ink-soft";
+    private const string Field = "flex items-center gap-1 text-xs text-ink-soft";
+    private const string Mini = "rounded-control border border-line bg-white px-1.5 py-0.5 text-xs text-ink dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+    private const string MenuItem = "block w-full rounded-lg px-3 py-1.5 text-left text-xs hover:bg-mist disabled:opacity-40 dark:hover:bg-slate-800";
+    private const int MinCanvasW = 3_000;
+    private const int MinCanvasH = 2_000;
+    private const long MaxImageBytes = 1_000_000;
+
+    private static readonly (string Key, string Label)[] Shapes =
+    [
+        ("rect", "Rectangle"), ("rounded", "Rounded rectangle"), ("ellipse", "Ellipse"), ("triangle", "Triangle"), ("diamond", "Diamond"), ("hexagon", "Hexagon"), ("star", "Star"),
+    ];
+
+    private readonly PlaygroundBoard _board = new();
+    private List<PlaygroundSheetSummaryDto> _sheets = [];
+    private Guid? _activeId;
+    private ElementReference _viewport;
+    private ElementReference _canvas;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<PlaygroundPage>? _self;
+    private System.Threading.Timer? _saveTimer;
+    private bool _attached;
+    private bool _loading = true;
+    private bool _dirty;
+    private bool _saving;
+    private bool _disposed;
+    private bool _shapesOpen;
+    private bool _alignOpen;
+    private bool _sheetMenu;
+    private bool _exportOpen;
+    private bool _confirmDelete;
+    private bool _snap = true;
+    private bool _grid = true;
+    private double _scale = 1;
+    private string _status = string.Empty;
+    private string? _error;
+    private Guid? _renaming;
+    private string _renameText = string.Empty;
+
+    /// <summary>The sheet to open, from a link such as <c>/playground?sheet=…</c> (what "Open Playground" after an export uses).</summary>
+    [SupplyParameterFromQuery(Name = "sheet")] public Guid? SheetId { get; set; }
+
+    private bool Ready => _activeId is not null && !_loading;
+
+    private bool HasSelection => _board.Selected.Count > 0;
+
+    private PlaygroundElementDto? Primary => _board.SelectedElements.FirstOrDefault();
+
+    private bool FillApplies => _board.SelectedElements.Any(e => e.Type is not ("line" or "arrow" or "image"));
+
+    private bool TextApplies => _board.SelectedElements.Any(e => e.Type is not ("line" or "arrow" or "image"));
+
+    private bool RadiusApplies => _board.SelectedElements.Any(e => e.Type is "rect" or "rounded" or "note" or "kpi" or "text" or "link" or "chart" or "table" or "image");
+
+    private string? ActiveName => _sheets.FirstOrDefault(s => s.Id == _activeId)?.Name;
+
+    private int ActiveIndex => _sheets.FindIndex(s => s.Id == _activeId);
+
+    private double CanvasW => Math.Max(MinCanvasW, _board.Elements.Select(e => e.X + e.W).DefaultIfEmpty(0).Max() + 400);
+
+    private double CanvasH => Math.Max(MinCanvasH, _board.Elements.Select(e => e.Y + e.H).DefaultIfEmpty(0).Max() + 400);
+
+    private string CanvasStyle =>
+        $"width:{N(CanvasW)}px;height:{N(CanvasH)}px;transform:scale({N(_scale)});transform-origin:0 0;" +
+        (_grid ? "background-image:linear-gradient(to right,#e5e9ef 1px,transparent 1px),linear-gradient(to bottom,#e5e9ef 1px,transparent 1px);background-size:24px 24px;" : string.Empty);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _board.Changed += OnBoardChanged;
+        try
+        {
+            _sheets = [.. await Api.ListAsync(CancellationToken.None)];
+            if (_sheets.Count == 0)
+            {
+                var first = await Api.CreateAsync(null, CancellationToken.None);
+                _sheets = [new PlaygroundSheetSummaryDto(first.Id, first.Name, first.Sequence, 0, first.UpdatedAt)];
+            }
+
+            var target = SheetId is { } wanted && _sheets.Any(s => s.Id == wanted) ? wanted : _sheets[0].Id;
+            await LoadSheetAsync(target);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (_module is null)
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/playground.js");
+            }
+
+            if (!_attached && !_loading)
+            {
+                _self = DotNetObjectReference.Create(this);
+                await _module.InvokeVoidAsync("attach", _viewport, _canvas, _self);
+                _attached = true;
+            }
+
+            if (_attached)
+            {
+                await _module.InvokeVoidAsync("setSelection", _canvas, _board.Selected.Select(id => id.ToString()).ToArray());
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is gone.
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerendering: no browser yet.
+        }
+    }
+
+    // ───────────── sheets ─────────────
+
+    private async Task LoadSheetAsync(Guid id)
+    {
+        var sheet = await Api.GetAsync(id, CancellationToken.None);
+        _activeId = sheet.Id;
+        _board.Load(sheet.Elements);
+        _dirty = false;
+        _status = string.Empty;
+    }
+
+    private async Task OpenSheetAsync(Guid id)
+    {
+        if (id == _activeId)
+        {
+            return;
+        }
+
+        await FlushAsync();
+        try
+        {
+            await LoadSheetAsync(id);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task AddSheetAsync()
+    {
+        await FlushAsync();
+        try
+        {
+            var created = await Api.CreateAsync(null, CancellationToken.None);
+            _sheets.Add(new PlaygroundSheetSummaryDto(created.Id, created.Name, created.Sequence, 0, created.UpdatedAt));
+            await LoadSheetAsync(created.Id);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DuplicateSheetAsync()
+    {
+        _sheetMenu = false;
+        if (_activeId is not { } id)
+        {
+            return;
+        }
+
+        await FlushAsync();
+        try
+        {
+            var copy = await Api.DuplicateAsync(id, CancellationToken.None);
+            _sheets.Add(new PlaygroundSheetSummaryDto(copy.Id, copy.Name, copy.Sequence, copy.Elements.Count, copy.UpdatedAt));
+            await LoadSheetAsync(copy.Id);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task MoveSheetAsync(int direction)
+    {
+        _sheetMenu = false;
+        var index = ActiveIndex;
+        if (_activeId is not { } id || index < 0 || index + direction < 0 || index + direction >= _sheets.Count)
+        {
+            return;
+        }
+
+        try
+        {
+            await Api.SaveAsync(id, new SavePlaygroundSheetRequest(Sequence: index + direction), CancellationToken.None);
+            var moved = _sheets[index];
+            _sheets.RemoveAt(index);
+            _sheets.Insert(index + direction, moved);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteSheetAsync()
+    {
+        _confirmDelete = false;
+        if (_activeId is not { } id)
+        {
+            return;
+        }
+
+        try
+        {
+            _dirty = false;
+            await Api.DeleteAsync(id, CancellationToken.None);
+            var index = ActiveIndex;
+            _sheets.RemoveAll(s => s.Id == id);
+            if (_sheets.Count == 0)
+            {
+                var fresh = await Api.CreateAsync(null, CancellationToken.None);
+                _sheets.Add(new PlaygroundSheetSummaryDto(fresh.Id, fresh.Name, fresh.Sequence, 0, fresh.UpdatedAt));
+            }
+
+            await LoadSheetAsync(_sheets[Math.Clamp(index, 0, _sheets.Count - 1)].Id);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void RenameActive()
+    {
+        _sheetMenu = false;
+        if (_sheets.FirstOrDefault(s => s.Id == _activeId) is { } sheet)
+        {
+            StartRename(sheet);
+        }
+    }
+
+    private void StartRename(PlaygroundSheetSummaryDto sheet)
+    {
+        _renaming = sheet.Id;
+        _renameText = sheet.Name;
+    }
+
+    private async Task OnRenameKey(KeyboardEventArgs e, PlaygroundSheetSummaryDto sheet)
+    {
+        if (e.Key == "Enter")
+        {
+            await CommitRenameAsync(sheet);
+        }
+        else if (e.Key == "Escape")
+        {
+            _renaming = null;
+        }
+    }
+
+    private async Task CommitRenameAsync(PlaygroundSheetSummaryDto sheet)
+    {
+        if (_renaming != sheet.Id)
+        {
+            return;
+        }
+
+        _renaming = null;
+        var name = _renameText.Trim();
+        if (name.Length == 0 || name == sheet.Name)
+        {
+            return;
+        }
+
+        try
+        {
+            var saved = await Api.SaveAsync(sheet.Id, new SavePlaygroundSheetRequest(Name: name), CancellationToken.None);
+            var index = _sheets.FindIndex(s => s.Id == sheet.Id);
+            _sheets[index] = _sheets[index] with { Name = saved.Name };
+            _error = null;
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    // ───────────── saving ─────────────
+
+    private void OnBoardChanged()
+    {
+        _dirty = true;
+        _status = "Unsaved changes…";
+        _saveTimer?.Dispose();
+        _saveTimer = new System.Threading.Timer(_ => _ = InvokeAsync(SaveAsync), null, 800, Timeout.Infinite);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task FlushAsync()
+    {
+        _saveTimer?.Dispose();
+        _saveTimer = null;
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!_dirty || _activeId is not { } id || _saving || _disposed)
+        {
+            return;
+        }
+
+        _saving = true;
+        _dirty = false;
+        _status = "Saving…";
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var saved = await Api.SaveAsync(id, new SavePlaygroundSheetRequest(Elements: _board.Elements), CancellationToken.None);
+            var index = _sheets.FindIndex(s => s.Id == id);
+            if (index >= 0)
+            {
+                _sheets[index] = _sheets[index] with { ElementCount = saved.Elements.Count, UpdatedAt = saved.UpdatedAt };
+            }
+
+            _status = _dirty ? "Unsaved changes…" : "All changes saved";
+        }
+        catch (ServiceCallException ex)
+        {
+            _dirty = true;
+            _status = "Not saved";
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+            if (!_disposed)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    // ───────────── editing ─────────────
+
+    private void AddElement(string type)
+    {
+        _shapesOpen = false;
+        var (x, y) = _board.NextSpot();
+        if (!_board.Add(ElementFactory.Create(type, x, y, _board.NextZ)))
+        {
+            _error = $"A sheet holds at most {PlaygroundBoard.MaxElements} elements.";
+        }
+    }
+
+    private async Task OnImagePicked(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > MaxImageBytes)
+        {
+            _error = "Pick an image of up to 1 MB.";
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(MaxImageBytes);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory);
+        var (x, y) = _board.NextSpot();
+        var image = ElementFactory.Create("image", x, y, _board.NextZ) with { Url = $"data:{file.ContentType};base64,{Convert.ToBase64String(memory.ToArray())}", Text = file.Name };
+        _board.Add(image);
+    }
+
+    private void Apply(Func<PlaygroundStyleDto, PlaygroundStyleDto> change) =>
+        _board.UpdateSelected(e => e with { Style = change(e.Style ?? new PlaygroundStyleDto()) });
+
+    private async Task ExportExcelAsync()
+    {
+        _exportOpen = false;
+        try
+        {
+            await FlushAsync();
+            var sheets = new List<(string Name, IReadOnlyList<PlaygroundElementDto> Elements)>();
+            foreach (var summary in _sheets)
+            {
+                var sheet = await Api.GetAsync(summary.Id, CancellationToken.None);
+                sheets.Add((sheet.Name, sheet.Elements));
+            }
+
+            // Charts and images are drawn by the browser so they look as on the canvas; they come back in pieces through JsImage.
+            var items = sheets.SelectMany(s => s.Elements).Select(PictureItem).Where(i => i is not null).ToList();
+            _pieces.Clear();
+            if (items.Count > 0)
+            {
+                await _module!.InvokeVoidAsync("renderImages", items, _self);
+            }
+
+            var pictures = _pieces.Where(p => p.Value.All(c => c is not null))
+                .ToDictionary(p => p.Key, p => Convert.FromBase64String(string.Concat(p.Value)));
+            _pieces.Clear();
+            var bytes = PlaygroundXlsx.Build(sheets, pictures);
+            using var stream = new MemoryStream(bytes);
+            using var reference = new DotNetStreamReference(stream);
+            await _module!.InvokeVoidAsync("download", "Playground.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", reference);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (JSException)
+        {
+            _error = "The browser could not save the file.";
+        }
+    }
+
+    private readonly Dictionary<Guid, string?[]> _pieces = [];
+
+    private static object? PictureItem(PlaygroundElementDto e)
+    {
+        var s = e.Style ?? new PlaygroundStyleDto();
+        if (e.Type == "image" && !string.IsNullOrEmpty(e.Url))
+        {
+            return new { id = e.Id, kind = "image", w = e.W, h = e.H, url = e.Url };
+        }
+
+        if (e.Type == "chart" && e.Data is { } data && ChartFactory.Build(data, e.Chart, dark: false) is { } option)
+        {
+            return new
+            {
+                id = e.Id, kind = "chart", w = e.W, h = e.H, option, caption = e.Text, color = s.Color, fontSize = s.FontSize, align = s.Align,
+                fill = s.Fill, stroke = s.Stroke, strokeWidth = string.IsNullOrEmpty(s.Stroke) ? (double?)null : s.StrokeWidth, radius = s.Radius,
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>A piece of a picture the browser drew for the Excel export.</summary>
+    [JSInvokable]
+    public void JsImage(string id, int index, int count, string chunk)
+    {
+        var key = Guid.Parse(id);
+        if (!_pieces.TryGetValue(key, out var parts) || parts.Length != count)
+        {
+            _pieces[key] = parts = new string?[count];
+        }
+
+        parts[index] = chunk;
+    }
+
+    private async Task ExportPdfAsync()
+    {
+        _exportOpen = false;
+        if (_module is null || !_attached)
+        {
+            return;
+        }
+
+        // The browser prints the sheet as it is drawn (charts included); choosing "Save as PDF" as the printer gives the file.
+        await _module.InvokeVoidAsync("printSheet", _canvas, ActiveName ?? "Playground");
+    }
+
+    private void SetChartType(Guid id, string? type) =>
+        _board.Update(id, x => x with { Chart = (x.Chart ?? new ChartSpecDto("bar")) with { Type = type ?? "bar" } });
+
+    private void AlignTo(string how)
+    {
+        _alignOpen = false;
+        _board.Align(how);
+    }
+
+    private void Zoom(double delta) => _scale = Math.Clamp(Math.Round(_scale + delta, 2), 0.3, 2);
+
+    private IEnumerable<(string Label, double Value, Action<double> Apply)> Geometry(PlaygroundElementDto e)
+    {
+        yield return ("X", e.X, v => _board.SetGeometry([(e.Id, v, e.Y, e.W, e.H)]));
+        yield return ("Y", e.Y, v => _board.SetGeometry([(e.Id, e.X, v, e.W, e.H)]));
+        yield return ("Width", e.W, v => _board.SetGeometry([(e.Id, e.X, e.Y, v, e.H)]));
+        yield return ("Height", e.H, v => _board.SetGeometry([(e.Id, e.X, e.Y, e.W, v)]));
+    }
+
+    // ───────────── calls from the browser script ─────────────
+
+    private sealed record Geo(string Id, double X, double Y, double W, double H);
+
+    [JSInvokable]
+    public Task JsSelect(string[] ids)
+    {
+        _board.SelectMany(ids.Select(i => Guid.TryParse(i, out var g) ? g : Guid.Empty));
+        _shapesOpen = _alignOpen = _sheetMenu = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task JsCommit(string json)
+    {
+        var changes = JsonSerializer.Deserialize<List<Geo>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        _board.SetGeometry(changes.Where(c => Guid.TryParse(c.Id, out _)).Select(c => (Guid.Parse(c.Id), c.X, c.Y, c.W, c.H)));
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task JsText(string id, string text)
+    {
+        if (Guid.TryParse(id, out var guid))
+        {
+            _board.Update(guid, e => e with { Text = text.Length > PlaygroundElementRules.MaxTextLength ? text[..PlaygroundElementRules.MaxTextLength] : text });
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task JsNudge(double dx, double dy)
+    {
+        _board.Nudge(dx, dy);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task JsCommand(string command)
+    {
+        switch (command)
+        {
+            case "delete": _board.DeleteSelected(); break;
+            case "deselect": _board.Select(null); break;
+            case "copy": _board.CopySelected(); break;
+            case "cut": _board.CutSelected(); break;
+            case "paste": _board.Paste(); break;
+            case "duplicate": _board.DuplicateSelected(); break;
+            case "selectall": _board.SelectAll(); break;
+            case "undo": _board.Undo(); break;
+            case "redo": _board.Redo(); break;
+            case "zoomin": Zoom(0.1); break;
+            case "zoomout": Zoom(-0.1); break;
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    // ───────────── small helpers ─────────────
+
+    private static string Toggle(bool on) =>
+        $"inline-flex min-w-7 items-center justify-center rounded-control border px-2 py-1 text-xs {(on ? "border-brand-600 bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100" : "border-line bg-white text-ink hover:bg-mist dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100")}";
+
+    private static string TypeLabel(string type) => type switch
+    {
+        "rect" => "Rectangle",
+        "rounded" => "Rounded rectangle",
+        "kpi" => "KPI card",
+        "note" => "Note",
+        "text" => "Text box",
+        _ => char.ToUpperInvariant(type[0]) + type[1..],
+    };
+
+    /// <summary>An <c>input type=color</c> needs <c>#rrggbb</c>; short or empty values fall back.</summary>
+    private static string Hex(string? value, string fallback)
+    {
+        if (string.IsNullOrEmpty(value) || value[0] != '#')
+        {
+            return fallback;
+        }
+
+        return value.Length == 4 ? $"#{value[1]}{value[1]}{value[2]}{value[2]}{value[3]}{value[3]}" : value.Length >= 7 ? value[..7] : fallback;
+    }
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static double Num(object? value, double fallback) =>
+        double.TryParse(value?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : fallback;
+
+    public async ValueTask DisposeAsync()
+    {
+        _board.Changed -= OnBoardChanged;
+        _saveTimer?.Dispose();
+        try
+        {
+            // Leaving the page keeps what was changed in the last moments.
+            if (_dirty && _activeId is { } id)
+            {
+                _disposed = true;
+                await Api.SaveAsync(id, new SavePlaygroundSheetRequest(Elements: _board.Elements), CancellationToken.None);
+            }
+        }
+        catch (ServiceCallException)
+        {
+            // Nothing more can be done once the page is gone.
+        }
+
+        _disposed = true;
+        _self?.Dispose();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("detach", _canvas);
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Nothing left to release.
+            }
+        }
+    }
+}

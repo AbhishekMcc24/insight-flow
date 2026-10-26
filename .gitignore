@@ -18,6 +18,7 @@ BenchmarkDotNet.Artifacts/
 node_modules/
 src/InsightFlow.Web/wwwroot/css/app.css
 src/InsightFlow.Web/wwwroot/lib/echarts/
+src/InsightFlow.Web/wwwroot/lib/fonts/
 
 # Local data, caches and secrets — never commit
 .env

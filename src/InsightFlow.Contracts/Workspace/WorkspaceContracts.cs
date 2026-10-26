@@ -57,3 +57,29 @@ public sealed record ExtractRunDto(
 
 /// <summary>A dataset the caller can read (for pickers): the workspace item and the dataset version it points to.</summary>
 public sealed record DatasetSummaryDto(Guid ItemId, Guid DatasetVersionId, string Name, Guid FolderId, string FolderName, DateTimeOffset CreatedAt);
+
+/// <summary>Documents uploaded on one calendar day (UTC).</summary>
+public sealed record DailyCountDto(DateOnly Day, int Count);
+
+/// <summary>Documents of one file type (lower-case extension without the dot, or "other").</summary>
+public sealed record FileTypeStatDto(string Type, int Count, long Bytes);
+
+/// <summary>Documents in one folder.</summary>
+public sealed record FolderStatDto(string Folder, int Count);
+
+/// <summary>
+/// Headline numbers and chart series for the Home dashboard, limited to what the caller can read.
+/// <see cref="UploadsByDay"/> covers the last 30 days with zero-filled gaps.
+/// </summary>
+public sealed record WorkspaceStatsDto(
+    int TotalDocuments,
+    int DocumentsLast7Days,
+    int TotalDatasets,
+    long TotalBytes,
+    long TotalRowsProcessed,
+    int ExtractsSucceeded,
+    int ExtractsFailed,
+    int ExtractsInProgress,
+    IReadOnlyList<DailyCountDto> UploadsByDay,
+    IReadOnlyList<FileTypeStatDto> ByFileType,
+    IReadOnlyList<FolderStatDto> ByFolder);

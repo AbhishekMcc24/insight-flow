@@ -9,15 +9,29 @@
     <script src="@Assets["js/theme.js"]"></script>
     <link rel="stylesheet" href="@Assets["css/app.css"]" />
     <ImportMap />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <title>Insight Flow</title>
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body class="h-full">
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="PageRenderMode" />
     @* Apache ECharts is vendored from npm into wwwroot/lib/echarts at build time (no CDN). *@
     <script src="@Assets["lib/echarts/echarts.min.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    /// <summary>
+    /// The sign-in and registration screens are plain server-rendered pages: nobody is signed in yet, so there is no circuit to connect to.
+    /// Everything else runs interactively.
+    /// </summary>
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext?.Request.Path.StartsWithSegments("/login") == true || HttpContext?.Request.Path.StartsWithSegments("/register") == true
+            ? null
+            : InteractiveServer;
+}

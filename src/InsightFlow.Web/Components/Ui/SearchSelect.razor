@@ -1,0 +1,188 @@
+@* A searchable dropdown (ARIA combobox): type to filter the list locally, arrow keys to move, Enter to choose, Escape to close.
+   Filtering happens in the browser's circuit over the list it is given; nothing is sent to a server per keystroke. *@
+
+<div class="relative" @onfocusout="OnFocusOut">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label for="@_inputId" class="@UiStyles.Label">@Label</label>
+    }
+    <div class="relative">
+        <input id="@_inputId" type="text" role="combobox" autocomplete="off" spellcheck="false"
+               aria-autocomplete="list" aria-expanded="@UiStyles.Aria(_open)" aria-controls="@_listId" aria-activedescendant="@ActiveId"
+               disabled="@(Disabled || Loading)" placeholder="@Placeholder" value="@_text"
+               class="@($"{UiStyles.Input} pr-16 {(Value is null ? "" : "font-medium")}")"
+               @oninput="OnInput" @onfocus="OpenList" @onclick="OpenList" @onkeydown="OnKeyDown" />
+        <span class="absolute inset-y-0 right-3 flex items-center gap-2 text-ink-soft">
+            @if (Loading)
+            {
+                <Spinner Small="true" />
+            }
+            else if (Value is not null && !Disabled)
+            {
+                <button type="button" tabindex="-1" class="rounded p-0.5 hover:bg-mist hover:text-brand-700" aria-label="Clear selection" @onclick="ClearAsync" @onclick:stopPropagation="true">
+                    <Icon Name="close" Class="size-4" />
+                </button>
+            }
+            <Icon Name="chevron-down" Class="@($"size-4 transition-transform {(_open ? "rotate-180" : "")}")" />
+        </span>
+    </div>
+
+    @if (_open)
+    {
+        <ul id="@_listId" role="listbox" aria-label="@(Label ?? "Options")"
+            class="if-card absolute z-40 mt-1.5 max-h-72 w-full overflow-auto p-1 shadow-card-hover">
+            @if (Filtered.Count == 0)
+            {
+                <li class="px-3 py-6 text-center text-sm text-ink-soft" role="presentation">@(Items.Count == 0 ? EmptyText : $"No match for “{_text}”")</li>
+            }
+            else
+            {
+                @for (var i = 0; i < Filtered.Count; i++)
+                {
+                    var index = i;
+                    var item = Filtered[i];
+                    var selected = item == Value;
+                    <li id="@OptionId(index)" role="option" aria-selected="@UiStyles.Aria(selected)"
+                        class="@($"flex cursor-pointer items-center gap-2 rounded-control px-3 py-2 text-sm transition-colors {(index == _active ? "bg-mist text-brand-700" : "text-ink dark:text-slate-100")} {(selected ? "font-semibold" : "")}")"
+                        @onmousedown="() => PickAsync(item)" @onmousedown:preventDefault="true" @onmouseover="() => _active = index">
+                        <span class="min-w-0 flex-1 truncate">@Highlight(item)</span>
+                        @if (selected)
+                        {
+                            <span class="text-brand-600" aria-hidden="true">✓</span>
+                        }
+                    </li>
+                }
+            }
+        </ul>
+        <p class="sr-only" aria-live="polite">@Filtered.Count results</p>
+    }
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <p class="mt-1 text-xs text-ink-soft">@Hint</p>
+    }
+</div>
+
+@code {
+    private readonly string _inputId = "ss-" + Guid.NewGuid().ToString("N")[..8];
+    private readonly string _listId = "ssl-" + Guid.NewGuid().ToString("N")[..8];
+    private bool _open;
+    private int _active;
+    private string _text = "";
+    private string _filter = "";
+    private string? _shownValue;
+
+    [Parameter, EditorRequired] public IReadOnlyList<string> Items { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public string EmptyText { get; set; } = "Nothing to choose from";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Loading { get; set; }
+
+    private string? ActiveId => _open && Filtered.Count > 0 ? OptionId(_active) : null;
+
+    private List<string> Filtered =>
+        _filter.Length == 0 ? [.. Items] : [.. Items.Where(i => i.Contains(_filter, StringComparison.OrdinalIgnoreCase))];
+
+    private string OptionId(int index) => $"{_listId}-{index}";
+
+    protected override void OnParametersSet()
+    {
+        // Show the chosen value in the box, unless the user is in the middle of typing a search.
+        if (Value != _shownValue && !_open)
+        {
+            _shownValue = Value;
+            _text = Value ?? "";
+        }
+    }
+
+    private RenderFragment Highlight(string item) => __builder =>
+    {
+        var at = _filter.Length == 0 ? -1 : item.IndexOf(_filter, StringComparison.OrdinalIgnoreCase);
+        if (at < 0)
+        {
+            <span>@item</span>
+        }
+        else
+        {
+            <span>@item[..at]<mark class="rounded bg-brand-200/70 px-0 text-inherit">@item.Substring(at, _filter.Length)</mark>@item[(at + _filter.Length)..]</span>
+        }
+    };
+
+    private void OpenList()
+    {
+        if (Disabled || Loading)
+        {
+            return;
+        }
+
+        if (!_open)
+        {
+            _open = true;
+            _filter = "";
+            _active = Math.Max(0, Items.ToList().IndexOf(Value ?? ""));
+        }
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _text = e.Value?.ToString() ?? "";
+        _filter = _text.Trim();
+        _open = true;
+        _active = 0;
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _open = true;
+                _active = Filtered.Count == 0 ? 0 : (_active + 1) % Filtered.Count;
+                break;
+            case "ArrowUp":
+                _open = true;
+                _active = Filtered.Count == 0 ? 0 : (_active - 1 + Filtered.Count) % Filtered.Count;
+                break;
+            case "Enter" when _open && Filtered.Count > 0:
+                await PickAsync(Filtered[Math.Clamp(_active, 0, Filtered.Count - 1)]);
+                break;
+            case "Escape":
+                Close();
+                break;
+        }
+    }
+
+    private async Task PickAsync(string item)
+    {
+        Close();
+        _text = item;
+        _shownValue = item;
+        if (item != Value)
+        {
+            await ValueChanged.InvokeAsync(item);
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        _text = "";
+        _shownValue = null;
+        _filter = "";
+        await ValueChanged.InvokeAsync(null);
+    }
+
+    private void OnFocusOut()
+    {
+        Close();
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _filter = "";
+        _text = Value ?? "";
+    }
+}

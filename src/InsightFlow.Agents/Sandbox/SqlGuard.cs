@@ -49,6 +49,17 @@ public static class SqlGuard
         "copy_database", "export_database", "enable_logging", "disable_logging", "duckdb_logs",
     };
 
+    /// <summary>DuckDB's own parse tree of <paramref name="sql"/> as JSON (what <see cref="CheckAsync"/> inspects; also used to read joins and columns).</summary>
+    internal static async Task<string> SerializeAsync(string sql, CancellationToken cancellationToken)
+    {
+        await using var connection = new DuckDBConnection("DataSource=:memory:");
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT json_serialize_sql($sql::VARCHAR)";
+        command.Parameters.Add(new DuckDBParameter("sql", sql));
+        return (string)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
     /// <summary>Checks <paramref name="sql"/>. <paramref name="inputTables"/> are the table names the sandbox will provide.</summary>
     public static async Task<SqlGuardResult> CheckAsync(string? sql, IReadOnlyCollection<string> inputTables, CancellationToken cancellationToken)
     {
@@ -63,15 +74,7 @@ public static class SqlGuard
             return new(SqlRejection.TooLong, $"The SQL is longer than {MaxSqlLength:N0} characters.");
         }
 
-        string json;
-        await using (var connection = new DuckDBConnection("DataSource=:memory:"))
-        {
-            await connection.OpenAsync(cancellationToken);
-            await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT json_serialize_sql($sql::VARCHAR)";
-            command.Parameters.Add(new DuckDBParameter("sql", sql));
-            json = (string)(await command.ExecuteScalarAsync(cancellationToken))!;
-        }
+        var json = await SerializeAsync(sql, cancellationToken);
 
         return Check(json, inputTables);
     }

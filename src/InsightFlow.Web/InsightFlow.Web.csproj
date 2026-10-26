@@ -23,6 +23,7 @@
     <_NpmInstallStamp>$(MSBuildProjectDirectory)/node_modules/.package-lock.json</_NpmInstallStamp>
     <_TailwindOutput>wwwroot/css/app.css</_TailwindOutput>
     <_ChartLibOutputDir>wwwroot/lib/echarts/</_ChartLibOutputDir>
+    <_FontOutputDir>wwwroot/lib/fonts/</_FontOutputDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -51,10 +52,21 @@
     <Copy SourceFiles="@(_ChartLibFiles)" DestinationFolder="$(_ChartLibOutputDir)" SkipUnchangedFiles="true" />
   </Target>
 
-  <!-- Generated files do not exist at evaluation time on a clean clone, so register them as static web assets here. -->
-  <Target Name="FrontendBuild" BeforeTargets="BeforeBuild" DependsOnTargets="TailwindBuild;CopyChartAssets">
+  <!-- Typefaces (SIL Open Font License 1.1) are vendored from npm like everything else: no CDN, no runtime font service. -->
+  <Target Name="CopyFontAssets" Condition="'$(_RunFrontendBuild)' == 'true'" DependsOnTargets="NpmInstall">
     <ItemGroup>
-      <_GeneratedWebAssets Include="$(_TailwindOutput);$(_ChartLibOutputDir)*" />
+      <_FontFiles Include="node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2;node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2;node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2;node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2;node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_FontFiles)" DestinationFolder="$(_FontOutputDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="node_modules/@fontsource-variable/inter/LICENSE" DestinationFiles="$(_FontOutputDir)LICENSE-inter.txt" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="node_modules/@fontsource-variable/plus-jakarta-sans/LICENSE" DestinationFiles="$(_FontOutputDir)LICENSE-plus-jakarta-sans.txt" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="node_modules/@fontsource-variable/jetbrains-mono/LICENSE" DestinationFiles="$(_FontOutputDir)LICENSE-jetbrains-mono.txt" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Generated files do not exist at evaluation time on a clean clone, so register them as static web assets here. -->
+  <Target Name="FrontendBuild" BeforeTargets="BeforeBuild" DependsOnTargets="TailwindBuild;CopyChartAssets;CopyFontAssets">
+    <ItemGroup>
+      <_GeneratedWebAssets Include="$(_TailwindOutput);$(_ChartLibOutputDir)*;$(_FontOutputDir)*" />
       <Content Include="@(_GeneratedWebAssets)" Exclude="@(Content)" />
     </ItemGroup>
   </Target>

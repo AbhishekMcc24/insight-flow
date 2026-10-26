@@ -1,0 +1,140 @@
+@page "/knowledge/config"
+@inject KnowledgeApiClient Knowledge
+@* Knowledge Base Configuration (Sys-admin only): five steps. 1) connect Neo4j, 2) import tables from a database, 3) describe tables and
+   columns by hand or with AI, 4) build relationships, 5) push the graph to Neo4j. The server enforces the role on every call. *@
+
+<PageTitle>Knowledge Base Configuration · Insight Flow</PageTitle>
+
+<div class="mx-auto max-w-7xl px-4 py-8 sm:px-8">
+    <header class="flex flex-wrap items-end gap-6">
+        <div class="min-w-0 flex-1">
+            <p class="inline-flex items-center gap-2 rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-brand-700 uppercase dark:bg-brand-900/40 dark:text-brand-200">
+                <Icon Name="graph" Class="size-3.5" /> Knowledge base
+            </p>
+            <h1 class="mt-3 text-3xl font-extrabold text-ink sm:text-4xl dark:text-slate-100">Knowledge Base Configuration</h1>
+            <p class="mt-2 max-w-2xl text-base leading-relaxed text-ink-soft">
+                Bring in your database tables, describe them by hand or with AI, define how they relate, and publish the result as a graph in Neo4j, ready for plain-English questions.
+            </p>
+        </div>
+        @if (_definitions is not null)
+        {
+            <dl class="flex gap-3" aria-label="Knowledge base size">
+                @Figure("Tables", _definitions.Tables.Count)
+                @Figure("Columns", _definitions.Tables.Sum(t => t.Columns.Count))
+                @Figure("Relationships", _definitions.Relationships.Count)
+            </dl>
+        }
+    </header>
+
+    <div class="mt-4"><Alert Message="@_error" /></div>
+
+    @if (_config is null || _definitions is null)
+    {
+        <div class="flex justify-center p-12 text-brand-500"><Spinner /></div>
+    }
+    else
+    {
+        <nav aria-label="Knowledge base steps" class="mt-8">
+            <ol role="tablist" class="grid gap-2 sm:grid-cols-5">
+                @foreach (var s in Steps)
+                {
+                    var active = _step == s.Key;
+                    <li class="relative">
+                        <button type="button" role="tab" id="@($"tab-{s.Key}")" aria-selected="@UiStyles.Aria(active)" aria-controls="@($"panel-{s.Key}")" tabindex="@(active ? 0 : -1)"
+                                @onclick="() => _step = s.Key"
+                                class="@($"group flex h-full w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition {(active ? "border-brand-600 bg-white shadow-card-hover ring-1 ring-brand-600/20 dark:bg-slate-900" : "border-line bg-white/60 hover:border-brand-300 hover:bg-white dark:border-slate-700 dark:bg-slate-900/50")}")">
+                            <span class="@($"grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold transition {(s.Done ? "bg-success text-white" : active ? "bg-brand-600 text-white" : "bg-brand-100 text-brand-700 dark:bg-slate-800")}")" aria-hidden="true">
+                                @if (s.Done)
+                                {
+                                    <span>✓</span>
+                                }
+                                else
+                                {
+                                    @s.Key
+                                }
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block truncate text-sm font-semibold text-ink dark:text-slate-100">@s.Label</span>
+                                <span class="block truncate text-xs text-ink-soft">@s.Hint<span class="sr-only">@(s.Done ? " (complete)" : "")</span></span>
+                            </span>
+                        </button>
+                    </li>
+                }
+            </ol>
+        </nav>
+
+        <div role="tabpanel" id="@($"panel-{_step}")" aria-labelledby="@($"tab-{_step}")" class="mt-6">
+            @switch (_step)
+            {
+                case 1:
+                    <Neo4jConnectionPanel Config="_config" ConfigChanged="OnConfigChanged" />
+                    break;
+                case 2:
+                    <SourcePanel OnImported="OnImportedAsync" />
+                    break;
+                case 3:
+                    <DefinitionsPanel Definitions="_definitions" OnChanged="ReloadDefinitionsAsync" />
+                    break;
+                case 4:
+                    <RelationshipBuilder Definitions="_definitions" OnChanged="ReloadDefinitionsAsync" />
+                    break;
+                default:
+                    <GraphPanel Config="_config" Definitions="_definitions" OnPushed="ReloadConfigAsync" />
+                    break;
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private KnowledgeBaseConfigDto? _config;
+    private KnowledgeDefinitionsDto? _definitions;
+    private string? _error;
+    private int _step = 1;
+
+    private sealed record Step(int Key, string Label, string Hint, bool Done);
+
+    private IEnumerable<Step> Steps =>
+    [
+        new(1, "Neo4j connection", _config?.LastTestSucceeded == true ? "Connected" : "Connect your graph", _config?.LastTestSucceeded == true),
+        new(2, "Import tables", _definitions?.Tables.Count > 0 ? $"{_definitions.Tables.Count} tables in" : "Pick a database", _definitions?.Tables.Count > 0),
+        new(3, "Describe", $"{_definitions?.Tables.Count(t => !string.IsNullOrWhiteSpace(t.Description)) ?? 0} of {_definitions?.Tables.Count ?? 0} described", _definitions?.Tables.Count > 0 && _definitions.Tables.All(t => !string.IsNullOrWhiteSpace(t.Description))),
+        new(4, "Relationships", _definitions?.Relationships.Count > 0 ? $"{_definitions.Relationships.Count} defined" : "Link columns", _definitions?.Relationships.Count > 0),
+        new(5, "Publish graph", _config?.LastSeededAt is { } at ? $"Pushed {at.LocalDateTime:d MMM}" : "Push to Neo4j", _config?.LastSeededAt is not null),
+    ];
+
+    private static RenderFragment Figure(string label, int value) => __builder =>
+    {
+        <div class="min-w-24 rounded-2xl border border-line bg-white px-4 py-2.5 shadow-card dark:border-slate-700 dark:bg-slate-900">
+            <dt class="text-[11px] font-semibold tracking-[0.12em] text-ink-soft uppercase">@label</dt>
+            <dd class="font-display text-2xl font-extrabold text-brand-700 tabular-nums dark:text-brand-300">@value.ToString("N0")</dd>
+        </div>
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _config = await Knowledge.GetConfigAsync(CancellationToken.None);
+            _definitions = await Knowledge.GetDefinitionsAsync(CancellationToken.None);
+            // New installs start at the connection; once it is saved, start where the work is.
+            _step = !_config.HasPassword ? 1 : _definitions.Tables.Count == 0 ? 2 : 3;
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void OnConfigChanged(KnowledgeBaseConfigDto config) => _config = config;
+
+    private async Task ReloadConfigAsync() => _config = await Knowledge.GetConfigAsync(CancellationToken.None);
+
+    private async Task ReloadDefinitionsAsync() => _definitions = await Knowledge.GetDefinitionsAsync(CancellationToken.None);
+
+    private async Task OnImportedAsync()
+    {
+        await ReloadDefinitionsAsync();
+        _step = 3;
+    }
+}

@@ -1,8 +1,9 @@
 // Dark-mode toggle. Applied before first paint (classic script in <head>) so there is no flash of the wrong theme.
+// The light teal theme is the default; dark is used only when the user chose it.
 (function () {
   const KEY = "insightflow.theme";
   const stored = (() => { try { return localStorage.getItem(KEY); } catch { return null; } })();
-  const dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = stored === "dark";
   document.documentElement.classList.toggle("dark", dark);
 
   window.insightFlowTheme = {

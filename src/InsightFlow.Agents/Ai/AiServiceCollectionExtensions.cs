@@ -59,6 +59,7 @@ public static class AiServiceCollectionExtensions
         }
 
         services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<ModelPriceBook>();
         services.TryAddSingleton(new AvailableModelRoutes(routes));
         services.TryAddSingleton<ITokenUsageStore>(sp =>
             sp.GetService<IDistributedCache>() is { } cache ? new DistributedCacheTokenUsageStore(cache) : new InMemoryTokenUsageStore());

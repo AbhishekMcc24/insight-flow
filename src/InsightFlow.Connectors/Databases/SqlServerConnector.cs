@@ -21,7 +21,7 @@ namespace InsightFlow.Connectors.Databases;
 /// <item>The requested table must be one returned by discovery and is quoted, never interpolated.</item>
 /// </list>
 /// </summary>
-public sealed class SqlServerConnector(ISecretStore secrets, IOptions<ConnectorOptions> options) : IDataSourceConnector
+public sealed class SqlServerConnector(ISecretStore secrets, IOptions<ConnectorOptions> options) : IDataSourceConnector, ISchemaDescriber, IDatabaseCatalog, IProcedureCatalog
 {
     public DataSourceKind Kind => DataSourceKind.SqlServer;
 
@@ -60,6 +60,113 @@ public sealed class SqlServerConnector(ISecretStore secrets, IOptions<ConnectorO
             var name = reader.GetString(1);
             yield return new SourceTable($"{schema}.{name}", name, schema, reader.GetString(2) == "VIEW" ? "view" : "table");
         }
+    }
+
+    public async Task<IReadOnlyList<string>> ListDatabasesAsync(ConnectionProfile profile, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+        await using var command = new SqlCommand(
+            "SELECT name FROM sys.databases WHERE state = 0 AND HAS_DBACCESS(name) = 1 AND database_id > 4 ORDER BY name",
+            connection);
+        var names = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        // Azure SQL shows only the current database; a server login without access to user databases still has the one it connected to.
+        return names.Count > 0 ? names : [connection.Database];
+    }
+
+    /// <summary>Stored procedures of the connected database with their source. Fixed query; at most 2,000 procedures, each cut at 20,000 characters.</summary>
+    public async Task<IReadOnlyList<SourceProcedure>> ListProceduresAsync(ConnectionProfile profile, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+        await using var command = new SqlCommand(
+            """
+            SELECT TOP (2000) s.name, o.name, LEFT(m.definition, 20000)
+            FROM sys.sql_modules m
+            JOIN sys.objects o ON o.object_id = m.object_id
+            JOIN sys.schemas s ON s.schema_id = o.schema_id
+            WHERE o.type = 'P' AND o.is_ms_shipped = 0 AND m.definition IS NOT NULL
+            ORDER BY s.name, o.name
+            """,
+            connection)
+        {
+            CommandTimeout = (int)options.Value.SourceCommandTimeout.TotalSeconds,
+        };
+        var procedures = new List<SourceProcedure>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            procedures.Add(new SourceProcedure(reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+        }
+
+        return procedures;
+    }
+
+    public async Task<SourceSchema> DescribeAsync(ConnectionProfile profile, IReadOnlyCollection<string>? tableIds, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+
+        var columns = new List<(string, string, string, SourceColumn)>();
+        await using (var command = new SqlCommand(
+            """
+            SELECT c.TABLE_SCHEMA, c.TABLE_NAME, t.TABLE_TYPE, c.COLUMN_NAME, c.DATA_TYPE, c.CHARACTER_MAXIMUM_LENGTH, c.IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS c
+            JOIN INFORMATION_SCHEMA.TABLES t ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
+            ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var type = SchemaAssembly.TypeWithLength(reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetValue(5));
+                columns.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2) == "VIEW" ? "view" : "table",
+                    new SourceColumn(reader.GetString(3), type, reader.GetString(6) == "YES", false)));
+            }
+        }
+
+        var primaryKeys = new List<(string, string, string)>();
+        await using (var command = new SqlCommand(
+            """
+            SELECT k.TABLE_SCHEMA, k.TABLE_NAME, k.COLUMN_NAME
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+            JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k
+              ON k.CONSTRAINT_NAME = tc.CONSTRAINT_NAME AND k.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+            WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                primaryKeys.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+            }
+        }
+
+        var foreignKeys = new List<SourceForeignKey>();
+        await using (var command = new SqlCommand(
+            """
+            SELECT OBJECT_SCHEMA_NAME(fkc.parent_object_id), OBJECT_NAME(fkc.parent_object_id), pc.name,
+                   OBJECT_SCHEMA_NAME(fkc.referenced_object_id), OBJECT_NAME(fkc.referenced_object_id), rc.name
+            FROM sys.foreign_key_columns fkc
+            JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+            JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                foreignKeys.Add(new SourceForeignKey(
+                    $"{reader.GetString(0)}.{reader.GetString(1)}", reader.GetString(2), $"{reader.GetString(3)}.{reader.GetString(4)}", reader.GetString(5)));
+            }
+        }
+
+        return SchemaAssembly.Assemble(columns, primaryKeys, foreignKeys, tableIds);
     }
 
     public async Task<ExtractResult> ExtractAsync(ExtractRequest request, IExtractWriter writer, CancellationToken cancellationToken)

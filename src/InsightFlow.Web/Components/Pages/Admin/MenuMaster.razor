@@ -1,0 +1,264 @@
+@page "/admin/menus"
+@inject AdminApiClient Admin
+@inject NavigationState Navigation
+@* Menu Master (Sys-admin only): create, edit and delete side-panel entries: name, icon, route, parent and sequence. *@
+
+<PageTitle>Menu Master · Insight Flow</PageTitle>
+
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+    <div class="flex flex-wrap items-center gap-3">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-semibold tracking-tight text-ink dark:text-slate-100">Menu Master</h1>
+            <p class="mt-1 text-sm text-ink-soft">Configure the side-panel menu: names, icons, order and parent/child structure. Who sees what is set in User Form Access.</p>
+        </div>
+        <Button Variant="ButtonVariant.Primary" OnClick="() => OpenCreate(null)"><Icon Name="plus" /> New menu</Button>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-2">
+        <Alert Message="@_error" />
+        <Alert Message="@_notice" Error="false" OnDismiss="() => _notice = null" />
+    </div>
+
+    <div class="if-card mt-4 overflow-hidden">
+        @if (_items is null)
+        {
+            <div class="flex justify-center p-8 text-brand-500"><Spinner /></div>
+        }
+        else if (_items.Count == 0)
+        {
+            <EmptyState Title="No menu entries">Create the first one with “New menu”.</EmptyState>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm" data-testid="menu-table">
+                    <thead class="bg-brand-50 dark:bg-slate-800">
+                        <tr>
+                            <th scope="col" class="@UiStyles.TableHead">Menu</th>
+                            <th scope="col" class="@UiStyles.TableHead">Route</th>
+                            <th scope="col" class="@UiStyles.TableHead">Sequence</th>
+                            <th scope="col" class="@UiStyles.TableHead">Status</th>
+                            <th scope="col" class="@UiStyles.TableHead text-right"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-line dark:divide-slate-800">
+                        @foreach (var (item, depth) in Ordered)
+                        {
+                            <tr class="hover:bg-brand-50/60 dark:hover:bg-slate-800/40">
+                                <td class="@UiStyles.TableCell">
+                                    <div class="flex items-center gap-2" style="padding-left: @(depth * 1.5)rem">
+                                        <span class="grid size-8 shrink-0 place-items-center rounded-control bg-brand-100 text-brand-700 dark:bg-brand-900/40"><Icon Name="@(item.Icon ?? "file")" Class="size-5" /></span>
+                                        <span class="font-medium text-ink dark:text-slate-100">@item.Name</span>
+                                        @if (item.IsSystem)
+                                        {
+                                            <span class="@UiStyles.Badge">Built-in</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="@UiStyles.TableCell font-mono text-xs text-ink-soft">@(item.Route ?? "— group —")</td>
+                                <td class="@UiStyles.TableCell tabular-nums">@item.Sequence</td>
+                                <td class="@UiStyles.TableCell">
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="font-medium text-success">● Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-ink-soft">○ Hidden</span>
+                                    }
+                                </td>
+                                <td class="@UiStyles.TableCell text-right whitespace-nowrap">
+                                    <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => OpenCreate(item.Id)" aria-label="@($"Add a child under {item.Name}")"><Icon Name="plus" /> Child</Button>
+                                    <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => OpenEdit(item)" aria-label="@($"Edit {item.Name}")"><Icon Name="edit" /> Edit</Button>
+                                    <Button Small="true" Variant="ButtonVariant.Ghost" Disabled="item.IsSystem" Title="@(item.IsSystem ? "Built-in entries cannot be deleted" : null)"
+                                            OnClick="() => _deleting = item" aria-label="@($"Delete {item.Name}")"><Icon Name="trash" /> Delete</Button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<Modal Title="@(_editing is null ? "New menu" : "Edit menu")" @bind-Open="_formOpen">
+    <form class="flex flex-col gap-4" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+        <Alert Message="@_formError" />
+        <label>
+            <span class="@UiStyles.Label">Name</span>
+            <input class="@UiStyles.Input" @bind="_name" required maxlength="100" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Parent</span>
+            <select class="@UiStyles.Input" @bind="_parentId">
+                <option value="">(none — top level)</option>
+                @foreach (var (item, depth) in ParentChoices)
+                {
+                    <option value="@item.Id">@(new string('–', depth))@(depth > 0 ? " " : "")@item.Name</option>
+                }
+            </select>
+        </label>
+        <fieldset>
+            <legend class="@UiStyles.Label">Icon</legend>
+            <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Icon">
+                @foreach (var icon in Icon.MenuIconNames)
+                {
+                    <button type="button" role="radio" aria-checked="@UiStyles.Aria(_icon == icon)" title="@icon" aria-label="@icon"
+                            class="@($"grid size-10 place-items-center rounded-control border transition-colors {(_icon == icon ? "border-brand-600 bg-brand-100 text-brand-700" : "border-line text-ink-soft hover:border-brand-300 hover:bg-mist")}")"
+                            @onclick="() => _icon = icon">
+                        <Icon Name="@icon" Class="size-5" />
+                    </button>
+                }
+            </div>
+        </fieldset>
+        <label>
+            <span class="@UiStyles.Label">Route (leave empty for a group)</span>
+            <input class="@UiStyles.Input font-mono" @bind="_route" placeholder="/workspace" maxlength="200" />
+        </label>
+        <div class="grid grid-cols-2 gap-4">
+            <label>
+                <span class="@UiStyles.Label">Sequence</span>
+                <input type="number" class="@UiStyles.Input" @bind="_sequence" />
+            </label>
+            <label class="flex items-end gap-2 pb-2 text-sm">
+                <input type="checkbox" class="size-4 accent-brand-600" @bind="_isActive" />
+                <span>Active (shown in the side panel)</span>
+            </label>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+            <Button OnClick="() => _formOpen = false">Cancel</Button>
+            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy">Save</Button>
+        </div>
+    </form>
+</Modal>
+
+<Modal Title="Delete menu entry" Open="_deleting is not null" OpenChanged="_ => _deleting = null">
+    <p class="text-sm">Delete <strong>@_deleting?.Name</strong>? Users lose access to it. This cannot be undone.</p>
+    <Alert Message="@_formError" />
+    <div class="mt-5 flex justify-end gap-2">
+        <Button OnClick="() => _deleting = null">Cancel</Button>
+        <Button Variant="ButtonVariant.Danger" Busy="_busy" OnClick="DeleteAsync">Delete</Button>
+    </div>
+</Modal>
+
+@code {
+    private IReadOnlyList<MenuItemDto>? _items;
+    private string? _error;
+    private string? _notice;
+    private string? _formError;
+    private bool _busy;
+    private bool _formOpen;
+    private MenuItemDto? _editing;
+    private MenuItemDto? _deleting;
+    private string _name = "";
+    private string _parentId = "";
+    private string? _icon;
+    private string _route = "";
+    private int _sequence;
+    private bool _isActive = true;
+
+    private List<(MenuItemDto Item, int Depth)> Ordered => MenuTree.Flatten(_items ?? []);
+
+    /// <summary>Every entry except the one being edited and its descendants (those would create a cycle).</summary>
+    private IEnumerable<(MenuItemDto Item, int Depth)> ParentChoices
+    {
+        get
+        {
+            var excluded = _editing is null ? [] : MenuTree.Subtree(_editing.Id, _items ?? []);
+            return Ordered.Where(o => !excluded.Contains(o.Item.Id));
+        }
+    }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _items = await Admin.ListMenusAsync(CancellationToken.None);
+            _error = null;
+        }
+        catch (ServiceCallException ex)
+        {
+            _items ??= [];
+            _error = ex.Message;
+        }
+    }
+
+    private void OpenCreate(Guid? parentId)
+    {
+        _editing = null;
+        var siblings = (_items ?? []).Where(i => i.ParentId == parentId).Select(i => i.Sequence).DefaultIfEmpty(0).Max();
+        (_name, _parentId, _icon, _route, _sequence, _isActive) = ("", parentId?.ToString() ?? "", "file", "", siblings + 1, true);
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void OpenEdit(MenuItemDto item)
+    {
+        _editing = item;
+        (_name, _parentId, _icon, _route, _sequence, _isActive) = (item.Name, item.ParentId?.ToString() ?? "", item.Icon, item.Route ?? "", item.Sequence, item.IsActive);
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _formError = null;
+        try
+        {
+            var request = new SaveMenuItemRequest(Guid.TryParse(_parentId, out var parent) ? parent : null, _name, _icon, _route, _sequence, _isActive);
+            if (_editing is null)
+            {
+                await Admin.CreateMenuAsync(request, CancellationToken.None);
+                _notice = $"Menu “{_name}” was created.";
+            }
+            else
+            {
+                await Admin.UpdateMenuAsync(_editing.Id, request, CancellationToken.None);
+                _notice = $"Menu “{_name}” was updated.";
+            }
+
+            _formOpen = false;
+            await LoadAsync();
+            await Navigation.RefreshAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleting is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        _formError = null;
+        try
+        {
+            await Admin.DeleteMenuAsync(_deleting.Id, CancellationToken.None);
+            _notice = $"Menu “{_deleting.Name}” was deleted.";
+            _deleting = null;
+            await LoadAsync();
+            await Navigation.RefreshAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

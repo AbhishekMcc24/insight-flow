@@ -1,0 +1,74 @@
+@using InsightFlow.Contracts.Agents
+@inject AgentApiClient Agents
+@* Asks for confirmation before a large AI request. Call <c>ConfirmAsync</c> with the request's description: it fetches a forecast and, only when
+   the forecast is large (its estimated cost or token count is over the configured limit), shows a pop-up with the numbers and waits for
+   Continue or Cancel. Small requests go straight through. If the forecast cannot be made the request is allowed: the gate is a guard rail,
+   not a blocker. *@
+
+<Modal Title="This AI request is large" Open="_open" OpenChanged="v => Decide(v)">
+    @if (_estimate is { } e)
+    {
+        <div class="space-y-3" role="alertdialog" aria-describedby="cost-gate-summary" data-testid="cost-gate">
+            <div class="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100">
+                <Icon Name="alert" Class="mt-0.5 size-5 shrink-0" />
+                <p id="cost-gate-summary">@e.Summary It may take a minute and uses your organization's AI allowance.</p>
+            </div>
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <dt class="text-ink-soft">Estimated cost</dt>
+                <dd class="text-right font-semibold tabular-nums text-ink dark:text-slate-100" data-testid="gate-cost">@(e.CostUsd is { } c ? "~" + Money.Format(c) : "price not set")</dd>
+                <dt class="text-ink-soft">Tokens sent</dt>
+                <dd class="text-right tabular-nums text-ink dark:text-slate-100">@e.InputTokens.ToString("N0")</dd>
+                <dt class="text-ink-soft">Tokens expected back</dt>
+                <dd class="text-right tabular-nums text-ink dark:text-slate-100">@e.OutputTokens.ToString("N0")</dd>
+                @if (!string.IsNullOrWhiteSpace(e.Model))
+                {
+                    <dt class="text-ink-soft">Model</dt>
+                    <dd class="text-right font-mono text-xs text-ink dark:text-slate-100">@e.Model</dd>
+                }
+            </dl>
+            <p class="text-xs text-ink-soft">A forecast from the size of what will be read, at list prices. The real cost is shown after the request and can differ a little.</p>
+            <div class="flex justify-end gap-2 pt-1">
+                <Button OnClick="() => Decide(false)" data-testid="gate-cancel">Cancel</Button>
+                <Button Variant="ButtonVariant.Primary" OnClick="() => Decide(true)" data-testid="gate-continue">Continue (~@(e.CostUsd is { } cost ? Money.Format(cost) : e.TotalTokens.ToString("N0") + " tokens"))</Button>
+            </div>
+        </div>
+    }
+</Modal>
+
+@code {
+    private bool _open;
+    private AiEstimateDto? _estimate;
+    private TaskCompletionSource<bool>? _decision;
+
+    /// <summary>The forecast of the last check (also when it was small), so a page can show it.</summary>
+    public AiEstimateDto? Last => _estimate;
+
+    /// <summary>True when the request may go ahead: it was small, or the person pressed Continue.</summary>
+    public async Task<bool> ConfirmAsync(AiEstimateRequest request)
+    {
+        try
+        {
+            _estimate = await Agents.EstimateAsync(request, CancellationToken.None);
+        }
+        catch (ServiceCallException)
+        {
+            return true; // a failed forecast must not stop the work
+        }
+
+        if (!_estimate.IsLarge)
+        {
+            return true;
+        }
+
+        _decision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _open = true;
+        await InvokeAsync(StateHasChanged);
+        return await _decision.Task;
+    }
+
+    private void Decide(bool go)
+    {
+        _open = false;
+        _decision?.TrySetResult(go);
+    }
+}

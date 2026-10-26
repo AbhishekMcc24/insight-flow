@@ -1,0 +1,181 @@
+@page "/skills/categories"
+@using InsightFlow.Contracts.Skills
+@inject SkillsApiClient Skills
+@* Skill Category (Sys-admin only): the groups skills belong to for the whole organization, such as Invoice, Outstanding, Credit Notes. *@
+
+<PageTitle>Skill Category · Insight Flow</PageTitle>
+
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+    <div class="flex flex-wrap items-center gap-3">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-semibold tracking-tight text-ink dark:text-slate-100">Skill Category</h1>
+            <p class="mt-1 text-sm text-ink-soft">Group the organization's skills by the part of the business they describe. Categories are shared by everyone; the skills themselves are set up under Skills.</p>
+        </div>
+        <Button Variant="ButtonVariant.Primary" OnClick="OpenCreate" data-testid="category-new"><Icon Name="plus" /> New category</Button>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-2">
+        <Alert Message="@_error" OnDismiss="() => _error = null" />
+    </div>
+
+    @if (_categories is null)
+    {
+        <div class="flex justify-center p-10 text-brand-500"><Spinner /></div>
+    }
+    else if (_categories.Count == 0)
+    {
+        <div class="if-card mt-4"><EmptyState Title="No categories yet">Create the first one with “New category”.</EmptyState></div>
+    }
+    else
+    {
+        <ul class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="category-list">
+            @foreach (var c in _categories)
+            {
+                <li class="if-card flex flex-col gap-2 p-4" data-testid="category-card">
+                    <div class="flex items-start gap-3">
+                        <span class="grid size-9 shrink-0 place-items-center rounded-control bg-brand-100 text-brand-700 dark:bg-brand-900/40"><Icon Name="squares" Class="size-5" /></span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="truncate text-base font-semibold text-ink dark:text-slate-100">@c.Name</h2>
+                            <p class="text-xs text-ink-soft">@c.SkillCount skill@(c.SkillCount == 1 ? "" : "s") · @c.EnabledCount on</p>
+                        </div>
+                    </div>
+                    <p class="min-h-10 text-sm text-ink-soft">@(c.Description ?? "No description.")</p>
+                    <div class="flex items-center gap-1">
+                        <a href="/skills/config" class="text-xs font-medium text-brand-700 underline">Open skills</a>
+                        <span class="ml-auto"></span>
+                        <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => OpenEdit(c)" aria-label="@($"Edit {c.Name}")"><Icon Name="edit" /> Edit</Button>
+                        <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => _deleting = c" aria-label="@($"Delete {c.Name}")"><Icon Name="trash" /> Delete</Button>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+<Modal Title="@(_editing is null ? "New category" : "Edit category")" @bind-Open="_formOpen">
+    <form class="flex flex-col gap-4" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+        <Alert Message="@_formError" />
+        <label>
+            <span class="@UiStyles.Label">Name</span>
+            <input class="@UiStyles.Input" @bind="_name" required maxlength="80" placeholder="e.g. Invoice" data-testid="category-name" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Description</span>
+            <textarea class="@UiStyles.Input" rows="3" maxlength="400" @bind="_description" placeholder="What the skills in this category are about"></textarea>
+        </label>
+        <div class="flex justify-end gap-2">
+            <Button OnClick="() => _formOpen = false">Cancel</Button>
+            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_saving" data-testid="category-save">Save</Button>
+        </div>
+    </form>
+</Modal>
+
+<Modal Title="Delete category" Open="@(_deleting is not null)" OpenChanged="_ => _deleting = null">
+    @if (_deleting is { } doomed)
+    {
+        <p class="text-sm text-ink dark:text-slate-100">Delete the category “@doomed.Name”?</p>
+        <p class="mt-1 text-xs text-ink-soft">@(doomed.SkillCount > 0 ? "It still has skills, so it cannot be deleted. Move or delete them first." : "It has no skills.")</p>
+        <div class="mt-4 flex justify-end gap-2">
+            <Button OnClick="() => _deleting = null">Keep it</Button>
+            <Button Variant="ButtonVariant.Danger" Disabled="@(doomed.SkillCount > 0)" Busy="_saving" OnClick="DeleteAsync">Delete</Button>
+        </div>
+    }
+</Modal>
+
+@code {
+    private IReadOnlyList<SkillCategoryDto>? _categories;
+    private SkillCategoryDto? _editing;
+    private SkillCategoryDto? _deleting;
+    private bool _formOpen;
+    private bool _saving;
+    private string? _error;
+    private string? _formError;
+    private string _name = "";
+    private string _description = "";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _categories = await Skills.ListCategoriesAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _categories ??= [];
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _editing = null;
+        _name = _description = "";
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void OpenEdit(SkillCategoryDto category)
+    {
+        _editing = category;
+        _name = category.Name;
+        _description = category.Description ?? "";
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _formError = null;
+        try
+        {
+            var request = new SaveSkillCategoryRequest(_name, string.IsNullOrWhiteSpace(_description) ? null : _description);
+            if (_editing is null)
+            {
+                await Skills.CreateCategoryAsync(request, CancellationToken.None);
+            }
+            else
+            {
+                await Skills.UpdateCategoryAsync(_editing.Id, request, CancellationToken.None);
+            }
+
+            _formOpen = false;
+            await LoadAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleting is null)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await Skills.DeleteCategoryAsync(_deleting.Id, CancellationToken.None);
+            _deleting = null;
+            await LoadAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _deleting = null;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

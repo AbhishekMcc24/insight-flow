@@ -1,0 +1,189 @@
+@page "/skills/config"
+@using InsightFlow.Contracts.Skills
+@using InsightFlow.Web.Components.Skills
+@inject SkillsApiClient Skills
+@* Skill Configuration (Sys-admin only): the organization's skills under each category, each as a card with its version and an on/off switch.
+   A card opens the skill's details (preview, edit, versions). Skills that are on are given to the AI when it writes SQL for a question. *@
+
+<PageTitle>Skill Configuration · Insight Flow</PageTitle>
+
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+    <div class="flex flex-wrap items-center gap-3">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-semibold tracking-tight text-ink dark:text-slate-100">Skill Configuration</h1>
+            <p class="mt-1 text-sm text-ink-soft">Business logic the AI follows when it writes SQL: how a figure is worked out, which rows count. Skills are shared by the whole organization. Switch one off to stop using it; every edit is saved as a new version.</p>
+        </div>
+        <Button OnClick="() => _assistOpen = !_assistOpen" data-testid="skill-generate"><Icon Name="squares" /> Generate with AI</Button>
+        <Button Variant="ButtonVariant.Primary" OnClick="() => OpenNew(null)" data-testid="skill-new"><Icon Name="plus" /> New skill</Button>
+    </div>
+
+    @if (_assistOpen && _categories is not null)
+    {
+        <SkillAssistPanel Categories="_categories" OnClose="() => _assistOpen = false" Applied="ReloadAsync" />
+    }
+
+    <div class="mt-4 flex flex-col gap-2">
+        <Alert Message="@_error" OnDismiss="() => _error = null" />
+    </div>
+
+    @if (_categories is null || _skills is null)
+    {
+        <div class="flex justify-center p-10 text-brand-500"><Spinner /></div>
+    }
+    else
+    {
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <input class="@UiStyles.Input max-w-xs" type="search" placeholder="Search skills" aria-label="Search skills" @bind="_search" @bind:event="oninput" />
+            <label class="flex items-center gap-2 text-sm text-ink-soft">
+                <input type="checkbox" class="size-4 accent-brand-600" @bind="_onlyOn" /> Only skills that are on
+            </label>
+            <span class="ml-auto text-xs text-ink-soft">@_skills.Count(s => s.IsEnabled) of @_skills.Count on</span>
+        </div>
+
+        @foreach (var category in _categories)
+        {
+            var inCategory = Visible(category).ToList();
+            <section class="mt-6" aria-labelledby="@($"cat-{category.Id}")" data-testid="skill-category-section">
+                <div class="flex items-center gap-3">
+                    <h2 id="@($"cat-{category.Id}")" class="text-sm font-bold uppercase tracking-wide text-ink dark:text-slate-100">@category.Name</h2>
+                    <span class="text-xs text-ink-soft">@inCategory.Count skill@(inCategory.Count == 1 ? "" : "s")</span>
+                    <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => OpenNew(category.Id)" aria-label="@($"Add a skill to {category.Name}")"><Icon Name="plus" /> Add</Button>
+                </div>
+                @if (category.Description is { } description)
+                {
+                    <p class="mt-0.5 text-xs text-ink-soft">@description</p>
+                }
+
+                @if (inCategory.Count == 0)
+                {
+                    <p class="mt-2 rounded-xl border border-dashed border-line p-4 text-sm text-ink-soft dark:border-slate-700">No skills here yet.</p>
+                }
+                else
+                {
+                    <ul class="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        @foreach (var s in inCategory)
+                        {
+                            <li class="@($"if-card flex flex-col gap-2 p-4 transition-opacity {(s.IsEnabled ? "" : "opacity-60")}")" data-testid="skill-card">
+                                <div class="flex items-start gap-3">
+                                    <button type="button" class="min-w-0 flex-1 text-left" @onclick="() => OpenDetails(s.Id)" aria-label="@($"Open {s.Name}")">
+                                        <h3 class="truncate text-base font-semibold text-ink hover:text-brand-700 dark:text-slate-100">@s.Name</h3>
+                                        <p class="mt-0.5 line-clamp-2 text-sm text-ink-soft">@s.Description</p>
+                                    </button>
+                                    <button type="button" role="switch" aria-checked="@UiStyles.Aria(s.IsEnabled)" aria-label="@($"{s.Name} is {(s.IsEnabled ? "on" : "off")}")" disabled="@(_busy == s.Id)"
+                                            class="@($"relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 {(s.IsEnabled ? "bg-brand-600" : "bg-slate-300 dark:bg-slate-600")}")"
+                                            @onclick="() => ToggleAsync(s)" data-testid="skill-toggle">
+                                        <span class="@($"absolute top-0.5 size-5 rounded-full bg-white shadow transition-all {(s.IsEnabled ? "left-5.5" : "left-0.5")}")"></span>
+                                    </button>
+                                </div>
+                                @if (s.Tags.Count > 0)
+                                {
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach (var tag in s.Tags.Take(5))
+                                        {
+                                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-ink-soft dark:bg-slate-800">@tag</span>
+                                        }
+                                    </div>
+                                }
+
+                                <div class="mt-auto flex flex-wrap items-center gap-2 pt-1 text-xs text-ink-soft">
+                                    <span class="@UiStyles.Badge" title="The active version" data-testid="skill-version">v@(s.VersionLabel)</span>
+                                    <span>@s.VersionCount version@(s.VersionCount == 1 ? "" : "s")</span>
+                                    <span>·</span>
+                                    <span>@(s.Disclosure == "Always" ? "Always in prompt" : "When relevant")</span>
+                                    <button type="button" class="ml-auto font-medium text-brand-700 underline" @onclick="() => OpenDetails(s.Id)">Details</button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+    }
+</div>
+
+@if (_categories is not null)
+{
+    <SkillDetailDialog Open="_dialogOpen" OpenChanged="v => _dialogOpen = v" SkillId="_openId" NewInCategory="_newIn" Categories="_categories" Changed="ReloadAsync" />
+}
+
+@code {
+    private IReadOnlyList<SkillCategoryDto>? _categories;
+    private IReadOnlyList<SkillSummaryDto>? _skills;
+    private string _search = "";
+    private bool _onlyOn;
+    private string? _error;
+    private Guid? _busy;
+    private bool _dialogOpen;
+    private bool _assistOpen;
+    private Guid? _openId;
+    private Guid? _newIn;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _categories = await Skills.ListCategoriesAsync(CancellationToken.None);
+            _skills = await Skills.ListSkillsAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _categories ??= [];
+            _skills ??= [];
+        }
+    }
+
+    private IEnumerable<SkillSummaryDto> Visible(SkillCategoryDto category) =>
+        (_skills ?? []).Where(s => s.CategoryId == category.Id
+            && (!_onlyOn || s.IsEnabled)
+            && (string.IsNullOrWhiteSpace(_search)
+                || s.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || s.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || s.Tags.Any(t => t.Contains(_search, StringComparison.OrdinalIgnoreCase))));
+
+    private void OpenNew(Guid? categoryId)
+    {
+        _openId = null;
+        _newIn = categoryId;
+        _dialogOpen = true;
+    }
+
+    private void OpenDetails(Guid skillId)
+    {
+        _openId = skillId;
+        _newIn = null;
+        _dialogOpen = true;
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _categories = await Skills.ListCategoriesAsync(CancellationToken.None);
+            _skills = await Skills.ListSkillsAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ToggleAsync(SkillSummaryDto skill)
+    {
+        _busy = skill.Id;
+        _error = null;
+        try
+        {
+            await Skills.SetEnabledAsync(skill.Id, !skill.IsEnabled, CancellationToken.None);
+            await ReloadAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = null;
+        }
+    }
+}

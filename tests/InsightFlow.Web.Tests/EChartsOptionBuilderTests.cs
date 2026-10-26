@@ -193,7 +193,7 @@ public sealed class EChartsOptionBuilderTests
 
         var scale = Strings(EChartsOptionBuilder.Build(spec, result, dark: true)["visualMap"]!["inRange"]!["color"]!);
 
-        scale[^1].ShouldBe("#93c5fd"); // light blue on a dark background
+        scale[^1].ShouldBe("#62c9c7"); // bright aqua on a dark background
     }
 
     [Fact]

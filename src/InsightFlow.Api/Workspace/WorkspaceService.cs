@@ -1,3 +1,4 @@
+using InsightFlow.Domain.Documents;
 using InsightFlow.Connectors;
 using InsightFlow.Connectors.Stubs;
 using InsightFlow.Contracts.Workspace;
@@ -72,6 +73,65 @@ public sealed partial class WorkspaceService(
     /// Every dataset item in a folder the caller can read, newest first (dataset pickers).
     /// TODO(dev2): paging and search once tenants have many datasets.
     /// </summary>
+    /// <summary>Counts and series for the Home dashboard, over the folders the caller can read.</summary>
+    public async Task<WorkspaceStatsDto> GetStatsAsync(CancellationToken cancellationToken)
+    {
+        var files = (await (
+                from item in db.ContentItems
+                join folder in db.Folders on item.FolderId equals folder.Id
+                join file in db.StoredFiles on item.TargetId equals file.Id
+                where item.Kind == ContentKind.File
+                select new { item.CreatedAt, FileName = item.Name, FolderName = folder.Name, file.SizeBytes, Folder = folder })
+            .Take(20_000)
+            .ToListAsync(cancellationToken))
+            .Where(r => permissions.CanRead(r.Folder, Principal))
+            .ToList();
+
+        var datasets = (await (
+                from item in db.ContentItems
+                join folder in db.Folders on item.FolderId equals folder.Id
+                where item.Kind == ContentKind.Dataset
+                select new { item.TargetId, Folder = folder })
+            .Take(20_000)
+            .ToListAsync(cancellationToken))
+            .Where(r => permissions.CanRead(r.Folder, Principal))
+            .Select(r => r.TargetId)
+            .ToHashSet();
+
+        var runs = await db.ExtractRuns.Select(r => new { r.Status, r.ResultVersionId, r.RowCount }).ToListAsync(cancellationToken);
+        var visibleRuns = runs.Where(r => r.ResultVersionId is null || datasets.Contains(r.ResultVersionId.Value)).ToList();
+
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        var perDay = files.GroupBy(f => DateOnly.FromDateTime(f.CreatedAt.UtcDateTime)).ToDictionary(g => g.Key, g => g.Count());
+        var series = Enumerable.Range(0, 30).Select(i => today.AddDays(i - 29)).Select(d => new DailyCountDto(d, perDay.GetValueOrDefault(d))).ToList();
+
+        var byType = files
+            .GroupBy(f => f.FileName.Extension.TrimStart('.').ToLowerInvariant() is { Length: > 0 } ext ? ext : "other")
+            .Select(g => new FileTypeStatDto(g.Key, g.Count(), g.Sum(f => f.SizeBytes)))
+            .OrderByDescending(t => t.Count).ThenBy(t => t.Type, StringComparer.Ordinal)
+            .ToList();
+
+        var byFolder = files
+            .GroupBy(f => f.FolderName.Value)
+            .Select(g => new FolderStatDto(g.Key, g.Count()))
+            .OrderByDescending(f => f.Count).ThenBy(f => f.Folder, StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToList();
+
+        return new WorkspaceStatsDto(
+            files.Count,
+            files.Count(f => DateOnly.FromDateTime(f.CreatedAt.UtcDateTime) > today.AddDays(-7)),
+            datasets.Count,
+            files.Sum(f => f.SizeBytes),
+            visibleRuns.Where(r => r.Status == ExtractRunStatus.Succeeded).Sum(r => r.RowCount ?? 0),
+            visibleRuns.Count(r => r.Status == ExtractRunStatus.Succeeded),
+            visibleRuns.Count(r => r.Status == ExtractRunStatus.Failed),
+            visibleRuns.Count(r => r.Status is ExtractRunStatus.Pending or ExtractRunStatus.Running),
+            series,
+            byType,
+            byFolder);
+    }
+
     public async Task<IReadOnlyList<DatasetSummaryDto>> ListDatasetsAsync(CancellationToken cancellationToken)
     {
         var rows = await (
@@ -197,15 +257,63 @@ public sealed partial class WorkspaceService(
     public async Task DeleteFolderAsync(Guid folderId, CancellationToken cancellationToken)
     {
         var folder = await LoadWritableFolderAsync(folderId, cancellationToken);
-        folder.SoftDelete(clock.GetUtcNow());
+        var now = clock.GetUtcNow();
+
+        // The whole subtree goes: sub-folders, their items, the prepared spreadsheet tables, and the uploaded files' bytes on disk.
+        var descendantIds = await db.GetDescendantFolderIdsAsync(Tenant, folder.Id, cancellationToken);
+        var folderIds = descendantIds.Append(folder.Id).ToList();
+        var items = await db.ContentItems.Where(i => folderIds.Contains(i.FolderId)).ToListAsync(cancellationToken);
+        var storedIds = items.Where(i => i.Kind == ContentKind.File).Select(i => i.TargetId).ToList();
+        foreach (var item in items)
+        {
+            item.SoftDelete(now);
+        }
+
+        foreach (var sub in await db.Folders.Where(f => descendantIds.Contains(f.Id)).ToListAsync(cancellationToken))
+        {
+            sub.SoftDelete(now);
+        }
+
+        folder.SoftDelete(now);
+        await RemoveIndexedSheetsAsync(items.Select(i => i.Id).ToList(), cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        await DeleteStoredFilesAsync(storedIds, cancellationToken);
     }
 
     public async Task DeleteItemAsync(Guid itemId, CancellationToken cancellationToken)
     {
         var item = await LoadItemAsync(itemId, write: true, cancellationToken);
         item.SoftDelete(clock.GetUtcNow());
+        await RemoveIndexedSheetsAsync([item.Id], cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        if (item.Kind == ContentKind.File)
+        {
+            await DeleteStoredFilesAsync([item.TargetId], cancellationToken);
+        }
+    }
+
+    /// <summary>Spreadsheet tables prepared from deleted files must not keep answering questions.</summary>
+    private async Task RemoveIndexedSheetsAsync(IReadOnlyCollection<Guid> itemIds, CancellationToken cancellationToken)
+    {
+        db.IndexedSheets.RemoveRange(await db.IndexedSheets.Where(s => itemIds.Contains(s.ContentItemId)).ToListAsync(cancellationToken));
+
+        // A preparation waiting for answers about files that are now gone has nothing left to do.
+        foreach (var run in await db.DocumentIngestRuns.Where(r => r.Status == IngestStatus.NeedsInput).ToListAsync(cancellationToken))
+        {
+            if (run.ItemIds.All(itemIds.Contains))
+            {
+                run.Fail("The files were deleted.", clock.GetUtcNow());
+            }
+        }
+    }
+
+    /// <summary>Removes the uploaded bytes from the storage directory (deleting is final: the files are not kept in a trash).</summary>
+    private async Task DeleteStoredFilesAsync(IEnumerable<Guid> storedFileIds, CancellationToken cancellationToken)
+    {
+        foreach (var id in storedFileIds)
+        {
+            await files.DeleteAsync(Tenant, id, cancellationToken);
+        }
     }
 
     // ---------------------------------------------------------------------------------------------

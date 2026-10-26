@@ -3,6 +3,7 @@ using InsightFlow.Connectors.Databases;
 using InsightFlow.Connectors.Documents;
 using InsightFlow.Connectors.Extraction;
 using InsightFlow.Connectors.Files;
+using InsightFlow.Connectors.Knowledge;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -28,6 +29,7 @@ public static class ConnectorsServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<ISourceFileAccessor, DirectorySourceFileAccessor>();
+        services.TryAddSingleton<IKnowledgeGraphGateway, Neo4jKnowledgeGraphGateway>();
         services.TryAddSingleton<IExtractUploader, DirectoryExtractUploader>();
 
         services.AddSingleton<IDataSourceConnector, CsvConnector>();
@@ -42,6 +44,7 @@ public static class ConnectorsServiceCollectionExtensions
 
         services.TryAddSingleton<IConnectorRegistry, ConnectorRegistry>();
         services.TryAddSingleton<ExtractPipeline>();
+        services.TryAddSingleton<SpreadsheetReader>();
         return services;
     }
 }

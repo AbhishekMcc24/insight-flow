@@ -1,0 +1,557 @@
+@using InsightFlow.Contracts.Agents
+@implements IAsyncDisposable
+@inject KnowledgeApiClient Knowledge
+@inject AgentApiClient Agents
+@inject IJSRuntime JS
+@* The knowledge-base AI assistant: a review pane (what the AI proposes) next to a chat (tell it what to change). The AI reads table and
+   column names, types, keys and descriptions, never row values. Every message revises the whole proposal; nothing is saved until you
+   press "Accept selected", and you can untick anything you do not want. *@
+
+<CostGate @ref="_gate" />
+<Modal Title="@Title" Open="Open" OpenChanged="CloseAsync" MaxWidth="sm:max-w-6xl">
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_25rem]" data-testid="assistant">
+
+        @* ───────────── Proposal ───────────── *@
+        <section class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line dark:border-slate-700" aria-label="Proposal">
+            <header class="flex items-center gap-2 border-b border-line bg-brand-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <h3 class="flex-1 text-sm font-bold text-ink dark:text-slate-100">Proposal</h3>
+                <span class="text-xs text-ink-soft" aria-live="polite">@Summary</span>
+            </header>
+            <div class="h-[26rem] min-h-0 overflow-auto p-3 lg:h-[30rem]" data-testid="proposal">
+                @if (_proposal is null)
+                {
+                    <div class="space-y-2" aria-label="The assistant is working">
+                        @for (var i = 0; i < 6; i++)
+                        {
+                            <div class="h-12 animate-pulse rounded-xl bg-brand-50 dark:bg-slate-800"></div>
+                        }
+                    </div>
+                }
+                else if (IsEmpty)
+                {
+                    <div class="grid h-full place-items-center p-6 text-center">
+                        <p class="text-sm text-ink-soft">@(IsDescriptions ? "No descriptions are proposed right now." : "No changes are proposed right now.") Ask the assistant on the right.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="flex flex-col gap-4">
+                        @if ((_proposal.DatabaseDescriptions?.Count ?? 0) > 0)
+                        {
+                            <fieldset>
+                                <legend class="@UiStyles.Label">Database descriptions (@_proposal.DatabaseDescriptions!.Count)</legend>
+                                <ul class="flex flex-col gap-1.5">
+                                    @foreach (var s in _proposal.DatabaseDescriptions!)
+                                    {
+                                        var key = DbKey(s);
+                                        <li>
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-sm transition hover:border-brand-300 hover:bg-mist dark:border-slate-700 dark:hover:bg-slate-800">
+                                                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@(!_skipDatabases.Contains(key))" @onchange="e => Flip(_skipDatabases, key, (bool)e.Value!)" />
+                                                <span class="min-w-0 flex-1">
+                                                    <strong class="block truncate">@s.Database</strong>
+                                                    <span class="block text-ink dark:text-slate-100">@s.Description</span>
+                                                    @if (CurrentDatabaseDescription(s) is { } wasDb && wasDb != s.Description)
+                                                    {
+                                                        <span class="mt-1 block text-xs text-ink-soft line-through decoration-ink-muted/60">@wasDb</span>
+                                                    }
+                                                </span>
+                                            </label>
+                                        </li>
+                                    }
+                                </ul>
+                            </fieldset>
+                        }
+                        @if (_proposal.TableDescriptions.Count > 0)
+                        {
+                            <fieldset>
+                                <legend class="@UiStyles.Label">Table descriptions (@_proposal.TableDescriptions.Count)</legend>
+                                <ul class="flex flex-col gap-1.5">
+                                    @foreach (var s in _proposal.TableDescriptions)
+                                    {
+                                        <li>
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-sm transition hover:border-brand-300 hover:bg-mist dark:border-slate-700">
+                                                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@(!_skipTables.Contains(s.TableId))" @onchange="e => Flip(_skipTables, s.TableId, (bool)e.Value!)" />
+                                                <span class="min-w-0 flex-1">
+                                                    <strong class="block truncate">@s.TableName</strong>
+                                                    <span class="block text-ink dark:text-slate-100">@s.Description</span>
+                                                    @if (CurrentTableDescription(s.TableId) is { } was && was != s.Description)
+                                                    {
+                                                        <span class="mt-1 block text-xs text-ink-soft line-through decoration-ink-muted/60">@was</span>
+                                                    }
+                                                </span>
+                                            </label>
+                                        </li>
+                                    }
+                                </ul>
+                            </fieldset>
+                        }
+                        @if (_proposal.ColumnDescriptions.Count > 0)
+                        {
+                            <fieldset>
+                                <legend class="@UiStyles.Label">Column descriptions (@_proposal.ColumnDescriptions.Count)</legend>
+                                <ul class="flex flex-col gap-1.5">
+                                    @foreach (var s in _proposal.ColumnDescriptions)
+                                    {
+                                        <li>
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-sm transition hover:border-brand-300 hover:bg-mist dark:border-slate-700">
+                                                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@(!_skipColumns.Contains(s.ColumnId))" @onchange="e => Flip(_skipColumns, s.ColumnId, (bool)e.Value!)" />
+                                                <span class="min-w-0 flex-1">
+                                                    <span class="block truncate"><span class="text-ink-soft">@s.TableName.</span><strong class="font-mono text-[13px]">@s.ColumnName</strong></span>
+                                                    <span class="block text-ink dark:text-slate-100">@s.Description</span>
+                                                    @if (CurrentColumnDescription(s.ColumnId) is { } was && was != s.Description)
+                                                    {
+                                                        <span class="mt-1 block text-xs text-ink-soft line-through decoration-ink-muted/60">@was</span>
+                                                    }
+                                                </span>
+                                            </label>
+                                        </li>
+                                    }
+                                </ul>
+                            </fieldset>
+                        }
+                        @if (_proposal.Relationships.Count > 0)
+                        {
+                            <fieldset>
+                                <legend class="@UiStyles.Label">Relationships to add (@_proposal.Relationships.Count)</legend>
+                                <ul class="flex flex-col gap-1.5">
+                                    @foreach (var s in _proposal.Relationships)
+                                    {
+                                        <li>
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-sm transition hover:border-emerald-400 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                                                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@(!_skipRelationships.Contains((s.FromColumnId, s.ToColumnId)))" @onchange="e => Flip(_skipRelationships, (s.FromColumnId, s.ToColumnId), (bool)e.Value!)" />
+                                                <span class="min-w-0 flex-1">
+                                                    <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                        <span class="rounded-md bg-emerald-600 px-1.5 py-0.5 text-[11px] font-bold text-white" aria-label="Add">+ ADD</span>
+                                                        <span class="font-mono text-xs break-all">@s.FromLabel</span>
+                                                        <span aria-hidden="true">→</span>
+                                                        <span class="font-mono text-xs break-all">@s.ToLabel</span>
+                                                    </span>
+                                                    <span class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
+                                                        <span class="@UiStyles.Badge">@s.Kind</span>
+                                                        <span class="tabular-nums">@s.Confidence.ToString("P0")</span>
+                                                        <span>@s.Reason</span>
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        </li>
+                                    }
+                                </ul>
+                            </fieldset>
+                        }
+                        @if ((_proposal.Removals?.Count ?? 0) > 0)
+                        {
+                            <fieldset>
+                                <legend class="@UiStyles.Label">Relationships to remove (@_proposal.Removals!.Count)</legend>
+                                <ul class="flex flex-col gap-1.5">
+                                    @foreach (var s in _proposal.Removals)
+                                    {
+                                        <li>
+                                            <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-red-200 bg-red-50/60 p-3 text-sm transition hover:border-red-400 dark:border-red-900/50 dark:bg-red-950/20">
+                                                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@(!_skipRemovals.Contains(s.RelationshipId))" @onchange="e => Flip(_skipRemovals, s.RelationshipId, (bool)e.Value!)" />
+                                                <span class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                                                    <span class="rounded-md bg-danger px-1.5 py-0.5 text-[11px] font-bold text-white" aria-label="Remove">− REMOVE</span>
+                                                    <span class="font-mono text-xs break-all line-through">@s.FromLabel</span>
+                                                    <span aria-hidden="true">→</span>
+                                                    <span class="font-mono text-xs break-all line-through">@s.ToLabel</span>
+                                                    <span class="@UiStyles.Badge">@s.Kind</span>
+                                                </span>
+                                            </label>
+                                        </li>
+                                    }
+                                </ul>
+                            </fieldset>
+                        }
+                        @if (_proposal.DroppedRelationships > 0)
+                        {
+                            <p class="text-xs text-ink-soft">@_proposal.DroppedRelationships suggestion@(_proposal.DroppedRelationships == 1 ? " was" : "s were") discarded because @(_proposal.DroppedRelationships == 1 ? "it named" : "they named") columns that do not exist.</p>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        @* ───────────── Chat ───────────── *@
+        <section class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line dark:border-slate-700" aria-label="Chat with the assistant">
+            <header class="flex items-center gap-2 border-b border-line bg-brand-50/70 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <span class="grid size-7 place-items-center rounded-lg bg-brand-600 text-white" aria-hidden="true"><Icon Name="shield" Class="size-4" /></span>
+                <h3 class="flex-1 text-sm font-bold text-ink dark:text-slate-100">Assistant</h3>
+                @if (IsDescriptions)
+                {
+                    <label class="flex items-center gap-1.5 text-xs text-ink-soft" title="Read the stored procedures that use these tables first, and write descriptions from how they are really used"><input type="checkbox" class="size-3.5 accent-brand-600" @bind="_useProcedures" /> Use stored procedures</label>
+                }
+                else
+                {
+                    <span class="text-xs text-ink-soft">Tell it what to change</span>
+                }
+            </header>
+            <div @ref="_transcript" class="h-[19rem] min-h-0 space-y-3 overflow-auto p-3 lg:h-[23rem]" role="log" aria-live="polite" aria-label="Conversation" data-testid="chat-log">
+                @foreach (var m in _messages)
+                {
+                    var mine = m.Role == "user";
+                    <div class="@($"flex {(mine ? "justify-end" : "justify-start")}")">
+                        <div class="@($"max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed {(mine ? "rounded-br-md bg-brand-600 text-white" : m.IsError ? "rounded-bl-md border border-danger/30 bg-red-50 text-red-900 dark:bg-red-950/40 dark:text-red-100" : "rounded-bl-md bg-brand-50 text-ink dark:bg-slate-800 dark:text-slate-100")}")">
+                            <span class="sr-only">@(mine ? "You said: " : "Assistant said: ")</span>@m.Content
+                            @if (m.Usage is not null)
+                            {
+                                <div class="mt-2 border-t border-brand-200/60 pt-2 dark:border-slate-700"><UsageNote Usage="m.Usage" /></div>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (_busy)
+                {
+                    <div class="flex justify-start" role="status" aria-label="The assistant is thinking">
+                        <div class="flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-brand-50 px-4 py-3 dark:bg-slate-800" aria-hidden="true">
+                            <span class="size-2 animate-bounce rounded-full bg-brand-500 [animation-delay:-0.3s]"></span>
+                            <span class="size-2 animate-bounce rounded-full bg-brand-500 [animation-delay:-0.15s]"></span>
+                            <span class="size-2 animate-bounce rounded-full bg-brand-500"></span>
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (_proposal is not null && !_busy && _messages.Count(x => x.Role == "user") == 0)
+            {
+                <div class="flex flex-wrap gap-1.5 border-t border-line px-3 pt-3 dark:border-slate-700" aria-label="Suggestions">
+                    @foreach (var s in Starters)
+                    {
+                        <button type="button" class="rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-medium text-brand-700 transition hover:border-brand-500 hover:bg-brand-50 dark:border-brand-900 dark:bg-slate-900 dark:text-brand-300" @onclick="() => SendAsync(s)">@s</button>
+                    }
+                </div>
+            }
+            <form class="flex items-end gap-2 border-t border-line p-3 dark:border-slate-700" @onsubmit="() => SendAsync(_input)" @onsubmit:preventDefault="true">
+                <label class="min-w-0 flex-1">
+                    <span class="sr-only">Message to the assistant</span>
+                    <textarea class="@UiStyles.Input max-h-32 resize-none leading-snug" rows="2" @bind="_input" @bind:event="oninput" @onkeydown="OnKeyDown" disabled="@(_busy || _proposal is null && _messages.Count == 0)"
+                              placeholder="@Placeholder" maxlength="2000" data-testid="chat-input"></textarea>
+                </label>
+                <Button Type="submit" Variant="ButtonVariant.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_input))" aria-label="Send message"><Icon Name="arrow-right" /></Button>
+            </form>
+        </section>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center justify-end gap-3">
+        <div class="mr-auto text-xs text-ink-soft">
+            <p>Nothing is saved until you accept. Untick anything you do not want.</p>
+            @if (_sessionCalls > 0)
+            {
+                <p class="mt-0.5" data-testid="session-cost">AI cost this session: <span class="font-semibold text-ink dark:text-slate-100">@(_sessionUnpriced && _sessionCost == 0m ? "price not set" : (_sessionUnpriced ? "≥ " : "~") + Money.Format(_sessionCost))</span> · @_sessionTokens.ToString("N0") tokens · @_sessionCalls AI call@(_sessionCalls == 1 ? "" : "s")</p>
+            }
+        </div>
+        <Button OnClick="() => CloseAsync(false)">Discard</Button>
+        <Button Variant="ButtonVariant.Primary" Busy="_applying" Disabled="@(_busy || _applying || _proposal is null || AcceptedCount == 0)" OnClick="AcceptAsync">
+            Accept @(AcceptedCount == 0 ? "selected" : $"{AcceptedCount} change{(AcceptedCount == 1 ? "" : "s")}")
+        </Button>
+    </div>
+</Modal>
+
+@code {
+    /// <summary><see cref="IsNote"/> lines are progress notes from this page (not from the model), kept out of the conversation sent to it.</summary>
+    private sealed record ChatLine(string Role, string Content, bool IsError = false, bool IsNote = false, UsageDto? Usage = null);
+
+    private CostGate _gate = default!;
+    private long _sessionTokens;
+    private int _sessionCalls;
+    private decimal _sessionCost;
+    private bool _sessionUnpriced;
+
+    /// <summary>The size of the conversation and proposal already on screen, which every follow-up sends to the AI again.</summary>
+    private int ConversationChars() =>
+        _messages.Where(m => !m.IsError && !m.IsNote).Sum(m => m.Content.Length)
+        + (_proposal?.TableDescriptions.Sum(d => d.Description.Length) ?? 0)
+        + (_proposal?.ColumnDescriptions.Sum(d => d.Description.Length) ?? 0)
+        + (_proposal?.Relationships.Sum(r => r.Reason.Length + 60) ?? 0);
+
+    private void AddToSession(UsageDto usage)
+    {
+        _sessionTokens += usage.TotalTokens;
+        _sessionCalls += usage.Calls;
+        _sessionCost += usage.CostUsd ?? 0m;
+        _sessionUnpriced |= usage.CostUsd is null && usage.TotalTokens > 0;
+    }
+
+    private readonly List<ChatLine> _messages = [];
+    private KnowledgeSuggestionsDto? _proposal;
+    private readonly HashSet<Guid> _skipTables = [];
+    private readonly HashSet<string> _skipDatabases = [];
+    private readonly HashSet<Guid> _skipColumns = [];
+    private readonly HashSet<(Guid, Guid)> _skipRelationships = [];
+    private readonly HashSet<Guid> _skipRemovals = [];
+    private ElementReference _transcript;
+    private IJSObjectReference? _module;
+    private string _input = "";
+    private bool _busy;
+    private bool _applying;
+    private bool _wasOpen;
+    private bool _scrollPending;
+
+    /// <summary><c>descriptions</c> or <c>relationships</c>.</summary>
+    [Parameter, EditorRequired] public string Mode { get; set; } = "descriptions";
+
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>The current knowledge base, to show what a proposed description replaces.</summary>
+    [Parameter, EditorRequired] public KnowledgeDefinitionsDto Definitions { get; set; } = default!;
+
+    /// <summary>For descriptions: leave existing descriptions alone in the first draft.</summary>
+    [Parameter] public bool OnlyMissing { get; set; } = true;
+
+    [Parameter] public EventCallback OnApplied { get; set; }
+
+    private bool IsDescriptions => string.Equals(Mode, "descriptions", StringComparison.OrdinalIgnoreCase);
+
+    private string Title => IsDescriptions ? "Describe with AI" : "Find relationships with AI";
+
+    private string Placeholder => IsDescriptions
+        ? "e.g. “Make them shorter” or “Describe orders.status as the order lifecycle state”"
+        : "e.g. “Link every customer_id to customers” or “Remove the weakest links”";
+
+    private IReadOnlyList<string> Starters => IsDescriptions
+        ? ["Describe everything that has no description yet", "Describe the databases and tables only", "Describe only the key columns", "Write for a finance audience"]
+        : ["Only propose foreign keys", "Link every *_id column to its table", "Remove low-confidence links", "Explain each link"];
+
+    private bool IsEmpty =>
+        _proposal is not null && _proposal.TableDescriptions.Count + _proposal.ColumnDescriptions.Count + _proposal.Relationships.Count + (_proposal.Removals?.Count ?? 0) + (_proposal.DatabaseDescriptions?.Count ?? 0) == 0;
+
+    private string Summary => _proposal is null ? "Working…" : IsEmpty ? "Nothing proposed" : IsDescriptions
+        ? $"{_proposal.TableDescriptions.Count + _proposal.ColumnDescriptions.Count + (_proposal.DatabaseDescriptions?.Count ?? 0)} descriptions"
+        : $"{_proposal.Relationships.Count} to add · {_proposal.Removals?.Count ?? 0} to remove";
+
+    private int AcceptedCount => _proposal is null ? 0 :
+        _proposal.TableDescriptions.Count(s => !_skipTables.Contains(s.TableId))
+        + (_proposal.DatabaseDescriptions?.Count(s => !_skipDatabases.Contains(DbKey(s))) ?? 0)
+        + _proposal.ColumnDescriptions.Count(s => !_skipColumns.Contains(s.ColumnId))
+        + _proposal.Relationships.Count(s => !_skipRelationships.Contains((s.FromColumnId, s.ToColumnId)))
+        + (_proposal.Removals?.Count(s => !_skipRemovals.Contains(s.RelationshipId)) ?? 0);
+
+    private static void Flip<T>(HashSet<T> skipped, T item, bool include) => _ = include ? skipped.Remove(item) : skipped.Add(item);
+
+    private static string DbKey(DatabaseDescriptionSuggestionDto s) => $"{s.ConnectionId:N}|{s.Database.ToUpperInvariant()}";
+
+    private string? CurrentDatabaseDescription(DatabaseDescriptionSuggestionDto s) =>
+        Definitions.Databases?.FirstOrDefault(d => d.ConnectionId == s.ConnectionId && string.Equals(d.Name, s.Database, StringComparison.OrdinalIgnoreCase))?.Description;
+
+    private string? CurrentTableDescription(Guid id) => Definitions.Tables.FirstOrDefault(t => t.Id == id)?.Description;
+
+    private string? CurrentColumnDescription(Guid id) =>
+        Definitions.Tables.SelectMany(t => t.Columns).FirstOrDefault(c => c.Id == id)?.Description;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Opening starts a fresh conversation. Relationships get a first draft right away; descriptions wait for the person to say what
+        // to describe (they may only want to change one column), so nothing is sent to the AI until they ask.
+        if (Open && !_wasOpen)
+        {
+            _wasOpen = true;
+            Reset();
+            if (IsDescriptions)
+            {
+                _proposal = new KnowledgeSuggestionsDto([], [], [], 0);
+                _messages.Add(new ChatLine("assistant", "Tell me what to describe, for example “describe every table and column that has none”, or “describe orders.status as the order lifecycle state”. I only write what you ask for, and nothing is saved until you accept it.", IsNote: true));
+            }
+            else
+            {
+                await SendAsync(null);
+            }
+        }
+        else if (!Open)
+        {
+            _wasOpen = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollPending && Open)
+        {
+            _scrollPending = false;
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/chatScroll.js");
+            await _module.InvokeVoidAsync("scrollToEnd", _transcript);
+        }
+    }
+
+    private bool _useProcedures = true;
+    private bool _proceduresChecked;
+
+    /// <summary>
+    /// Before the first description request of a conversation: find the stored procedures that use these tables (reading them again when
+    /// the last read is old), so the descriptions come from how the tables are really queried. Failing to read them is not fatal.
+    /// </summary>
+    private async Task PrepareProceduresAsync()
+    {
+        _proceduresChecked = true;
+        try
+        {
+            var summary = await Knowledge.GetProceduresAsync(CancellationToken.None);
+            if (summary.ScannedAt is not { } at || DateTimeOffset.UtcNow - at > TimeSpan.FromHours(6))
+            {
+                _messages.Add(new ChatLine("assistant", "First I am reading the stored procedures in your databases that use these tables, so the descriptions reflect how the tables are really queried…", IsNote: true));
+                _scrollPending = true;
+                await InvokeAsync(StateHasChanged);
+                summary = await Knowledge.ScanProceduresAsync(CancellationToken.None);
+            }
+
+            var note = summary.Procedures > 0
+                ? $"Found {summary.Procedures} stored procedure{(summary.Procedures == 1 ? "" : "s")} that use {summary.TablesCovered} of your {summary.TablesTotal} tables. I will use them as evidence."
+                : "No stored procedures use these tables, so I will go by names and your existing descriptions.";
+            _messages.Add(new ChatLine("assistant", note + (summary.Notes.Count > 0 ? " " + string.Join(" ", summary.Notes) : string.Empty), IsNote: true));
+        }
+        catch (ServiceCallException ex)
+        {
+            _messages.Add(new ChatLine("assistant", $"I could not read the stored procedures ({ex.Message}). Continuing without them.", IsNote: true));
+        }
+    }
+
+    private void Reset()
+    {
+        _sessionTokens = 0;
+        _sessionCalls = 0;
+        _sessionCost = 0m;
+        _sessionUnpriced = false;
+        _messages.Clear();
+        _proceduresChecked = false;
+        _proposal = null;
+        _input = "";
+        _skipTables.Clear();
+        _skipDatabases.Clear();
+        _skipColumns.Clear();
+        _skipRelationships.Clear();
+        _skipRemovals.Clear();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e is { Key: "Enter", ShiftKey: false } && !_busy && !string.IsNullOrWhiteSpace(_input))
+        {
+            await SendAsync(_input);
+        }
+    }
+
+    /// <summary>Sends the person's message (or, with null, asks for the first draft) and replaces the proposal with the answer.</summary>
+    private async Task SendAsync(string? text)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        ChatLine? asked = null;
+        if (text is not null)
+        {
+            var trimmed = text.Trim();
+            if (trimmed.Length == 0)
+            {
+                return;
+            }
+
+            asked = new ChatLine("user", trimmed);
+            _messages.Add(asked);
+            _input = "";
+        }
+
+        // A large request (many tables to describe) is confirmed with its forecast cost before anything is sent to the AI.
+        if (!await _gate.ConfirmAsync(new AiEstimateRequest("knowledge", Mode, OnlyMissing, _useProcedures, ExtraChars: ConversationChars())))
+        {
+            if (asked is not null)
+            {
+                _messages.Remove(asked);
+                _input = asked.Content;
+            }
+
+            _messages.Add(new ChatLine("assistant", "Cancelled. Nothing was sent to the AI and nothing was charged.", IsNote: true));
+            _proposal ??= new KnowledgeSuggestionsDto([], [], [], 0);
+            return;
+        }
+
+        _busy = true;
+        _scrollPending = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (IsDescriptions && text is not null && _useProcedures && !_proceduresChecked)
+            {
+                await PrepareProceduresAsync();
+            }
+
+            var history = _messages.Where(m => !m.IsError && !m.IsNote).Select(m => new KnowledgeChatMessageDto(m.Role, m.Content)).ToList();
+            var response = await Agents.ChatKnowledgeAsync(new KnowledgeChatRequest(Mode, history, _proposal, OnlyMissing, _useProcedures), CancellationToken.None);
+            _messages.Add(new ChatLine("assistant", response.Reply, Usage: response.Usage));
+            if (response.Usage is { } used)
+            {
+                AddToSession(used);
+            }
+
+            _proposal = response.Suggestions;
+            // A new proposal starts fully selected; the person unticks what they do not want.
+            _skipTables.Clear();
+            _skipDatabases.Clear();
+            _skipColumns.Clear();
+            _skipRelationships.Clear();
+            _skipRemovals.Clear();
+        }
+        catch (ServiceCallException ex)
+        {
+            _messages.Add(new ChatLine("assistant", ex.Message, IsError: true));
+            _proposal ??= new KnowledgeSuggestionsDto([], [], [], 0);
+        }
+        finally
+        {
+            _busy = false;
+            _scrollPending = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task AcceptAsync()
+    {
+        if (_proposal is null)
+        {
+            return;
+        }
+
+        _applying = true;
+        try
+        {
+            var request = new ApplySuggestionsRequest(
+                _proposal.TableDescriptions.Where(s => !_skipTables.Contains(s.TableId)).ToList(),
+                _proposal.ColumnDescriptions.Where(s => !_skipColumns.Contains(s.ColumnId)).ToList(),
+                _proposal.Relationships.Where(s => !_skipRelationships.Contains((s.FromColumnId, s.ToColumnId))).ToList(),
+                (_proposal.Removals ?? []).Where(s => !_skipRemovals.Contains(s.RelationshipId)).Select(s => s.RelationshipId).ToList(),
+                (_proposal.DatabaseDescriptions ?? []).Where(s => !_skipDatabases.Contains(DbKey(s))).ToList());
+            await Knowledge.ApplySuggestionsAsync(request, CancellationToken.None);
+            await OnApplied.InvokeAsync();
+            await CloseAsync(false);
+        }
+        catch (ServiceCallException ex)
+        {
+            _messages.Add(new ChatLine("assistant", $"I could not save that: {ex.Message}", IsError: true));
+            _scrollPending = true;
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+
+    private async Task CloseAsync(bool open)
+    {
+        Open = open;
+        await OpenChanged.InvokeAsync(open);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit already gone.
+            }
+        }
+    }
+}

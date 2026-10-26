@@ -1,0 +1,121 @@
+@using InsightFlow.Contracts.Playground
+@using InsightFlow.Contracts.Query
+@using InsightFlow.Web.Playground
+@inject PlaygroundApiClient Api
+@* A small "Add to Playground" button for a chart or a table. With no sheet yet it adds straight away (the Playground makes "Sheet 1");
+   otherwise it lists the sheets so the person picks where it goes, or starts a new one. *@
+
+<div class="relative inline-block" data-testid="export-playground">
+    <button type="button" class="inline-flex items-center gap-1 rounded-control border border-line bg-white px-2 py-1 text-xs font-medium text-ink hover:border-brand-300 hover:bg-mist disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            aria-haspopup="menu" aria-expanded="@UiStyles.Aria(_open)" disabled="@_busy" @onclick="ToggleAsync" data-testid="export-button">
+        <Icon Name="squares" Class="size-3.5" /> Add to Playground
+    </button>
+
+    @if (_open)
+    {
+        <div class="absolute left-0 top-full z-40 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900" role="menu" aria-label="Choose a sheet">
+            @foreach (var sheet in _sheets)
+            {
+                <button type="button" role="menuitem" class="block w-full truncate rounded-lg px-3 py-1.5 text-left text-xs hover:bg-mist dark:hover:bg-slate-800" @onclick="() => ExportAsync(sheet.Id, null)" data-testid="export-sheet">@sheet.Name</button>
+            }
+
+            <button type="button" role="menuitem" class="block w-full rounded-lg px-3 py-1.5 text-left text-xs font-semibold text-brand-700 hover:bg-mist dark:text-brand-200 dark:hover:bg-slate-800" @onclick="() => ExportAsync(null, NextSheetName())" data-testid="export-new-sheet">+ New sheet</button>
+        </div>
+    }
+
+    @if (_added is { } added)
+    {
+        <span class="ml-2 text-xs text-ink-soft" role="status" data-testid="export-done">Added to “@added.SheetName” · <a class="text-brand-700 underline" href="@($"/playground?sheet={added.SheetId}")">Open Playground</a></span>
+    }
+
+    @if (_error is not null)
+    {
+        <span class="ml-2 text-xs text-danger" role="alert">@_error</span>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<PlaygroundSheetSummaryDto> _sheets = [];
+    private ExportToPlaygroundResult? _added;
+    private string? _error;
+    private bool _open;
+    private bool _busy;
+
+    /// <summary>"chart" or "table".</summary>
+    [Parameter] public string Kind { get; set; } = "table";
+
+    [Parameter, EditorRequired] public QueryResult? Result { get; set; }
+
+    /// <summary>The chart as it is drawn now (type included), for charts.</summary>
+    [Parameter] public ChartSpecDto? Spec { get; set; }
+
+    [Parameter] public string? Title { get; set; }
+
+    private async Task ToggleAsync()
+    {
+        _added = null;
+        _error = null;
+        if (_open)
+        {
+            _open = false;
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            _sheets = await Api.ListAsync(CancellationToken.None);
+            if (_sheets.Count == 0)
+            {
+                await ExportAsync(null, null);
+            }
+            else
+            {
+                _open = true;
+            }
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string NextSheetName()
+    {
+        var n = _sheets.Count + 1;
+        while (_sheets.Any(s => string.Equals(s.Name, $"Sheet {n}", StringComparison.OrdinalIgnoreCase)))
+        {
+            n++;
+        }
+
+        return $"Sheet {n}";
+    }
+
+    private async Task ExportAsync(Guid? sheetId, string? newName)
+    {
+        _open = false;
+        if (Result is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var element = ElementFactory.FromResult(Kind, Result, Spec, Title, 24, 24, 1);
+            _added = await Api.ExportAsync(new ExportToPlaygroundRequest(element, sheetId, newName), CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

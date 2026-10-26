@@ -28,6 +28,40 @@ public sealed class SandboxTests(SandboxFixture data) : IClassFixture<SandboxFix
         result.WorkDirectory.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Run_NamedInputs_AreQueryableByTheirNames_AndTheDefaultNamesAreGone()
+    {
+        var named = new SandboxRequest(RetailModel.Tenant, [data.Retail], "SELECT COUNT(*) AS n FROM sales_copy", InputNames: ["sales_copy"]);
+        var oldName = named with { Sql = "SELECT COUNT(*) AS n FROM input" };
+
+        var ok = await data.CreateSandbox().RunAsync(named, Ct);
+        var rejected = await data.CreateSandbox().RunAsync(oldName, Ct);
+
+        ok.Status.ShouldBe(SandboxStatus.Succeeded, ok.Error);
+        rejected.Status.ShouldBe(SandboxStatus.Rejected);
+    }
+
+    [Theory]
+    [InlineData("Orders")]
+    [InlineData("a b")]
+    [InlineData("x; DROP TABLE y")]
+    [InlineData("1abc")]
+    [InlineData("")]
+    public async Task Run_UnsafeInputNames_AreRefusedBeforeAnythingRuns(string name)
+    {
+        var request = new SandboxRequest(RetailModel.Tenant, [data.Retail], "SELECT 1", InputNames: [name]);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => data.CreateSandbox().RunAsync(request, Ct));
+    }
+
+    [Fact]
+    public async Task Run_InputNamesThatDoNotMatchTheInputs_AreRefused()
+    {
+        var request = new SandboxRequest(RetailModel.Tenant, [data.Retail], "SELECT 1", InputNames: ["a", "b"]);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => data.CreateSandbox().RunAsync(request, Ct));
+    }
+
     [Theory]
     [InlineData("SELECT * FROM read_csv('/etc/passwd')")]
     [InlineData("ATTACH 'x.db'; SELECT 1")]

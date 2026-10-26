@@ -1,0 +1,319 @@
+@using System.Globalization
+@using System.Text.Json
+@using InsightFlow.Contracts.Playground
+@using InsightFlow.Contracts.Query
+@using InsightFlow.Web.Charts
+@* One element on a Playground canvas. Position, size and stacking come from the element; the browser script (playground.js) moves and resizes the
+   box while the pointer is down and tells the page once when the gesture ends. Shapes are drawn as SVG sized to the box, so strokes keep their
+   width however the element is stretched. *@
+
+<div class="@BoxClass" style="@BoxStyle" data-id="@Element.Id" data-locked="@(Element.Locked ? "1" : "0")" data-editable="@(CanEditText ? "1" : "0")" data-type="@Element.Type" role="group" aria-label="@Label">
+    @switch (Element.Type)
+    {
+        case "rect" or "rounded" or "ellipse" or "triangle" or "diamond" or "hexagon" or "star":
+            <svg class="absolute inset-0 size-full overflow-visible" viewBox="0 0 @N(W) @N(H)" preserveAspectRatio="none" aria-hidden="true">
+                @ShapeSvg()
+            </svg>
+            <div class="@TextClass" style="@TextStyle" data-text @key="TextKey">@Element.Text</div>
+            break;
+
+        case "line" or "arrow":
+            <svg class="absolute inset-0 size-full overflow-visible" viewBox="0 0 @N(W) @N(H)" preserveAspectRatio="none" aria-hidden="true">
+                @if (Element.Type == "arrow")
+                {
+                    <defs>
+                        <marker id="@ArrowId" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 8 8">
+                            <path d="M0,0 L8,4 L0,8 Z" fill="@Stroke" />
+                        </marker>
+                    </defs>
+                }
+
+                <line x1="0" y1="@N(Element.Flip ? H : 0)" x2="@N(W)" y2="@N(Element.Flip ? 0 : H)" stroke="transparent" stroke-width="14" pointer-events="stroke" />
+                <line x1="0" y1="@N(Element.Flip ? H : 0)" x2="@N(W)" y2="@N(Element.Flip ? 0 : H)" stroke="@Stroke" stroke-width="@N(StrokeWidth)" stroke-linecap="round"
+                      marker-end="@(Element.Type == "arrow" ? $"url(#{ArrowId})" : null)" />
+            </svg>
+            break;
+
+        case "image":
+            @if (!string.IsNullOrEmpty(Element.Url))
+            {
+                <img src="@Element.Url" alt="@(Element.Text ?? "Image")" draggable="false" class="pointer-events-none size-full object-contain" />
+            }
+            else
+            {
+                <div class="grid size-full place-items-center border border-dashed border-slate-400 text-xs text-slate-500">Choose an image in the side panel</div>
+            }
+
+            break;
+
+        case "chart":
+            <div class="pointer-events-none flex size-full flex-col gap-1 p-2">
+                @if (!string.IsNullOrWhiteSpace(Element.Text))
+                {
+                    <div class="@CaptionClass" style="@CaptionStyle" data-text @key="TextKey">@Element.Text</div>
+                }
+
+                <div class="min-h-0 flex-1">
+                    @if (Element.Data is { } data && ChartFactory.Build(data, Element.Chart, dark: false) is { } json)
+                    {
+                        <StatChart Option="_ => json" AriaLabel="@Label" Class="min-h-0!" />
+                    }
+                    else
+                    {
+                        <div class="grid size-full place-items-center text-xs text-slate-500">This chart cannot be drawn from its data</div>
+                    }
+                </div>
+            </div>
+            break;
+
+        case "table":
+            <div class="flex size-full flex-col gap-1 p-2">
+                @if (!string.IsNullOrWhiteSpace(Element.Text))
+                {
+                    <div class="@CaptionClass" style="@CaptionStyle" data-text @key="TextKey">@Element.Text</div>
+                }
+
+                <div class="min-h-0 flex-1 overflow-auto rounded border border-slate-200" style="font-size: @N(Style.FontSize)px;color: @(Style.Color ?? "#1e293b")">
+                    @if (Element.Data is { } table)
+                    {
+                        <table class="min-w-full border-collapse text-left">
+                            <thead class="@(Element.FreezeHeader ? "sticky top-0 z-20" : "") bg-slate-100">
+                                <tr>
+                                    @for (var i = 0; i < table.Columns.Count; i++)
+                                    {
+                                        <th class="@($"border-b border-slate-300 bg-slate-100 px-2 py-1 font-semibold whitespace-nowrap {(IsFrozen(i) ? "sticky z-30 border-r" : "")}")" style="@FrozenStyle(i)">@table.Columns[i].Name</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{ var rowIndex = 0; }
+                                @foreach (var row in table.Rows.Take(200))
+                                {
+                                    var stripe = rowIndex++ % 2 == 0 ? "bg-white" : "bg-slate-50";
+                                    <tr class="@stripe">
+                                        @for (var i = 0; i < table.Columns.Count; i++)
+                                        {
+                                            <td class="@($"border-b border-slate-100 px-2 py-0.5 whitespace-nowrap {stripe} {(IsFrozen(i) ? "sticky z-10 border-r border-slate-200" : "")} {(IsNumber(table.Columns[i]) ? "text-right tabular-nums" : "")}")" style="@FrozenStyle(i)">@Cell(i < row.Count ? row[i] : null)</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+            break;
+
+        case "kpi":
+            <div class="absolute inset-0" style="@FrameStyle"></div>
+            <div class="@TextClass flex-col" style="@TextStyle" data-text @key="TextKey">
+                <div class="opacity-70" style="font-size: @N(Style.FontSize * 0.45)px; font-weight: 500">@KpiLabel</div>
+                <div>@KpiValue</div>
+            </div>
+            break;
+
+        case "link":
+            <div class="absolute inset-0" style="@FrameStyle"></div>
+            <div class="@TextClass" style="@TextStyle" data-text @key="TextKey">@Element.Text</div>
+            break;
+
+        default: // text, title, note
+            <div class="absolute inset-0" style="@FrameStyle"></div>
+            <div class="@TextClass" style="@TextStyle" data-text @key="TextKey">@Element.Text</div>
+            break;
+    }
+
+    @if (ShowHandles)
+    {
+        @foreach (var dir in Directions)
+        {
+            <span class="@HandleClass(dir)" data-handle="@dir" aria-hidden="true"></span>
+        }
+    }
+</div>
+
+@code {
+    private static readonly string[] Directions = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+
+    [Parameter, EditorRequired] public PlaygroundElementDto Element { get; set; } = default!;
+
+    [Parameter] public bool Selected { get; set; }
+
+    /// <summary>True for a single selected, unlocked element: it gets resize handles.</summary>
+    [Parameter] public bool ShowHandles { get; set; }
+
+    private PlaygroundStyleDto Style => Element.Style ?? new PlaygroundStyleDto();
+
+    private double W => Element.W;
+
+    private double H => Element.H;
+
+    private string ArrowId => "pg-arrow-" + Element.Id.ToString("N");
+
+    private bool CanEditText => Element.Type is not ("image" or "line" or "arrow") && !Element.Locked;
+
+    private string Label => Element.Type switch
+    {
+        "chart" => "Chart" + (string.IsNullOrWhiteSpace(Element.Text) ? "" : ": " + Element.Text),
+        "table" => "Table" + (string.IsNullOrWhiteSpace(Element.Text) ? "" : ": " + Element.Text),
+        _ => string.IsNullOrWhiteSpace(Element.Text) ? Element.Type : Element.Type + ": " + Element.Text,
+    };
+
+    /// <summary>The text div is recreated when the text changes, so the browser editing the old one in place never clashes with the page redrawing it.</summary>
+    private string TextKey => Element.Id.ToString("N") + ":" + (Element.Text?.GetHashCode(StringComparison.Ordinal) ?? 0);
+
+    private string BoxClass =>
+        "pg-el absolute select-none [&.pg-selected]:outline [&.pg-selected]:outline-2 [&.pg-selected]:outline-offset-1 [&.pg-selected]:outline-blue-500 " +
+        (Selected ? "pg-selected " : string.Empty) + (Element.Locked ? "cursor-default" : "cursor-move");
+
+    private string BoxStyle =>
+        $"left:{N(Element.X)}px;top:{N(Element.Y)}px;width:{N(Element.W)}px;height:{N(Element.H)}px;z-index:{Element.Z + 10_000};opacity:{N(Style.Opacity)};" +
+        (Element.Type is "chart" or "table" ? CardStyle : string.Empty) +
+        (Element.Type == "image" ? ImageFrame : string.Empty);
+
+    /// <summary>Charts and tables sit on a white card; the fill, outline, width and corner radius chosen in the format bar replace the defaults.</summary>
+    private string CardStyle
+    {
+        get
+        {
+            var s = Style;
+            var fill = string.IsNullOrEmpty(s.Fill) ? "#fff" : s.Fill;
+            var border = !string.IsNullOrEmpty(s.Stroke) && s.StrokeWidth > 0 ? $"{N(s.StrokeWidth)}px solid {s.Stroke}"
+                : !string.IsNullOrEmpty(s.Stroke) ? "none" : "1px solid #dbe3ea";
+            var radius = s.Radius > 0 ? s.Radius : 8;
+            return $"background:{fill};border:{border};border-radius:{N(radius)}px;box-shadow:0 1px 3px rgba(15,23,42,.12);";
+        }
+    }
+
+    private string ImageFrame =>
+        !string.IsNullOrEmpty(Style.Stroke) && Style.StrokeWidth > 0 ? $"border:{N(Style.StrokeWidth)}px solid {Style.Stroke};border-radius:{N(Style.Radius)}px;box-sizing:border-box;" : string.Empty;
+
+    private string Stroke => Style.Stroke ?? "#2f528f";
+
+    private double StrokeWidth => Math.Max(0.5, Style.StrokeWidth);
+
+    /// <summary>The background and border of a text-like box (a box with no fill or outline draws nothing).</summary>
+    private string FrameStyle
+    {
+        get
+        {
+            var s = Style;
+            var border = !string.IsNullOrEmpty(s.Stroke) && s.StrokeWidth > 0 ? $"border:{N(s.StrokeWidth)}px solid {s.Stroke};" : string.Empty;
+            var fill = !string.IsNullOrEmpty(s.Fill) ? $"background:{s.Fill};" : string.Empty;
+            var shadow = Element.Type == "note" ? "box-shadow:2px 3px 8px rgba(15,23,42,.25);" : string.Empty;
+            return $"{fill}{border}border-radius:{N(s.Radius)}px;{shadow}";
+        }
+    }
+
+    private string CaptionClass => "pg-text shrink-0 overflow-hidden text-ellipsis break-words whitespace-pre-wrap font-semibold outline-none";
+
+    private string CaptionStyle => $"color:{Style.Color ?? "#0f172a"};font-size:{N(Math.Max(11, Style.FontSize))}px;text-align:{Style.Align};";
+
+    private string TextClass => "pg-text absolute inset-0 flex overflow-hidden p-2 leading-snug break-words whitespace-pre-wrap outline-none";
+
+    private string TextStyle
+    {
+        get
+        {
+            var s = Style;
+            var justify = s.Align switch { "center" => "center", "right" => "flex-end", _ => "flex-start" };
+            var items = s.VAlign switch { "top" => "flex-start", "bottom" => "flex-end", _ => "center" };
+            var color = s.Color ?? (Element.Type == "link" ? "#1d4ed8" : "#0f172a");
+            var column = Element.Type == "kpi" ? "flex-direction:column;" : string.Empty;
+            return $"{column}justify-content:{(Element.Type == "kpi" ? items : justify)};align-items:{(Element.Type == "kpi" ? justify : items)};text-align:{s.Align};color:{color};" +
+                   $"font-size:{N(s.FontSize)}px;font-weight:{(s.Bold ? 700 : 400)};font-style:{(s.Italic ? "italic" : "normal")};text-decoration:{(s.Underline ? "underline" : "none")};";
+        }
+    }
+
+    private string KpiLabel => (Element.Text ?? string.Empty).Split('\n', 2)[0];
+
+    private string KpiValue => (Element.Text ?? string.Empty).Split('\n', 2) is { Length: 2 } parts ? parts[1] : string.Empty;
+
+    private string HandleClass(string dir)
+    {
+        var position = dir switch
+        {
+            "nw" => "-left-1.5 -top-1.5 cursor-nwse-resize",
+            "n" => "left-1/2 -top-1.5 -translate-x-1/2 cursor-ns-resize",
+            "ne" => "-right-1.5 -top-1.5 cursor-nesw-resize",
+            "e" => "-right-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize",
+            "se" => "-right-1.5 -bottom-1.5 cursor-nwse-resize",
+            "s" => "left-1/2 -bottom-1.5 -translate-x-1/2 cursor-ns-resize",
+            "sw" => "-left-1.5 -bottom-1.5 cursor-nesw-resize",
+            _ => "-left-1.5 top-1/2 -translate-y-1/2 cursor-ew-resize",
+        };
+        return $"pg-handle absolute z-50 size-3 rounded-sm border border-blue-600 bg-white {position}";
+    }
+
+    private RenderFragment ShapeSvg() => __builder =>
+    {
+        var s = Style;
+        var sw = Math.Max(0, s.StrokeWidth);
+        var half = sw / 2;
+        var fill = string.IsNullOrEmpty(s.Fill) ? "none" : s.Fill;
+        var stroke = string.IsNullOrEmpty(s.Stroke) || sw == 0 ? "none" : s.Stroke;
+        switch (Element.Type)
+        {
+            case "rect" or "rounded":
+                <rect x="@N(half)" y="@N(half)" width="@N(Math.Max(1, W - sw))" height="@N(Math.Max(1, H - sw))" rx="@N(s.Radius)" ry="@N(s.Radius)" fill="@fill" stroke="@stroke" stroke-width="@N(sw)" />
+                break;
+            case "ellipse":
+                <ellipse cx="@N(W / 2)" cy="@N(H / 2)" rx="@N(Math.Max(1, (W - sw) / 2))" ry="@N(Math.Max(1, (H - sw) / 2))" fill="@fill" stroke="@stroke" stroke-width="@N(sw)" />
+                break;
+            default:
+                <polygon points="@Points(half)" fill="@fill" stroke="@stroke" stroke-width="@N(sw)" stroke-linejoin="round" />
+                break;
+        }
+    };
+
+    private string Points(double half)
+    {
+        var w = W;
+        var h = H;
+        IEnumerable<(double X, double Y)> points = Element.Type switch
+        {
+            "triangle" => [(w / 2, half), (w - half, h - half), (half, h - half)],
+            "diamond" => [(w / 2, half), (w - half, h / 2), (w / 2, h - half), (half, h / 2)],
+            "hexagon" => [(w * 0.25, half), (w * 0.75, half), (w - half, h / 2), (w * 0.75, h - half), (w * 0.25, h - half), (half, h / 2)],
+            _ => Star(w, h, half),
+        };
+        return string.Join(' ', points.Select(p => $"{N(p.X)},{N(p.Y)}"));
+    }
+
+    private static IEnumerable<(double X, double Y)> Star(double w, double h, double half)
+    {
+        var rx = Math.Max(1, (w / 2) - half);
+        var ry = Math.Max(1, (h / 2) - half);
+        for (var i = 0; i < 10; i++)
+        {
+            var radius = i % 2 == 0 ? 1.0 : 0.4;
+            var angle = (-90 + (36 * i)) * Math.PI / 180;
+            yield return ((w / 2) + (Math.Cos(angle) * rx * radius), (h / 2) + (Math.Sin(angle) * ry * radius));
+        }
+    }
+
+    /// <summary>Width of a frozen column; a fixed width lets each frozen column sit right after the one before it while the rest scrolls.</summary>
+    public const int FrozenWidth = 120;
+
+    private bool IsFrozen(int column) => column < Element.FreezeColumns;
+
+    private string? FrozenStyle(int column) => IsFrozen(column)
+        ? $"left:{column * FrozenWidth}px;min-width:{FrozenWidth}px;width:{FrozenWidth}px;max-width:{FrozenWidth}px;overflow:hidden;text-overflow:ellipsis"
+        : null;
+
+    private static bool IsNumber(QueryColumn column) => column.Type is ColumnType.Integer or ColumnType.Number;
+
+    private static string Cell(object? value) => value switch
+    {
+        null => string.Empty,
+        JsonElement { ValueKind: JsonValueKind.Null } => string.Empty,
+        JsonElement { ValueKind: JsonValueKind.Number } e when e.TryGetDouble(out var d) => d.ToString("#,##0.####", CultureInfo.InvariantCulture),
+        JsonElement e => e.ToString(),
+        double d => d.ToString("#,##0.####", CultureInfo.InvariantCulture),
+        decimal m => m.ToString("#,##0.####", CultureInfo.InvariantCulture),
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
+    };
+
+    private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
+}

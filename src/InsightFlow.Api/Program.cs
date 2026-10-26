@@ -1,5 +1,10 @@
+using InsightFlow.Api.Documents;
+using InsightFlow.Api.Playground;
+using InsightFlow.Api.Skills;
 using InsightFlow.Api;
+using InsightFlow.Api.Admin;
 using InsightFlow.Api.Connections;
+using InsightFlow.Api.Knowledge;
 using InsightFlow.Api.Workspace;
 using InsightFlow.Connectors;
 using InsightFlow.Contracts;
@@ -43,6 +48,12 @@ builder.Services.AddSingleton<IFileStore, DirectoryFileStore>();
 builder.Services.AddSingleton<IUploadScanner, NoOpUploadScanner>();
 builder.Services.AddSingleton<IContentPermissionEvaluator, ContentPermissionEvaluator>();
 builder.Services.AddScoped<WorkspaceService>();
+builder.Services.AddScoped<DocumentService>();
+builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<KnowledgeService>();
+builder.Services.AddScoped<KnowledgeSourceService>();
+builder.Services.AddScoped<SkillService>();
+builder.Services.AddScoped<PlaygroundService>();
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, ContractsJsonContext.Default));
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
@@ -66,6 +77,13 @@ app.MapDefaultEndpoints();
 var v1 = app.MapGroup("/api/v1");
 v1.MapIdentityEndpoints();
 v1.MapGroup("/workspace").WithTags("Workspace").MapWorkspaceEndpoints();
+v1.MapGroup("/admin").WithTags("Admin").MapAdminEndpoints();
+v1.MapGroup("/navigation").WithTags("Navigation").MapNavigationEndpoints();
+v1.MapGroup("/knowledge").WithTags("Knowledge").MapKnowledgeEndpoints();
+v1.MapGroup("/skills").WithTags("Skills").MapSkillEndpoints();
+v1.MapGroup("/playground").WithTags("Playground").MapPlaygroundEndpoints();
+v1.MapGroup("/query").WithTags("Query").MapQueryEndpoints();
+v1.MapGroup("/documents").WithTags("Documents").MapDocumentEndpoints();
 v1.MapGroup("/connections").WithTags("Connections").MapConnectionEndpoints();
 v1.MapGroup("/extract-runs").WithTags("Extracts").MapExtractRunEndpoints();
 

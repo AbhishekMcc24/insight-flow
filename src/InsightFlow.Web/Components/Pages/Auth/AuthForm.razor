@@ -1,0 +1,106 @@
+@inject IOptions<InsightFlowAuthOptions> Auth
+@* The form of the sign-in and registration screens. It is plain HTML posted to /auth/signin (static server rendering, no circuit), so it works before
+   anyone is signed in. Only an email is asked for; the identity provider asks for the password and the second factor. *@
+
+@{
+    var register = Mode == "register";
+    var development = Auth.Value.Mode == AuthenticationMode.Development;
+}
+
+<div data-testid="@(register ? "register-form" : "login-form")">
+    <h1 class="font-display text-[clamp(1.5rem,4vh,1.875rem)] font-bold tracking-tight text-ink dark:text-white">@(register ? "Create your workspace" : "Welcome back")</h1>
+    <p class="mt-1.5 text-sm text-ink-soft dark:text-slate-400">
+        @(register ? "Start in minutes. You finish setting up on the secure Microsoft page." : "Sign in to continue to your workspace.")
+    </p>
+
+    @if (development)
+    {
+        <div class="auth-opt mt-[clamp(0.75rem,2.5vh,1.5rem)] flex items-start gap-3 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200" role="note" data-testid="dev-note">
+            <svg viewBox="0 0 20 20" class="mt-0.5 size-4 shrink-0" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.5 2.5a1.5 1.5 0 0 1 3 0l6 12.2A1.5 1.5 0 0 1 16.2 17H3.8a1.5 1.5 0 0 1-1.3-2.3l6-12.2ZM10 7a.75.75 0 0 0-.75.75v3.5a.75.75 0 0 0 1.5 0v-3.5A.75.75 0 0 0 10 7Zm0 7.5a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8Z" clip-rule="evenodd" /></svg>
+            <span><strong>Development mode.</strong> Nobody has to sign in here: you are signed in automatically as the demo user, and Continue goes straight to the workspace.</span>
+        </div>
+    }
+
+    @if (Message is not null)
+    {
+        <div class="@MessageClass" role="alert" data-testid="auth-message">@Message</div>
+    }
+
+    <form method="post" action="/auth/signin" class="mt-[clamp(1rem,3.2vh,2rem)] space-y-[clamp(0.6rem,2vh,1.25rem)]">
+        <AntiforgeryToken />
+        <input type="hidden" name="mode" value="@(register ? "register" : "signin")" />
+        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+
+        <div>
+            <label for="auth-email" class="mb-1.5 block text-sm font-medium text-ink dark:text-slate-200">@(register ? "Work email" : "Email address")</label>
+            <div class="relative">
+                <svg viewBox="0 0 20 20" class="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-muted" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="m3.5 6 6.5 5 6.5-5" /></svg>
+                <input id="auth-email" name="email" type="email" inputmode="email" autocomplete="username email" maxlength="254" required="@register" placeholder="name@company.com"
+                       class="h-11 w-full rounded-xl border border-line bg-white pr-4 pl-10 text-sm text-ink shadow-xs transition placeholder:text-ink-muted hover:border-brand-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                       data-testid="auth-email" />
+            </div>
+        </div>
+
+        @if (register)
+        {
+            <label class="flex items-start gap-3 text-sm leading-snug text-ink-soft dark:text-slate-400">
+                <input type="checkbox" name="terms" required class="mt-0.5 size-4 shrink-0 rounded border-line accent-brand-600" data-testid="auth-terms" />
+                <span>I agree to the terms of service and the privacy policy.</span>
+            </label>
+        }
+
+        <button type="submit" class="group inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-700 hover:to-brand-600 hover:shadow-brand-600/35 focus-visible:ring-4 focus-visible:ring-brand-500/30 focus-visible:outline-none active:scale-[.99]" data-testid="auth-submit">
+            @(register ? "Create account" : "Continue")
+            <svg viewBox="0 0 20 20" class="size-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12m-4.5-4.5L16 10l-4.5 4.5" /></svg>
+        </button>
+
+        <div class="flex items-center gap-4 text-xs text-ink-muted" role="separator"><span class="h-px flex-1 bg-line dark:bg-slate-800"></span>or<span class="h-px flex-1 bg-line dark:bg-slate-800"></span></div>
+
+        <button type="submit" formnovalidate class="inline-flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-line bg-white text-sm font-semibold text-ink shadow-xs transition hover:border-brand-300 hover:bg-mist focus-visible:ring-4 focus-visible:ring-brand-500/20 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800" data-testid="auth-microsoft">
+            <svg viewBox="0 0 21 21" class="size-5" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022" /><rect x="11" y="1" width="9" height="9" fill="#7fba00" /><rect x="1" y="11" width="9" height="9" fill="#00a4ef" /><rect x="11" y="11" width="9" height="9" fill="#ffb900" /></svg>
+            @(register ? "Sign up with Microsoft" : "Continue with Microsoft")
+        </button>
+    </form>
+
+    <p class="auth-opt mt-[clamp(0.75rem,2.5vh,1.5rem)] flex items-start gap-2 text-xs leading-relaxed text-ink-muted">
+        <svg viewBox="0 0 20 20" class="mt-0.5 size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="9" width="12" height="8" rx="2" /><path d="M7 9V6.5a3 3 0 0 1 6 0V9" /></svg>
+        Your password and multi-factor check are handled on the secure Microsoft page. Insight Flow never sees them.
+    </p>
+
+    <p class="mt-[clamp(0.75rem,3vh,2rem)] text-center text-sm text-ink-soft dark:text-slate-400">
+        @if (register)
+        {
+            <text>Already have an account? </text><a href="@("/login" + ReturnQuery)" class="font-semibold text-brand-700 hover:underline dark:text-brand-300" data-testid="auth-switch">Sign in</a>
+        }
+        else
+        {
+            <text>New to Insight Flow? </text><a href="@("/register" + ReturnQuery)" class="font-semibold text-brand-700 hover:underline dark:text-brand-300" data-testid="auth-switch">Create an account</a>
+        }
+    </p>
+</div>
+
+@code {
+    /// <summary>"signin" or "register".</summary>
+    [Parameter] public string Mode { get; set; } = "signin";
+
+    [Parameter] public string ReturnUrl { get; set; } = "/";
+
+    /// <summary>A code from the query string: only known codes are shown, never the text itself.</summary>
+    [Parameter] public string? Code { get; set; }
+
+    private string ReturnQuery => ReturnUrl == "/" ? string.Empty : "?returnUrl=" + Uri.EscapeDataString(ReturnUrl);
+
+    private string? Message => Code switch
+    {
+        "terms" => "Please accept the terms to create your account.",
+        "signin_failed" => "We could not sign you in. Please try again.",
+        "access_denied" => "Access was denied. Contact your administrator if you expected to have access.",
+        "signedout" => "You have been signed out.",
+        _ => null,
+    };
+
+    private string MessageClass =>
+        "mt-4 rounded-xl border px-4 py-2.5 text-sm " + (Code == "signedout"
+            ? "border-brand-200 bg-brand-50 text-brand-800 dark:border-brand-700/40 dark:bg-brand-900/30 dark:text-brand-200"
+            : "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200");
+}

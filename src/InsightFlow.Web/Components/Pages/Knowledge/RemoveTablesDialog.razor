@@ -1,0 +1,98 @@
+@* Confirms removing tables from the knowledge base. If any relationship uses them, it says so, lists them, and states that they are
+   removed too. The source database is never touched. The caller performs the removal when "Remove" is pressed. *@
+
+<Modal Title="@Title" Open="Open && Tables.Count > 0" OpenChanged="v => OpenChanged.InvokeAsync(v)" MaxWidth="sm:max-w-xl">
+    <div class="space-y-4" data-testid="remove-tables-dialog">
+        <p class="text-sm leading-relaxed">
+            @if (Tables.Count == 1)
+            {
+                <span>Remove <strong>@Tables[0].DisplayName</strong> (@Tables[0].Columns.Count columns) from the knowledge base?</span>
+            }
+            else
+            {
+                <span>Remove these <strong>@Tables.Count tables</strong> (@Tables.Sum(t => t.Columns.Count) columns) from the knowledge base?</span>
+            }
+        </p>
+
+        @if (Tables.Count > 1)
+        {
+            <ul class="flex flex-wrap gap-1.5" aria-label="Tables to remove">
+                @foreach (var t in Tables.Take(8))
+                {
+                    <li class="max-w-full truncate rounded-full bg-brand-100 px-2.5 py-1 text-xs font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">@t.DisplayName</li>
+                }
+                @if (Tables.Count > 8)
+                {
+                    <li class="px-1 py-1 text-xs text-ink-soft">+@(Tables.Count - 8) more</li>
+                }
+            </ul>
+        }
+
+        @if (Affected.Count > 0)
+        {
+            <div class="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100" role="alert" data-testid="relationship-warning">
+                <p class="flex items-start gap-2 text-sm font-semibold">
+                    <span aria-hidden="true">⚠</span>
+                    <span>@(Affected.Count == 1 ? "1 relationship uses" : $"{Affected.Count} relationships use") @(Tables.Count == 1 ? "this table" : "these tables") and will be removed too.</span>
+                </p>
+                <ul class="mt-2 flex flex-col gap-1.5">
+                    @foreach (var r in Affected.Take(6))
+                    {
+                        <li class="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-white/70 px-3 py-1.5 text-xs dark:bg-slate-900/50">
+                            <span class="font-mono break-all">@r.FromTable.@r.FromColumn</span>
+                            <span aria-hidden="true">→</span>
+                            <span class="font-mono break-all">@r.ToTable.@r.ToColumn</span>
+                            <span class="@UiStyles.Badge">@r.Kind</span>
+                        </li>
+                    }
+                    @if (Affected.Count > 6)
+                    {
+                        <li class="px-1 text-xs">+@(Affected.Count - 6) more</li>
+                    }
+                </ul>
+                <p class="mt-2 text-xs">Tables that stay will lose these links.</p>
+            </div>
+        }
+        else
+        {
+            <p class="rounded-xl bg-brand-50 px-4 py-3 text-sm text-ink-soft dark:bg-slate-800">No relationships use @(Tables.Count == 1 ? "this table" : "these tables").</p>
+        }
+
+        <p class="text-sm font-medium">Your source database is not changed, and you can import the @(Tables.Count == 1 ? "table" : "tables") again later. Neo4j is updated only when you push.</p>
+
+        <div class="flex justify-end gap-2 pt-1">
+            <Button OnClick="() => OpenChanged.InvokeAsync(false)">Cancel</Button>
+            <Button Variant="ButtonVariant.Danger" Busy="Busy" OnClick="OnConfirm" data-testid="confirm-remove">@ConfirmLabel</Button>
+        </div>
+    </div>
+</Modal>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<KnowledgeTableDto> Tables { get; set; } = [];
+
+    [Parameter, EditorRequired] public KnowledgeDefinitionsDto Definitions { get; set; } = default!;
+
+    [Parameter] public bool Open { get; set; }
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    [Parameter] public bool Busy { get; set; }
+
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private string Title => Tables.Count == 1 ? "Remove table" : $"Remove {Tables.Count} tables";
+
+    /// <summary>Relationships with an end in any of the tables being removed (including links to tables that stay).</summary>
+    private List<KnowledgeRelationshipDto> Affected
+    {
+        get
+        {
+            var columns = Tables.SelectMany(t => t.Columns.Select(c => c.Id)).ToHashSet();
+            return [.. Definitions.Relationships.Where(r => columns.Contains(r.FromColumnId) || columns.Contains(r.ToColumnId))];
+        }
+    }
+
+    private string ConfirmLabel => Affected.Count == 0
+        ? (Tables.Count == 1 ? "Remove table" : "Remove tables")
+        : $"Remove {(Tables.Count == 1 ? "table" : "tables")} and {Affected.Count} relationship{(Affected.Count == 1 ? "" : "s")}";
+}

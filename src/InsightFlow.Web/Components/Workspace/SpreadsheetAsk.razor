@@ -1,0 +1,185 @@
+@using InsightFlow.Contracts.Documents
+@implements IDisposable
+@inject AgentApiClient Agents
+@inject SpreadsheetChatState Chat
+@* Ask questions of the prepared spreadsheets. The AI sees table and column names (and the values of the first text columns), writes one DuckDB SELECT,
+   and it runs in the locked sandbox over the sheets' tables. Every answer shows its SQL, the assumptions made and the rows it came from. *@
+
+<section class="if-card overflow-hidden" aria-labelledby="ask-heading" data-testid="ask-panel">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+        <span class="grid size-8 place-items-center rounded-lg bg-brand-600 text-white" aria-hidden="true"><Icon Name="search" Class="size-4" /></span>
+        <div class="min-w-0 flex-1">
+            <h3 id="ask-heading" class="text-sm font-bold text-ink dark:text-slate-100">Ask your spreadsheets</h3>
+            <p class="text-xs text-ink-soft">Ready: @Summary.TableCount table@(Summary.TableCount == 1 ? "" : "s") from @Summary.Files file@(Summary.Files == 1 ? "" : "s"), @Summary.Rows.ToString("N0") rows. Ask in plain English.</p>
+        </div>
+    </header>
+
+    <div class="space-y-4 p-4">
+        <details class="text-xs text-ink-soft">
+            <summary class="cursor-pointer font-medium">Tables you can ask about</summary>
+            <ul class="mt-2 flex flex-wrap gap-2" data-testid="ask-tables">
+                @foreach (var t in Summary.Tables)
+                {
+                    <li class="rounded-full bg-brand-100 px-3 py-1 font-mono text-brand-800 dark:bg-brand-900/40 dark:text-brand-100" title="@($"{t.File} › {t.Sheet} · {t.Rows:N0} rows · {t.Columns} columns")">@t.Table</li>
+                }
+            </ul>
+        </details>
+
+        <form class="flex flex-col gap-2" @onsubmit="AskAsync" @onsubmit:preventDefault="true">
+            <label>
+                <span class="@UiStyles.Label">Your question</span>
+                <textarea class="@UiStyles.Input leading-relaxed" rows="2" maxlength="2000" @bind="Chat.Draft" @bind:event="oninput" @onkeydown="OnKeyDown" disabled="@Chat.Busy"
+                          placeholder="e.g. Total sales by region, highest first" data-testid="doc-question"></textarea>
+            </label>
+            <div class="flex flex-wrap items-center gap-3">
+                <Button Type="submit" Variant="ButtonVariant.Primary" Busy="Chat.Busy" Disabled="@(string.IsNullOrWhiteSpace(Chat.Draft) || Chat.Busy)" data-testid="doc-ask"><Icon Name="search" /> Ask</Button>
+                <span class="text-xs text-ink-soft">Ctrl+Enter to ask. Follow-ups build on the answers below.</span>
+                @if (Chat.Thread.Count > 0)
+                {
+                    <button type="button" class="ml-auto text-xs font-medium text-ink-soft underline hover:text-brand-700" @onclick="() => Chat.Thread.Clear()">Start over</button>
+                }
+            </div>
+        </form>
+
+        <div class="flex flex-col gap-4" data-testid="doc-thread">
+            @foreach (var x in Chat.Thread.AsEnumerable().Reverse())
+            {
+                <article class="rounded-xl border border-line dark:border-slate-700" aria-label="@x.Question" data-testid="doc-answer">
+                    <p class="border-b border-line bg-brand-50/70 px-4 py-2 text-sm font-semibold text-ink dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-100">@x.Question</p>
+                    <div class="space-y-3 p-4">
+                        @if (x.Working)
+                        {
+                            <p class="flex items-center gap-2 text-sm text-ink-soft"><span class="text-brand-500"><Spinner /></span> Writing the query and running it over your sheets…</p>
+                        }
+
+                        <Alert Message="@x.Error" />
+                        @if (x.Answer is { } a)
+                        {
+                            @if (a.Clarification is { } ask)
+                            {
+                                <p class="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-100" data-testid="doc-clarification">@ask</p>
+                                <UsageNote Usage="a.Usage" />
+                                @if (a.Evidence is { Rows.Count: > 0 } candidates)
+                                {
+                                    <div class="max-h-64 overflow-auto rounded-xl border border-line dark:border-slate-700" data-testid="doc-candidates"><DataTable Result="candidates" /></div>
+                                }
+                            }
+                            else if (a.Error is { } failure)
+                            {
+                                <Alert Message="@failure" />
+                            }
+                            else
+                            {
+                                @if (!string.IsNullOrWhiteSpace(a.Explanation))
+                                {
+                                    <p class="text-sm text-ink dark:text-slate-100" data-testid="doc-explanation">@a.Explanation</p>
+                                }
+
+                                @if (a.Result is { } rows)
+                                {
+                                    <p class="text-xs text-ink-soft">@a.RowCount.ToString("N0") row@(a.RowCount == 1 ? "" : "s")@(a.Truncated ? " · cut at the row limit, narrow the question" : "")</p>
+                                    <AnswerChart Result="rows" Spec="a.Chart" Title="@x.Question" />
+                                    <ExportToPlayground Kind="table" Result="rows" Title="@x.Question" />
+
+                                    <div class="max-h-80 overflow-auto rounded-xl border border-line dark:border-slate-700" data-testid="doc-grid"><DataTable Result="rows" /></div>
+                                }
+
+                                @if (a.Evidence is { Rows.Count: > 0 } evidence)
+                                {
+                                    <details class="text-xs" open data-testid="doc-evidence">
+                                        <summary class="cursor-pointer font-medium text-ink-soft">Rows this answer came from (@a.EvidenceRows.ToString("N0")@(a.EvidenceRows > evidence.Rows.Count ? $", first {evidence.Rows.Count} shown" : ""))</summary>
+                                        <div class="mt-1 max-h-56 overflow-auto rounded-xl border border-line dark:border-slate-700"><DataTable Result="evidence" /></div>
+                                    </details>
+                                }
+
+                                <UsageNote Usage="a.Usage" />
+
+                                @if (a.Assumptions.Count > 0)
+                                {
+                                    <ul class="list-disc space-y-0.5 pl-5 text-xs text-ink-soft" data-testid="doc-assumptions">
+                                        @foreach (var item in a.Assumptions)
+                                        {
+                                            <li>@item</li>
+                                        }
+                                    </ul>
+                                }
+
+                                @if (a.Sql is { } sql)
+                                {
+                                    <details class="text-xs">
+                                        <summary class="cursor-pointer font-medium text-ink-soft">SQL</summary>
+                                        <pre class="mt-1 max-h-64 overflow-auto rounded-xl border border-line bg-slate-50 p-3 font-mono leading-relaxed text-ink dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" data-testid="doc-sql">@sql</pre>
+                                    </details>
+                                }
+                            }
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    private bool _disposed;
+
+    protected override void OnInitialized() => Chat.Changed += OnChatChanged;
+
+    /// <summary>Redraws this panel when the chat changes (an answer arrived, possibly one asked on an earlier visit to the page).</summary>
+    private void OnChatChanged()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Chat.Changed -= OnChatChanged;
+    }
+
+    [Parameter, EditorRequired] public DocumentSummaryDto Summary { get; set; } = default!;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e is { Key: "Enter", CtrlKey: true } && !Chat.Busy && !string.IsNullOrWhiteSpace(Chat.Draft))
+        {
+            await AskAsync();
+        }
+    }
+
+    private async Task AskAsync()
+    {
+        var question = Chat.Draft.Trim();
+        if (question.Length == 0 || Chat.Busy)
+        {
+            return;
+        }
+
+        Chat.Busy = true;
+        var history = Chat.Thread.Where(x => x.Answer is { Sql: not null } or { Clarification: not null }).TakeLast(3).SelectMany(x => new[]
+        {
+            new InsightFlow.Contracts.Knowledge.QueryTurnDto("user", x.Question),
+            new InsightFlow.Contracts.Knowledge.QueryTurnDto(
+                "assistant", $"{x.Answer!.Explanation}\n{(x.Answer.Clarification is { } asked ? "I asked: " + asked + "\n" : "")}{(x.Answer.Sql is { } used ? "SQL: " + used : "")}"),
+        }).ToList();
+        var exchange = new AskExchange(question);
+        Chat.Thread.Add(exchange);
+        Chat.Draft = "";
+        try
+        {
+            exchange.Answer = await Agents.AskDocumentsAsync(new DocumentAskRequest(question, history), CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            exchange.Error = ex.Message;
+        }
+        finally
+        {
+            exchange.Working = false;
+            Chat.Busy = false;
+        }
+    }
+}

@@ -1,0 +1,259 @@
+@inject KnowledgeApiClient Knowledge
+@inject AgentApiClient Agents
+@* "Was this right?" under an answer. Right is noted. Wrong asks why, the AI proposes description changes that would make the question
+   come out right, a Sys-admin applies them (the graph is updated too, because it is what finds the tables), and the person can retry. *@
+
+<section class="rounded-xl border border-line p-4 dark:border-slate-700" aria-label="Was this answer right?" data-testid="feedback">
+    @switch (_state)
+    {
+        case State.Ask:
+            <div class="flex flex-wrap items-center gap-3">
+                <p class="text-sm font-semibold text-ink dark:text-slate-100">Was this answer right?</p>
+                <Button OnClick="RightAsync" Busy="_busy" data-testid="feedback-right"><span aria-hidden="true">✓</span> Right</Button>
+                <Button OnClick="() => _state = State.Reason" Disabled="_busy" data-testid="feedback-wrong"><span aria-hidden="true">✗</span> Wrong</Button>
+            </div>
+            break;
+
+        case State.Thanks:
+            <p class="text-sm text-ink-soft" role="status" data-testid="feedback-thanks">Thanks, noted.</p>
+            break;
+
+        case State.Reason:
+            <form class="flex flex-col gap-3" @onsubmit="FixAsync" @onsubmit:preventDefault="true">
+                <label>
+                    <span class="@UiStyles.Label">What was wrong?</span>
+                    <textarea class="@UiStyles.Input leading-relaxed" rows="3" maxlength="1000" @bind="_reason" @bind:event="oninput" disabled="@_busy"
+                              placeholder="e.g. It should only count active rows, or the amount is in a different column" data-testid="feedback-reason"></textarea>
+                    <span class="mt-1 block text-xs text-ink-soft">I will suggest changes to the descriptions so this question comes out right next time. Nothing changes until a Sys-admin applies them.</span>
+                </label>
+                <Alert Message="@_error" />
+                <div class="flex flex-wrap gap-2">
+                    <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy" Disabled="@(string.IsNullOrWhiteSpace(_reason) || _busy)" data-testid="feedback-fix"><Icon Name="shield" /> Fix the descriptions</Button>
+                    <Button OnClick="() => _state = State.Ask" Disabled="_busy">Cancel</Button>
+                </div>
+            </form>
+            break;
+
+        case State.Review:
+            <div class="flex flex-col gap-3" data-testid="feedback-review">
+                @if (!string.IsNullOrWhiteSpace(_reply))
+                {
+                    <p class="text-sm text-ink dark:text-slate-100">@_reply</p>
+                }
+
+                @if (Count == 0)
+                {
+                    <p class="text-sm text-ink-soft" data-testid="feedback-empty">I could not find description changes that would fix this. Try rephrasing the question, or edit the descriptions in Knowledge Base Configuration.</p>
+                }
+                else
+                {
+                    <ul class="flex flex-col gap-1.5" aria-label="Proposed description changes">
+                        @foreach (var d in _proposal!.DatabaseDescriptions ?? [])
+                        {
+                            var key = $"db|{d.ConnectionId:N}|{d.Database}";
+                            <li>@Item(key, "Database", d.Database, d.Description, Was(d))</li>
+                        }
+
+                        @foreach (var t in _proposal!.TableDescriptions)
+                        {
+                            <li>@Item($"t|{t.TableId:N}", "Table", t.TableName, t.Description, WasTable(t.TableId))</li>
+                        }
+
+                        @foreach (var c in _proposal!.ColumnDescriptions)
+                        {
+                            <li>@Item($"c|{c.ColumnId:N}", "Column", $"{c.TableName}.{c.ColumnName}", c.Description, WasColumn(c.ColumnId))</li>
+                        }
+                    </ul>
+                }
+
+                <UsageNote Usage="_usage" />
+                <Alert Message="@_error" />
+                @if (Count > 0 && !_isAdmin)
+                {
+                    <p class="text-xs text-amber-800 dark:text-amber-200" data-testid="feedback-needs-admin">Only a Sys-admin can change descriptions. Send these suggestions to one.</p>
+                }
+
+                <div class="flex flex-wrap gap-2">
+                    @if (Count > 0 && _isAdmin)
+                    {
+                        <Button Variant="ButtonVariant.Primary" Busy="_busy" Disabled="@(_busy || Accepted == 0)" OnClick="ApplyAsync" data-testid="feedback-apply">Apply @Accepted change@(Accepted == 1 ? "" : "s") and update the graph</Button>
+                    }
+
+                    <Button OnClick="() => OnRetry.InvokeAsync()" Disabled="_busy" data-testid="feedback-retry-anyway">Retry anyway</Button>
+                    <Button OnClick="() => _state = State.Ask" Disabled="_busy">Close</Button>
+                </div>
+            </div>
+            break;
+
+        case State.Applied:
+            <div class="flex flex-col gap-2" data-testid="feedback-applied">
+                <p class="text-sm text-ink dark:text-slate-100" role="status">@_message</p>
+                <div><Button Variant="ButtonVariant.Primary" OnClick="() => OnRetry.InvokeAsync()" data-testid="feedback-retry"><Icon Name="sort" /> Retry this question</Button></div>
+            </div>
+            break;
+    }
+</section>
+
+@code {
+    private enum State
+    {
+        Ask,
+        Thanks,
+        Reason,
+        Review,
+        Applied,
+    }
+
+    private State _state;
+    private string _reason = "";
+    private string? _reply;
+    private string? _error;
+    private string? _message;
+    private bool _busy;
+    private bool _isAdmin;
+    private InsightFlow.Contracts.Agents.UsageDto? _usage;
+    private KnowledgeSuggestionsDto? _proposal;
+    private KnowledgeDefinitionsDto? _definitions;
+    private readonly HashSet<string> _skip = [];
+
+    /// <summary>The question that was asked and the SQL and tables of the answer being judged.</summary>
+    [Parameter, EditorRequired] public string Question { get; set; } = "";
+
+    [Parameter, EditorRequired] public string Sql { get; set; } = "";
+
+    [Parameter, EditorRequired] public IReadOnlyList<Guid> TableIds { get; set; } = [];
+
+    [Parameter] public IReadOnlyList<string> ResultColumns { get; set; } = [];
+
+    /// <summary>Asks the same question again (after the descriptions changed).</summary>
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    private int Count => _proposal is null ? 0 : (_proposal.DatabaseDescriptions?.Count ?? 0) + _proposal.TableDescriptions.Count + _proposal.ColumnDescriptions.Count;
+
+    private int Accepted => Count - _skip.Count;
+
+    private string? Was(DatabaseDescriptionSuggestionDto d) =>
+        _definitions?.Databases?.FirstOrDefault(x => x.ConnectionId == d.ConnectionId && string.Equals(x.Name, d.Database, StringComparison.OrdinalIgnoreCase))?.Description;
+
+    private string? WasTable(Guid id) => _definitions?.Tables.FirstOrDefault(t => t.Id == id)?.Description;
+
+    private string? WasColumn(Guid id) => _definitions?.Tables.SelectMany(t => t.Columns).FirstOrDefault(c => c.Id == id)?.Description;
+
+    private RenderFragment Item(string key, string kind, string name, string text, string? was) => __builder =>
+    {
+        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 text-sm transition hover:border-brand-300 hover:bg-mist dark:border-slate-700 dark:hover:bg-slate-800">
+            @if (_isAdmin)
+            {
+                <input type="checkbox" class="mt-1 size-4 accent-brand-600" checked="@(!_skip.Contains(key))" @onchange="e => Flip(key, (bool)e.Value!)" />
+            }
+
+            <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2"><span class="@UiStyles.Badge">@kind</span><strong class="truncate font-mono text-xs">@name</strong></span>
+                <span class="mt-1 block text-ink dark:text-slate-100">@text</span>
+                @if (!string.IsNullOrWhiteSpace(was) && was != text)
+                {
+                    <span class="mt-1 block text-xs text-ink-soft line-through decoration-ink-muted/60">@was</span>
+                }
+            </span>
+        </label>
+    };
+
+    private void Flip(string key, bool include) => _ = include ? _skip.Remove(key) : _skip.Add(key);
+
+    private async Task RightAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Knowledge.RecordQueryFeedbackAsync(new QueryFeedbackRequest(Question, Sql, Right: true, null), CancellationToken.None);
+            _state = State.Thanks;
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Records the verdict and the reason, then asks the AI which descriptions to change.</summary>
+    private async Task FixAsync()
+    {
+        var reason = _reason.Trim();
+        if (reason.Length == 0 || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Knowledge.RecordQueryFeedbackAsync(new QueryFeedbackRequest(Question, Sql, Right: false, reason), CancellationToken.None);
+            _isAdmin = (await Knowledge.GetMeAsync(CancellationToken.None)).Roles.Contains("TenantAdmin");
+            _definitions = _isAdmin ? await Knowledge.GetDefinitionsAsync(CancellationToken.None) : null;
+
+            var response = await Agents.FixQueryAsync(new QueryFixRequest(Question, Sql, TableIds, reason, ResultColumns), CancellationToken.None);
+            _reply = response.Reply;
+            _usage = response.Usage;
+            _proposal = response.Suggestions;
+            _skip.Clear();
+            _state = State.Review;
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// Saves the accepted descriptions, then pushes the graph: the graph is what finds the tables for a question, so it has to see the
+    /// new descriptions before the retry.
+    /// </summary>
+    private async Task ApplyAsync()
+    {
+        if (_proposal is null || _busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            var request = new ApplySuggestionsRequest(
+                [.. _proposal.TableDescriptions.Where(t => !_skip.Contains($"t|{t.TableId:N}"))],
+                [.. _proposal.ColumnDescriptions.Where(c => !_skip.Contains($"c|{c.ColumnId:N}"))],
+                [],
+                null,
+                [.. (_proposal.DatabaseDescriptions ?? []).Where(d => !_skip.Contains($"db|{d.ConnectionId:N}|{d.Database}"))]);
+            await Knowledge.ApplySuggestionsAsync(request, CancellationToken.None);
+
+            try
+            {
+                await Knowledge.PushAsync(CancellationToken.None);
+                _message = $"Updated {Accepted} description{(Accepted == 1 ? "" : "s")} and the knowledge graph. Retry the question now.";
+            }
+            catch (ServiceCallException ex)
+            {
+                _message = $"Updated {Accepted} description{(Accepted == 1 ? "" : "s")}, but the graph could not be updated ({ex.Message}). A retry may still find the same tables; push the graph in Knowledge Base Configuration.";
+            }
+
+            _state = State.Applied;
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,6 +1,6 @@
 @if (!string.IsNullOrEmpty(Message))
 {
-    <div role="alert" class="flex items-start gap-2 rounded-md px-3 py-2 text-sm @(Error ? "bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100")">
+    <div role="alert" class="flex items-start gap-2 rounded-control border px-3 py-2 text-sm @(Error ? "border-danger/30 bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "border-brand-200 bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100")">
         <span class="flex-1">@Message</span>
         @if (OnDismiss.HasDelegate)
         {

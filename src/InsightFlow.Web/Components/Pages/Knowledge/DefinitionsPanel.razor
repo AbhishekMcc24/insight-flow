@@ -1,0 +1,544 @@
+@inject KnowledgeApiClient Knowledge
+@* Step 3: describe tables and columns. Tables that mirror a database or dataset keep their structure (this application never changes
+   a source): you edit descriptions only. Tables you add by hand are fully editable. AI can draft descriptions; nothing is stored until
+   you accept it. Relationships are built in step 4. *@
+
+<section class="if-card overflow-hidden" aria-labelledby="defs-heading">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+        <span class="grid size-10 place-items-center rounded-xl bg-brand-600 text-white shadow-card"><Icon Name="menu" Class="size-5" /></span>
+        <div class="min-w-0 flex-1">
+            <h2 id="defs-heading" class="text-lg font-bold text-ink dark:text-slate-100">Describe your databases, tables and columns</h2>
+            <p class="text-sm text-ink-soft">Start with the database, then its tables, then their columns. Plain business language helps people and AI find the right data later.</p>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-ink-soft"><input type="checkbox" class="size-4 accent-brand-600" @bind="_onlyMissing" /> Only fill missing</label>
+        <Button OnClick="() => _assistantOpen = true" Disabled="@(Definitions.Tables.Count == 0 || _busy != Busy.None)"><Icon Name="shield" /> Describe with AI</Button>
+        <Button Variant="ButtonVariant.Primary" OnClick="NewTable"><Icon Name="plus" /> New table</Button>
+    </header>
+
+    <div class="px-5 pt-4"><Alert Message="@_error" /><Alert Message="@_notice" Error="false" OnDismiss="() => _notice = null" /></div>
+
+    @if (Definitions.Tables.Count == 0 && _edit is null)
+    {
+        <div class="grid place-items-center px-6 py-16 text-center">
+            <span class="mb-4 grid size-16 place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-slate-800" aria-hidden="true"><Icon Name="dataset" Class="size-8" /></span>
+            <h3 class="text-base font-bold text-ink dark:text-slate-100">No tables yet</h3>
+            <p class="mt-1 max-w-sm text-sm text-ink-soft">Import tables from a database in step 2, or add one by hand with “New table”.</p>
+        </div>
+    }
+    else
+    {
+        <div class="grid gap-0 lg:grid-cols-[19rem_minmax(0,1fr)]">
+            @* ── Table list ── *@
+            <aside class="border-b border-line lg:border-r lg:border-b-0 dark:border-slate-800" aria-label="Tables">
+                <label class="relative block border-b border-line p-3 dark:border-slate-800">
+                    <span class="sr-only">Search tables</span>
+                    <span class="pointer-events-none absolute inset-y-0 left-6 flex items-center text-ink-muted"><Icon Name="search" Class="size-4" /></span>
+                    <input type="search" class="@UiStyles.Input pl-9" placeholder="Search tables…" @bind="_filter" @bind:event="oninput" />
+                </label>
+@if (_removeSet.Count > 0)                {                    <div class="flex flex-wrap items-center gap-2 border-b border-line bg-red-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-red-950/30" role="status" data-testid="selection-bar">                        <span class="font-medium text-red-900 dark:text-red-100">@_removeSet.Count selected</span>                        <button type="button" class="text-xs font-medium text-ink-soft underline hover:text-brand-700" @onclick="_removeSet.Clear">Clear</button>                        <span class="ml-auto"><Button Small="true" Variant="ButtonVariant.Danger" OnClick="RemoveSelected"><Icon Name="trash" Class="size-4" /> Remove @_removeSet.Count</Button></span>                    </div>                }
+                <div class="max-h-[34rem] overflow-auto p-2" data-testid="knowledge-tables">
+                    @foreach (var g in Groups)
+                    {
+                        <section class="mb-3" aria-label="@(g.Db?.Name ?? "Other tables")">
+                            @if (g.Db is { } db)
+                            {
+                                var dbSelected = _editDb is { } open && open.ConnectionId == db.ConnectionId && string.Equals(open.Name, db.Name, StringComparison.OrdinalIgnoreCase);
+                                <button type="button" data-testid="database-row" aria-current="@(dbSelected ? "true" : null)" @onclick="() => SelectDatabase(db)"
+                                        class="@($"flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition {(dbSelected ? "bg-brand-100 shadow-card dark:bg-brand-900/40" : "hover:bg-mist dark:hover:bg-slate-800")}")">
+                                    <span class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-brand-600 text-white" aria-hidden="true"><Icon Name="dataset" Class="size-4" /></span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-sm font-bold text-ink dark:text-slate-100">@db.Name</span>
+                                        <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-soft">
+                                            <span>@(db.ConnectionName ?? "Database")</span>
+                                            <span aria-hidden="true">·</span>
+                                            <span>@db.TableCount table@(db.TableCount == 1 ? "" : "s")</span>
+                                            @if (string.IsNullOrWhiteSpace(db.Description))
+                                            {
+                                                <span class="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span> needs description</span>
+                                            }
+                                        </span>
+                                    </span>
+                                </button>
+                            }
+                            else
+                            {
+                                <p class="px-3 py-2 text-xs font-bold tracking-wider text-ink-soft uppercase">Other tables</p>
+                            }
+
+                            <ul class="ml-5 border-l-2 border-brand-100 pl-1 dark:border-slate-700">
+                                @foreach (var t in g.Tables)
+                                {
+                                    var selected = _edit?.Id == t.Id;
+                                    <li class="flex items-start gap-1">
+                                        <label class="grid size-10 shrink-0 cursor-pointer place-items-center" title="Select @t.DisplayName">
+                                            <span class="sr-only">Select @t.DisplayName</span>
+                                            <input type="checkbox" class="size-4 accent-brand-600" checked="@_removeSet.Contains(t.Id)" @onchange="e => ToggleRemove(t.Id, (bool)e.Value!)" />
+                                        </label>
+                                        <button type="button" aria-current="@(selected ? "true" : null)" @onclick="() => Select(t)"
+                                                class="@($"flex min-w-0 flex-1 items-start gap-3 rounded-xl px-3 py-2 text-left transition {(selected ? "bg-brand-100 shadow-card dark:bg-brand-900/40" : "hover:bg-mist dark:hover:bg-slate-800")}")">
+                                            <span class="@($"mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg {(t.StructureLocked ? "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200")}")" aria-hidden="true">
+                                                <Icon Name="@(t.StructureLocked ? "dataset" : "edit")" Class="size-3.5" />
+                                            </span>
+                                            <span class="min-w-0 flex-1">
+                                                <span class="block truncate text-sm font-semibold text-ink dark:text-slate-100">@TableLabel(t)</span>
+                                                <span class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-soft">
+                                                    <span>@t.Columns.Count columns</span>
+                                                    @if (string.IsNullOrWhiteSpace(t.Description))
+                                                    {
+                                                        <span class="inline-flex items-center gap-1 font-medium text-amber-700 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span> needs description</span>
+                                                    }
+                                                </span>
+                                            </span>
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                    @if (!Shown.Any())
+                    {
+                        <p class="p-6 text-center text-sm text-ink-soft">No tables match “@_filter”.</p>
+                    }
+                </div>
+            </aside>
+
+            @* ── Editor ── *@
+            <div class="min-w-0 p-5">
+                @if (_editDb is { } dbEdit)
+                {
+                    <form @onsubmit="SaveDatabaseAsync" @onsubmit:preventDefault="true" class="flex flex-col gap-5" data-testid="database-editor">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-600 text-white shadow-card" aria-hidden="true"><Icon Name="dataset" Class="size-6" /></span>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-xs font-semibold tracking-wider text-ink-soft uppercase">Database</p>
+                                <h3 class="truncate text-xl font-extrabold text-ink dark:text-slate-100">@dbEdit.Name</h3>
+                                <p class="mt-1 text-xs text-ink-soft">@(dbEdit.ConnectionName ?? "No connection") · @dbEdit.TableCount table@(dbEdit.TableCount == 1 ? "" : "s") in the knowledge base</p>
+                            </div>
+                        </div>
+
+                        <Alert Message="@_formError" />
+
+                        <label>
+                            <span class="@UiStyles.Label">What this database holds</span>
+                            <textarea class="@UiStyles.Input leading-relaxed" rows="3" @bind="dbEdit.Description" maxlength="1000" placeholder="e.g. Order-to-cash data: customers, invoices, payments and outstanding balances."></textarea>
+                            <span class="mt-1 block text-xs text-ink-soft">Descriptions start here, then go to each table and its columns. It helps a question find the right database first.</span>
+                        </label>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy == Busy.Saving">Save description</Button>
+                        </div>
+
+                        <div class="overflow-hidden rounded-2xl border border-line dark:border-slate-700">
+                            <p class="border-b border-line bg-brand-50 px-4 py-2.5 text-xs font-bold tracking-wider text-ink-soft uppercase dark:border-slate-700 dark:bg-slate-800">Next: describe its tables</p>
+                            <ul class="divide-y divide-line dark:divide-slate-800" data-testid="database-tables">
+                                @foreach (var t in TablesOf(dbEdit))
+                                {
+                                    <li>
+                                        <button type="button" class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-mist dark:hover:bg-slate-800" @onclick="() => Select(t)">
+                                            <span class="min-w-0 flex-1 truncate font-semibold text-ink dark:text-slate-100">@TableLabel(t)</span>
+                                            <span class="text-xs text-ink-soft">@t.Columns.Count columns</span>
+                                            @if (string.IsNullOrWhiteSpace(t.Description))
+                                            {
+                                                <span class="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span> needs description</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-xs font-medium text-success">described</span>
+                                            }
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </form>
+                }
+                else if (_edit is null)
+                {
+                    <div class="grid h-full min-h-64 place-items-center rounded-2xl border border-dashed border-line p-8 text-center">
+                        <div>
+                            <p class="text-sm font-semibold text-ink dark:text-slate-100">Select a table to describe it</p>
+                            <p class="mt-1 text-sm text-ink-soft">Choose one on the left, or add a new one.</p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form @onsubmit="SaveTableAsync" @onsubmit:preventDefault="true" class="flex flex-col gap-5" data-testid="table-editor">
+                        <div class="flex flex-wrap items-start gap-3">
+                            <div class="min-w-0 flex-1">
+                                <h3 class="truncate text-xl font-extrabold text-ink dark:text-slate-100">@(_edit.Id is null ? "New table" : _edit.DisplayName)</h3>
+                                <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
+                                    <span class="@UiStyles.Badge">@_edit.Source</span>
+                                    @if (_edit.Locked)
+                                    {
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200" title="Names, types and keys come from the source and can't be changed here"><Icon Name="lock" Class="size-3.5" /> Structure locked</span>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+
+                        @if (_edit.Locked)
+                        {
+                            <div class="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100" role="note">
+                                <Icon Name="shield" Class="mt-0.5 size-5 shrink-0" />
+                                <p>This table mirrors its source, so its columns and types can't be added to or changed here, and your database is never modified. Edit the descriptions below. To drop this table from the knowledge base use <strong>Remove table</strong> below; to drop single columns use the <strong>Relationships</strong> step.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="grid gap-4 sm:grid-cols-3">
+                                <label>
+                                    <span class="@UiStyles.Label">Schema (optional)</span>
+                                    <input class="@UiStyles.Input" @bind="_edit.SchemaName" maxlength="128" />
+                                </label>
+                                <label class="sm:col-span-2">
+                                    <span class="@UiStyles.Label">Table name</span>
+                                    <input class="@UiStyles.Input" @bind="_edit.Name" required maxlength="200" />
+                                </label>
+                            </div>
+                        }
+
+                        <Alert Message="@_formError" />
+
+                        <label>
+                            <span class="@UiStyles.Label">What this table represents</span>
+                            <textarea class="@UiStyles.Input leading-relaxed" rows="3" @bind="_edit.Description" maxlength="1000" placeholder="e.g. One row per customer order, including its channel and total."></textarea>
+                        </label>
+
+                        <div class="overflow-hidden rounded-2xl border border-line dark:border-slate-700">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full text-sm" data-testid="column-editor">
+                                    <thead class="bg-brand-50 dark:bg-slate-800">
+                                        <tr>
+                                            <th scope="col" class="@UiStyles.TableHead">Column</th>
+                                            <th scope="col" class="@UiStyles.TableHead">Type</th>
+                                            <th scope="col" class="@UiStyles.TableHead w-1/2">Description</th>
+                                            <th scope="col" class="@UiStyles.TableHead">Key</th>
+                                            @if (!_edit.Locked)
+                                            {
+                                                <th scope="col" class="@UiStyles.TableHead"><span class="sr-only">Remove</span></th>
+                                            }
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-line dark:divide-slate-800">
+                                        @foreach (var c in _edit.Columns)
+                                        {
+                                            <tr class="align-top transition-colors hover:bg-mist/60 dark:hover:bg-slate-800/40">
+                                                @if (_edit.Locked)
+                                                {
+                                                    <td class="@UiStyles.TableCell font-mono text-[13px] @(c.IsPrimaryKey ? "font-semibold" : "")">@c.Name</td>
+                                                    <td class="@UiStyles.TableCell"><DataTypeChip Type="@c.DataType" /></td>
+                                                }
+                                                else
+                                                {
+                                                    <td class="px-2 py-2"><input class="@UiStyles.Input font-mono text-xs" @bind="c.Name" aria-label="Column name" required maxlength="200" /></td>
+                                                    <td class="px-2 py-2"><input class="@UiStyles.Input text-xs" @bind="c.DataType" aria-label="Data type" maxlength="100" /></td>
+                                                }
+                                                <td class="px-2 py-2"><input class="@UiStyles.Input" @bind="c.Description" aria-label="@($"Description of {c.Name}")" maxlength="1000" placeholder="What the value means" /></td>
+                                                <td class="@UiStyles.TableCell">
+                                                    @if (_edit.Locked)
+                                                    {
+                                                        @if (c.IsPrimaryKey)
+                                                        {
+                                                            <span class="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"><Icon Name="key" Class="size-3.5" /> PK</span>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <input type="checkbox" class="size-4 accent-brand-600" @bind="c.IsPrimaryKey" aria-label="@($"{c.Name} is a primary key")" />
+                                                    }
+                                                </td>
+                                                @if (!_edit.Locked)
+                                                {
+                                                    <td class="px-2 py-2 text-right">
+                                                        <button type="button" class="rounded-control p-1.5 text-ink-soft hover:bg-mist hover:text-danger" aria-label="@($"Remove column {c.Name}")" @onclick="() => _edit.Columns.Remove(c)"><Icon Name="trash" /></button>
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            @if (!_edit.Locked)
+                            {
+                                <Button OnClick="AddColumn"><Icon Name="plus" /> Add column</Button>
+                            }
+                            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy == Busy.Saving">@(_edit.Locked ? "Save descriptions" : "Save table")</Button>
+                            @if (_edit.Id is not null)
+                            {
+                                <Button Variant="ButtonVariant.Danger" OnClick="RemoveCurrent"><Icon Name="trash" /> Remove table</Button>
+                            }
+                        </div>
+                    </form>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+
+<AssistantPanel Mode="descriptions" @bind-Open="_assistantOpen" Definitions="Definitions" OnlyMissing="_onlyMissing" OnApplied="OnAssistantAppliedAsync" />
+
+<RemoveTablesDialog Tables="_removing" Definitions="Definitions" Open="_removing.Count > 0" OpenChanged="v => { if (!v) _removing = []; }" Busy="_busy == Busy.Saving" OnConfirm="ConfirmRemoveAsync" />
+
+@code {
+    private enum Busy
+    {
+        None,
+        Saving,
+        Suggesting,
+        Applying,
+    }
+
+    /// <summary>The form's working copy of a table; columns are edited in place and sent back whole on save.</summary>
+    private sealed class EditTable
+    {
+        public Guid? Id { get; set; }
+        public string Source { get; set; } = "Manual";
+        public bool Locked { get; set; }
+        public string? SchemaName { get; set; }
+        public string Name { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string? Description { get; set; }
+        public List<EditColumn> Columns { get; set; } = [];
+    }
+
+    private sealed class EditColumn
+    {
+        public Guid? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string DataType { get; set; } = "varchar";
+        public string? Description { get; set; }
+        public bool IsPrimaryKey { get; set; }
+        public bool IsNullable { get; set; } = true;
+    }
+
+    /// <summary>The form's working copy of a database description.</summary>
+    private sealed class EditDb
+    {
+        public Guid? ConnectionId { get; set; }
+        public string Name { get; set; } = "";
+        public string? ConnectionName { get; set; }
+        public string? Description { get; set; }
+        public int TableCount { get; set; }
+    }
+
+    private EditDb? _editDb;
+
+    /// <summary>The tables on screen, grouped by the database they live in (tables with no database go in a last group).</summary>
+    private IEnumerable<(KnowledgeDatabaseDto? Db, List<KnowledgeTableDto> Tables)> Groups
+    {
+        get
+        {
+            var shown = Shown.ToList();
+            var byDatabase = shown.Where(t => !string.IsNullOrEmpty(t.DatabaseName)).GroupBy(t => (t.ConnectionId, Name: t.DatabaseName!));
+            var known = Definitions.Databases ?? [];
+            foreach (var g in byDatabase.OrderBy(g => g.Key.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var db = known.FirstOrDefault(d => d.ConnectionId == g.Key.ConnectionId && string.Equals(d.Name, g.Key.Name, StringComparison.OrdinalIgnoreCase))
+                    ?? new KnowledgeDatabaseDto(g.Key.ConnectionId, g.First().ConnectionName, g.Key.Name, null, g.Count());
+                yield return (db, [.. g]);
+            }
+
+            var loose = shown.Where(t => string.IsNullOrEmpty(t.DatabaseName)).ToList();
+            if (loose.Count > 0)
+            {
+                yield return (null, loose);
+            }
+        }
+    }
+
+    private IEnumerable<KnowledgeTableDto> TablesOf(EditDb db) =>
+        Definitions.Tables.Where(t => t.ConnectionId == db.ConnectionId && string.Equals(t.DatabaseName, db.Name, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>A table's name under its database: schema and name, without the database part.</summary>
+    private static string TableLabel(KnowledgeTableDto t) => string.IsNullOrEmpty(t.SchemaName) ? t.Name : $"{t.SchemaName}.{t.Name}";
+
+    private void SelectDatabase(KnowledgeDatabaseDto db)
+    {
+        _formError = null;
+        _edit = null;
+        _editDb = new EditDb { ConnectionId = db.ConnectionId, Name = db.Name, ConnectionName = db.ConnectionName, Description = db.Description, TableCount = db.TableCount };
+    }
+
+    private async Task SaveDatabaseAsync()
+    {
+        if (_editDb is not { } edit)
+        {
+            return;
+        }
+
+        _busy = Busy.Saving;
+        _formError = null;
+        try
+        {
+            await Knowledge.SaveDatabaseDescriptionAsync(new SaveDatabaseDescriptionRequest(edit.ConnectionId, edit.Name, edit.Description), CancellationToken.None);
+            _notice = $"Description of “{edit.Name}” saved.";
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _busy = Busy.None;
+        }
+    }
+
+    private EditTable? _edit;
+    private Busy _busy;
+    private string? _error;
+    private string? _notice;
+    private string? _formError;
+    private string _filter = "";
+    private bool _onlyMissing = true;
+    private IReadOnlyList<KnowledgeTableDto> _removing = [];
+    private readonly HashSet<Guid> _removeSet = [];
+    private bool _assistantOpen;
+
+    [Parameter, EditorRequired] public KnowledgeDefinitionsDto Definitions { get; set; } = default!;
+
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private IEnumerable<KnowledgeTableDto> Shown =>
+        Definitions.Tables.Where(t => _filter.Trim().Length == 0 || t.DisplayName.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase));
+
+
+    private void Select(KnowledgeTableDto t)
+    {
+        _formError = null;
+        _editDb = null;
+        _edit = new EditTable
+        {
+            Id = t.Id,
+            Source = t.Source,
+            Locked = t.StructureLocked,
+            SchemaName = t.SchemaName,
+            Name = t.Name,
+            DisplayName = t.DisplayName,
+            Description = t.Description,
+            Columns = t.Columns.Select(c => new EditColumn { Id = c.Id, Name = c.Name, DataType = c.DataType, Description = c.Description, IsPrimaryKey = c.IsPrimaryKey, IsNullable = c.IsNullable }).ToList(),
+        };
+    }
+
+    private void NewTable()
+    {
+        _formError = null;
+        _editDb = null;
+        _edit = new EditTable { Columns = [new EditColumn { Name = "id", DataType = "int", IsPrimaryKey = true, IsNullable = false }] };
+    }
+
+    private void AddColumn()
+    {
+        if (_edit is { Locked: false })
+        {
+            _edit.Columns.Add(new EditColumn());
+        }
+    }
+
+    private async Task SaveTableAsync()
+    {
+        if (_edit is null)
+        {
+            return;
+        }
+
+        _busy = Busy.Saving;
+        _formError = null;
+        try
+        {
+            var request = new SaveKnowledgeTableRequest(
+                _edit.SchemaName,
+                _edit.Name,
+                _edit.Description,
+                _edit.Columns.Select(c => new SaveKnowledgeColumnRequest(c.Id, c.Name, c.DataType, c.Description, c.IsPrimaryKey, c.IsNullable)).ToList());
+            var saved = _edit.Id is { } id
+                ? await Knowledge.UpdateTableAsync(id, request, CancellationToken.None)
+                : await Knowledge.CreateTableAsync(request, CancellationToken.None);
+            _notice = $"“{saved.DisplayName}” saved.";
+            await OnChanged.InvokeAsync();
+            Select(saved);
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _busy = Busy.None;
+        }
+    }
+
+
+    private void ToggleRemove(Guid id, bool on) => _ = on ? _removeSet.Add(id) : _removeSet.Remove(id);
+
+    private void RemoveSelected() =>
+        _removing = [.. Definitions.Tables.Where(t => _removeSet.Contains(t.Id))];
+
+    private void RemoveCurrent()
+    {
+        if (_edit?.Id is { } id && Definitions.Tables.FirstOrDefault(t => t.Id == id) is { } table)
+        {
+            _removing = [table];
+        }
+    }
+
+    private async Task ConfirmRemoveAsync()
+    {
+        if (_removing.Count == 0)
+        {
+            return;
+        }
+
+        _busy = Busy.Saving;
+        _error = null;
+        try
+        {
+            var ids = _removing.Select(t => t.Id).ToList();
+            var result = await Knowledge.RemoveTablesAsync(ids, CancellationToken.None);
+            _notice = $"Removed {result.Tables} table{(result.Tables == 1 ? "" : "s")}, {result.Columns} columns"
+                + (result.Relationships > 0 ? $" and {result.Relationships} relationship{(result.Relationships == 1 ? "" : "s")}." : ".");
+            if (_edit?.Id is { } open && ids.Contains(open))
+            {
+                _edit = null;
+            }
+
+            foreach (var id in ids)
+            {
+                _removeSet.Remove(id);
+            }
+
+            _removing = [];
+            await OnChanged.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _removing = [];
+        }
+        finally
+        {
+            _busy = Busy.None;
+        }
+    }
+
+    private async Task OnAssistantAppliedAsync()
+    {
+        var openId = _edit?.Id;
+        _notice = "Your accepted changes were saved.";
+        await OnChanged.InvokeAsync();
+        if (_editDb is { } openDb && Definitions.Databases?.FirstOrDefault(d => d.ConnectionId == openDb.ConnectionId && string.Equals(d.Name, openDb.Name, StringComparison.OrdinalIgnoreCase)) is { } freshDb)
+        {
+            SelectDatabase(freshDb);
+        }
+
+        if (openId is { } id && Definitions.Tables.FirstOrDefault(t => t.Id == id) is { } refreshed)
+        {
+            Select(refreshed);
+        }
+    }
+}

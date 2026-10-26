@@ -1,0 +1,112 @@
+@implements IDisposable
+@inject NavigationState Navigation
+@* Left side panel built from the user's menu (Menu Master + User Form Access): groups, icons and order all come from data. *@
+
+<nav aria-label="Main menu" class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
+    @if (Navigation.Items is null)
+    {
+        <div class="flex justify-center p-4 text-brand-500"><Spinner /></div>
+    }
+    else if (Navigation.Items.Count == 0)
+    {
+        <p class="@HideWhenCollapsed px-2 py-3 text-sm text-ink-soft">No menu has been assigned to you yet. Ask a Sys-admin for access.</p>
+    }
+    else
+    {
+        @foreach (var root in Children(null))
+        {
+            @RenderNode(root, 0)
+        }
+    }
+    @if (Navigation.Error is not null)
+    {
+        <p class="@HideWhenCollapsed px-2 text-xs text-danger" role="alert">@Navigation.Error</p>
+    }
+</nav>
+
+@code {
+    private readonly HashSet<Guid> _collapsedGroups = [];
+
+    [Parameter] public bool Collapsed { get; set; }
+
+    [Parameter] public EventCallback OnNavigate { get; set; }
+
+    private string HideWhenCollapsed => Collapsed ? "md:hidden" : "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.Changed += OnChanged;
+        if (Navigation.Items is null)
+        {
+            await Navigation.RefreshAsync(CancellationToken.None);
+        }
+    }
+
+    public void Dispose() => Navigation.Changed -= OnChanged;
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private IEnumerable<MenuItemDto> Children(Guid? parentId)
+    {
+        var all = Navigation.Items ?? [];
+        var ids = all.Select(m => m.Id).ToHashSet();
+        // An entry whose parent is hidden/inactive is shown at the top level so it never disappears.
+        return all
+            .Where(m => parentId is null ? m.ParentId is null || !ids.Contains(m.ParentId.Value) : m.ParentId == parentId)
+            .OrderBy(m => m.Sequence)
+            .ThenBy(m => m.Name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private RenderFragment RenderNode(MenuItemDto item, int depth) => __builder =>
+    {
+        var children = Children(item.Id).ToList();
+        var indent = depth > 0 && !Collapsed ? "ml-4 border-l border-line pl-2" : "";
+
+        if (item.Route is null)
+        {
+            var open = !_collapsedGroups.Contains(item.Id);
+            <button type="button" aria-expanded="@UiStyles.Aria(open)"
+                    class="flex w-full items-center gap-3 rounded-control px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-soft hover:bg-mist hover:text-brand-700"
+                    title="@item.Name" @onclick="() => ToggleGroup(item.Id)">
+                <Icon Name="@(item.Icon ?? "squares")" Class="size-5" />
+                <span class="@HideWhenCollapsed flex-1 truncate">@item.Name</span>
+                <Icon Name="chevron-down" Class="@($"{HideWhenCollapsed} transition-transform {(open ? "" : "-rotate-90")}")" />
+            </button>
+            @if (open || Collapsed)
+            {
+                <div class="@indent flex flex-col gap-1">
+                    @foreach (var child in children)
+                    {
+                        @RenderNode(child, depth + 1)
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <NavLink href="@item.Route.TrimStart('/')" Match="@(item.Route == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)"
+                     class="group flex items-center gap-3 rounded-control px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-mist hover:text-brand-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                     ActiveClass="bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200" title="@item.Name" @onclick="OnNavigate">
+                <Icon Name="@(item.Icon ?? "file")" Class="size-5" />
+                <span class="@HideWhenCollapsed truncate">@item.Name</span>
+            </NavLink>
+            @if (children.Count > 0)
+            {
+                <div class="@indent flex flex-col gap-1">
+                    @foreach (var child in children)
+                    {
+                        @RenderNode(child, depth + 1)
+                    }
+                </div>
+            }
+        }
+    };
+
+    private void ToggleGroup(Guid id)
+    {
+        if (!_collapsedGroups.Remove(id))
+        {
+            _collapsedGroups.Add(id);
+        }
+    }
+}

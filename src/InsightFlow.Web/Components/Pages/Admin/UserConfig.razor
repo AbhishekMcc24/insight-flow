@@ -1,0 +1,275 @@
+@page "/admin/users"
+@using System.Security.Cryptography
+@inject AdminApiClient Admin
+@* User Config (Sys-admin only): create users, change role/status, create or reset passwords. The server enforces the role. *@
+
+<PageTitle>User Config · Insight Flow</PageTitle>
+
+<div class="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+    <div class="flex flex-wrap items-center gap-3">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-2xl font-semibold tracking-tight text-ink dark:text-slate-100">User Config</h1>
+            <p class="mt-1 text-sm text-ink-soft">Create users, assign a role (Viewer, Editor or Sys-admin) and set passwords.</p>
+        </div>
+        <Button Variant="ButtonVariant.Primary" OnClick="OpenCreate"><Icon Name="plus" /> New user</Button>
+    </div>
+
+    <div class="mt-4 flex flex-col gap-2">
+        <Alert Message="@_error" />
+        <Alert Message="@_notice" Error="false" OnDismiss="() => _notice = null" />
+    </div>
+
+    <div class="if-card mt-4 overflow-hidden">
+        @if (_users is null)
+        {
+            <div class="flex justify-center p-8 text-brand-500"><Spinner /></div>
+        }
+        else if (_users.Count == 0)
+        {
+            <EmptyState Title="No users yet">Create the first user with “New user”.</EmptyState>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm" data-testid="user-table">
+                    <thead class="bg-brand-50 dark:bg-slate-800">
+                        <tr>
+                            <th scope="col" class="@UiStyles.TableHead">Name</th>
+                            <th scope="col" class="@UiStyles.TableHead">User name</th>
+                            <th scope="col" class="@UiStyles.TableHead">Role</th>
+                            <th scope="col" class="@UiStyles.TableHead">Status</th>
+                            <th scope="col" class="@UiStyles.TableHead">Password</th>
+                            <th scope="col" class="@UiStyles.TableHead text-right"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-line dark:divide-slate-800">
+                        @foreach (var user in _users)
+                        {
+                            <tr class="hover:bg-brand-50/60 dark:hover:bg-slate-800/40">
+                                <td class="@UiStyles.TableCell">
+                                    <div class="font-medium text-ink dark:text-slate-100">@user.DisplayName</div>
+                                    @if (user.Email is not null)
+                                    {
+                                        <div class="text-xs text-ink-soft">@user.Email</div>
+                                    }
+                                </td>
+                                <td class="@UiStyles.TableCell font-mono text-xs">@user.UserName</td>
+                                <td class="@UiStyles.TableCell"><span class="@UiStyles.Badge">@UserRoleNames.Display(user.Role)</span></td>
+                                <td class="@UiStyles.TableCell">
+                                    @if (user.IsActive)
+                                    {
+                                        <span class="font-medium text-success">● Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-ink-soft">○ Inactive</span>
+                                    }
+                                </td>
+                                <td class="@UiStyles.TableCell text-ink-soft">@(user.HasPassword ? "Set" : "Not set")</td>
+                                <td class="@UiStyles.TableCell text-right whitespace-nowrap">
+                                    <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => OpenEdit(user)" aria-label="@($"Edit {user.DisplayName}")"><Icon Name="edit" /> Edit</Button>
+                                    <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="() => OpenPassword(user)" aria-label="@($"Set password for {user.DisplayName}")"><Icon Name="lock" /> Password</Button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<Modal Title="@(_editing is null ? "New user" : "Edit user")" @bind-Open="_formOpen">
+    <form class="flex flex-col gap-4" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" autocomplete="off">
+        <Alert Message="@_formError" />
+        <label>
+            <span class="@UiStyles.Label">User name</span>
+            <input class="@UiStyles.Input" @bind="_userName" disabled="@(_editing is not null)" required maxlength="100" autocomplete="off" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Display name</span>
+            <input class="@UiStyles.Input" @bind="_displayName" required maxlength="200" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Email (optional)</span>
+            <input type="email" class="@UiStyles.Input" @bind="_email" maxlength="256" />
+        </label>
+        <label>
+            <span class="@UiStyles.Label">Role</span>
+            <select class="@UiStyles.Input" @bind="_role">
+                @foreach (var role in UserRoleNames.All)
+                {
+                    <option value="@role">@UserRoleNames.Display(role)</option>
+                }
+            </select>
+        </label>
+        @if (_editing is not null)
+        {
+            <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="size-4 accent-brand-600" @bind="_isActive" />
+                <span>Active (inactive users cannot see any menu)</span>
+            </label>
+        }
+        else
+        {
+            <div>
+                <label for="new-user-password" class="@UiStyles.Label">Password</label>
+                <div class="flex gap-2">
+                    <input id="new-user-password" type="@(_showPassword ? "text" : "password")" class="@UiStyles.Input" @bind="_password" @bind:event="oninput" minlength="8" maxlength="128" autocomplete="new-password" required />
+                    <Button OnClick="GeneratePassword">Generate</Button>
+                </div>
+                <PasswordHint Shown="_showPassword" OnToggle="() => _showPassword = !_showPassword" />
+            </div>
+        }
+        <div class="flex justify-end gap-2 pt-2">
+            <Button OnClick="() => _formOpen = false">Cancel</Button>
+            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy">Save</Button>
+        </div>
+    </form>
+</Modal>
+
+<Modal Title="@($"Set password for {_passwordUser?.DisplayName}")" @bind-Open="_passwordOpen">
+    <form class="flex flex-col gap-4" @onsubmit="SavePasswordAsync" @onsubmit:preventDefault="true" autocomplete="off">
+        <Alert Message="@_formError" />
+        <div>
+            <label for="reset-password" class="@UiStyles.Label">New password</label>
+            <div class="flex gap-2">
+                <input id="reset-password" type="@(_showPassword ? "text" : "password")" class="@UiStyles.Input" @bind="_password" @bind:event="oninput" minlength="8" maxlength="128" autocomplete="new-password" required />
+                <Button OnClick="GeneratePassword">Generate</Button>
+            </div>
+            <PasswordHint Shown="_showPassword" OnToggle="() => _showPassword = !_showPassword" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+            <Button OnClick="() => _passwordOpen = false">Cancel</Button>
+            <Button Type="submit" Variant="ButtonVariant.Primary" Busy="_busy">Save password</Button>
+        </div>
+    </form>
+</Modal>
+
+@code {
+    private IReadOnlyList<UserDto>? _users;
+    private string? _error;
+    private string? _notice;
+    private string? _formError;
+    private bool _busy;
+    private bool _formOpen;
+    private bool _passwordOpen;
+    private bool _showPassword;
+    private UserDto? _editing;
+    private UserDto? _passwordUser;
+    private string _userName = "";
+    private string _displayName = "";
+    private string _email = "";
+    private string _role = UserRoleNames.Viewer;
+    private bool _isActive = true;
+    private string _password = "";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _users = await Admin.ListUsersAsync(CancellationToken.None);
+            _error = null;
+        }
+        catch (ServiceCallException ex)
+        {
+            _users ??= [];
+            _error = ex.Message;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        _editing = null;
+        (_userName, _displayName, _email, _role, _isActive, _password) = ("", "", "", UserRoleNames.Viewer, true, "");
+        _showPassword = false;
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void OpenEdit(UserDto user)
+    {
+        _editing = user;
+        (_userName, _displayName, _email, _role, _isActive, _password) = (user.UserName, user.DisplayName, user.Email ?? "", user.Role, user.IsActive, "");
+        _formError = null;
+        _formOpen = true;
+    }
+
+    private void OpenPassword(UserDto user)
+    {
+        _passwordUser = user;
+        _password = "";
+        _showPassword = false;
+        _formError = null;
+        _passwordOpen = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _formError = null;
+        try
+        {
+            if (_editing is null)
+            {
+                await Admin.CreateUserAsync(new CreateUserRequest(_userName, _displayName, _email, _role, _password), CancellationToken.None);
+                _notice = $"User “{_displayName}” was created.";
+            }
+            else
+            {
+                await Admin.UpdateUserAsync(_editing.Id, new UpdateUserRequest(_displayName, _email, _role, _isActive), CancellationToken.None);
+                _notice = $"User “{_displayName}” was updated.";
+            }
+
+            _password = "";
+            _formOpen = false;
+            await LoadAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SavePasswordAsync()
+    {
+        _busy = true;
+        _formError = null;
+        try
+        {
+            await Admin.SetPasswordAsync(_passwordUser!.Id, _password, CancellationToken.None);
+            _notice = $"Password for “{_passwordUser.DisplayName}” was saved.";
+            _password = "";
+            _passwordOpen = false;
+            await LoadAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _formError = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Fills a random 14-character password and reveals it so the admin can pass it on.</summary>
+    private void GeneratePassword()
+    {
+        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+        _password = string.Create(14, alphabet, static (span, chars) =>
+        {
+            for (var i = 0; i < span.Length; i++)
+            {
+                span[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
+            }
+        });
+        _showPassword = true;
+    }
+}

@@ -18,7 +18,7 @@
         }
         else if (_mode == Mode.ConfirmDelete)
         {
-            <span class="flex-1 truncate text-xs">Delete “@SelectedName”?</span>
+            <span class="flex-1 text-xs">Delete “@SelectedName”@(_selectedItem is null ? " and everything in it" : "")? The uploaded files are removed from this machine.</span>
             <Button Small="true" Variant="ButtonVariant.Danger" Busy="_busy" OnClick="DeleteAsync">Delete</Button>
             <Button Small="true" Variant="ButtonVariant.Ghost" OnClick="Cancel">Cancel</Button>
         }
@@ -207,6 +207,14 @@
             await RunAsync(() => ExpandAsync(folder.Id));
         }
 
+        StateHasChanged();
+    }
+
+    /// <summary>The trash icon on a folder row: select the folder and ask "Delete … and everything in it?" in the toolbar.</summary>
+    public async Task RequestDeleteFolderAsync(FolderDto folder)
+    {
+        await SelectFolderAsync(folder);
+        _mode = Mode.ConfirmDelete;
         StateHasChanged();
     }
 

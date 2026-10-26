@@ -1,6 +1,7 @@
 using InsightFlow.Connectors;
 using InsightFlow.Persistence;
 using InsightFlow.Worker.Development;
+using InsightFlow.Worker.Documents;
 using InsightFlow.Worker.Extracts;
 using Quartz;
 
@@ -25,6 +26,7 @@ builder.Services.AddInsightFlowSecretStore(
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "InsightFlow", "secrets.local.json"));
 builder.Services.AddInsightFlowConnectors(builder.Configuration);
 builder.Services.AddSingleton<ExtractRunProcessor>();
+builder.Services.AddSingleton<DocumentIngestProcessor>();
 
 // Quartz.NET with the clustered PostgreSQL job store (D15). Quartz owns its qrtz_* tables and creates them if missing.
 builder.Services.AddQuartz("insightflow-worker", q =>
@@ -45,6 +47,12 @@ builder.Services.AddQuartz("insightflow-worker", q =>
         .WithIdentity("extract-refresh-poll", "extracts")
         .StartNow()
         .WithSimpleSchedule(s => s.WithInterval(TimeSpan.FromSeconds(3)).RepeatForever().WithMisfireInstruction(SimpleTriggerMisfireInstruction.NextWithRemainingCount)));
+    q.AddJob<DocumentIngestJob>(job => job.WithIdentity(DocumentIngestJob.Key).StoreDurably());
+    q.AddTrigger(trigger => trigger
+        .ForJob(DocumentIngestJob.Key)
+        .WithIdentity("document-ingest-poll", "documents")
+        .StartNow()
+        .WithSimpleSchedule(s => s.WithInterval(TimeSpan.FromSeconds(2)).RepeatForever().WithMisfireInstruction(SimpleTriggerMisfireInstruction.NextWithRemainingCount)));
 });
 builder.Services.AddQuartzHostedService(o => o.WaitForJobsToComplete = true);
 

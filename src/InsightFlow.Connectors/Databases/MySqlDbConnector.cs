@@ -18,7 +18,7 @@ namespace InsightFlow.Connectors.Databases;
 /// <item>Rows stream with <see cref="CommandBehavior.SequentialAccess"/>.</item>
 /// </list>
 /// </summary>
-public sealed class MySqlDbConnector(ISecretStore secrets, IOptions<ConnectorOptions> options) : IDataSourceConnector
+public sealed class MySqlDbConnector(ISecretStore secrets, IOptions<ConnectorOptions> options) : IDataSourceConnector, ISchemaDescriber, IDatabaseCatalog
 {
     public DataSourceKind Kind => DataSourceKind.MySql;
 
@@ -57,6 +57,70 @@ public sealed class MySqlDbConnector(ISecretStore secrets, IOptions<ConnectorOpt
             var name = reader.GetString(1);
             yield return new SourceTable($"{schema}.{name}", name, schema, reader.GetString(2) == "VIEW" ? "view" : "table");
         }
+    }
+
+    public async Task<IReadOnlyList<string>> ListDatabasesAsync(ConnectionProfile profile, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+        await using var command = new MySqlCommand(
+            """
+            SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA
+            WHERE SCHEMA_NAME NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+            ORDER BY SCHEMA_NAME
+            """,
+            connection);
+        var names = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
+
+    public async Task<SourceSchema> DescribeAsync(ConnectionProfile profile, IReadOnlyCollection<string>? tableIds, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(profile, cancellationToken);
+
+        var columns = new List<(string, string, string, SourceColumn)>();
+        await using (var command = new MySqlCommand(
+            """
+            SELECT c.TABLE_SCHEMA, c.TABLE_NAME, t.TABLE_TYPE, c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, c.COLUMN_KEY
+            FROM INFORMATION_SCHEMA.COLUMNS c
+            JOIN INFORMATION_SCHEMA.TABLES t ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
+            WHERE c.TABLE_SCHEMA NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+            ORDER BY c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                columns.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2) == "VIEW" ? "view" : "table",
+                    new SourceColumn(reader.GetString(3), reader.GetString(4), reader.GetString(5) == "YES", reader.GetString(6) == "PRI")));
+            }
+        }
+
+        var foreignKeys = new List<SourceForeignKey>();
+        await using (var command = new MySqlCommand(
+            """
+            SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_SCHEMA, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+            FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+            WHERE REFERENCED_TABLE_NAME IS NOT NULL
+            """,
+            connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                foreignKeys.Add(new SourceForeignKey(
+                    $"{reader.GetString(0)}.{reader.GetString(1)}", reader.GetString(2), $"{reader.GetString(3)}.{reader.GetString(4)}", reader.GetString(5)));
+            }
+        }
+
+        // MySQL reports primary keys on the column itself (COLUMN_KEY = 'PRI'), already carried in the column rows.
+        return SchemaAssembly.Assemble(columns, [], foreignKeys, tableIds);
     }
 
     public async Task<ExtractResult> ExtractAsync(ExtractRequest request, IExtractWriter writer, CancellationToken cancellationToken)

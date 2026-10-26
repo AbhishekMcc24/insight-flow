@@ -9,11 +9,11 @@ else
 {
     <div class="max-h-full overflow-auto @Class">
         <table class="min-w-full border-separate border-spacing-0 text-sm">
-            <thead class="sticky top-0 bg-slate-50 dark:bg-slate-800">
+            <thead class="sticky top-0 bg-brand-50 dark:bg-slate-800">
                 <tr>
                     @foreach (var column in Result.Columns)
                     {
-                        <th scope="col" class="border-b border-slate-200 px-3 py-2 font-semibold whitespace-nowrap text-slate-600 dark:border-slate-700 dark:text-slate-300 @(IsNumeric(column) ? "text-right" : "text-left")">
+                        <th scope="col" class="border-b border-line px-3 py-2 font-semibold whitespace-nowrap text-ink-soft dark:border-slate-700 dark:text-slate-300 @(IsNumeric(column) ? "text-right" : "text-left")">
                             @(HeaderFor?.Invoke(column) ?? column.Name)
                         </th>
                     }
@@ -22,11 +22,11 @@ else
             <tbody>
                 @foreach (var row in Result.Rows.Take(MaxRows))
                 {
-                    <tr class="even:bg-slate-50/60 dark:even:bg-slate-800/40">
+                    <tr class="even:bg-brand-50/60 dark:even:bg-slate-800/40">
                         @for (var i = 0; i < Result.Columns.Count; i++)
                         {
                             var column = Result.Columns[i];
-                            <td class="border-b border-slate-100 px-3 py-1.5 whitespace-nowrap dark:border-slate-800 @(IsNumeric(column) ? "text-right tabular-nums" : "")">
+                            <td class="border-b border-line/60 px-3 py-1.5 whitespace-nowrap dark:border-slate-800 @(IsNumeric(column) ? "text-right tabular-nums" : "")">
                                 @Format(i < row.Count ? row[i] : null, column)
                             </td>
                         }

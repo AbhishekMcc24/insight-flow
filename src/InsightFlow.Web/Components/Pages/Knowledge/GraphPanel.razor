@@ -1,0 +1,117 @@
+@inject KnowledgeApiClient Knowledge
+@* Step 4: preview the graph and push it to Neo4j. The server builds the graph from the stored definitions and replaces this
+   tenant's previous graph in one transaction. A full-text index over names and descriptions is created for later natural-language search. *@
+
+<section class="if-card overflow-hidden" aria-labelledby="graph-heading">
+    <header class="flex flex-wrap items-center gap-3 border-b border-line bg-brand-50/70 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50">
+        <span class="grid size-10 place-items-center rounded-xl bg-brand-600 text-white shadow-card"><Icon Name="shield" Class="size-5" /></span>
+        <div class="min-w-0 flex-1">
+            <h2 id="graph-heading" class="text-lg font-bold text-ink dark:text-slate-100">Publish the graph</h2>
+            <p class="text-sm text-ink-soft">
+                Writes @Definitions.Tables.Count tables, @Definitions.Tables.Sum(t => t.Columns.Count) columns and @Definitions.Relationships.Count relationships. Pushing again replaces what was written before.
+            </p>
+        </div>
+        <Button OnClick="RefreshSummaryAsync" Busy="_summaryBusy" Disabled="@(!CanUseGraph)">Refresh counts</Button>
+        <Button Variant="ButtonVariant.Primary" OnClick="PushAsync" Busy="_pushing" Disabled="@(!CanUseGraph || Definitions.Tables.Count == 0 || _pushing)">Push to Neo4j</Button>
+    </header>
+    <div class="p-5">
+    <div class="mt-0 flex flex-col gap-2 empty:hidden"><Alert Message="@_error" /><Alert Message="@_notice" Error="false" OnDismiss="() => _notice = null" /></div>
+    @if (!CanUseGraph)
+    {
+        <p class="mt-3 text-sm text-ink-soft">Save the Neo4j connection with a password and tick “Knowledge base enabled” (step 1) to push.</p>
+    }
+
+    <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        @Stat("Tables in Neo4j", _summary?.Tables)
+        @Stat("Columns", _summary?.Columns)
+        @Stat("Relationships", _summary?.Relationships)
+        @Stat("Lineage links", _summary?.Lineage)
+    </dl>
+    @if (Config.LastSeededAt is { } seeded)
+    {
+        <p class="mt-2 text-xs text-ink-soft">Last pushed @seeded.LocalDateTime.ToString("g"): @Config.LastSeedTables tables, @Config.LastSeedColumns columns, @Config.LastSeedRelationships relationships.</p>
+    }
+
+    @if (Definitions.Tables.Count > 0)
+    {
+        <p class="mt-4 text-xs text-ink-soft" data-testid="diagram-note">The diagram shows only the columns that take part in a relationship. Every column (@Definitions.Tables.Sum(t => t.Columns.Count) in all) is written to Neo4j when you push.</p>
+        <div class="mt-2"><ErDiagram Tables="Definitions.Tables" Relationships="Definitions.Relationships" /></div>
+    }
+    </div>
+</section>
+
+@code {
+    private KnowledgeGraphSummaryDto? _summary;
+    private bool _summaryBusy;
+    private bool _pushing;
+    private string? _error;
+    private string? _notice;
+    private bool _loadedOnce;
+
+    [Parameter, EditorRequired] public KnowledgeBaseConfigDto Config { get; set; } = default!;
+
+    [Parameter, EditorRequired] public KnowledgeDefinitionsDto Definitions { get; set; } = default!;
+
+    [Parameter] public EventCallback OnPushed { get; set; }
+
+    private bool CanUseGraph => Config is { HasPassword: true, Enabled: true };
+
+    private static RenderFragment Stat(string label, int? value) => __builder =>
+    {
+        <div class="rounded-card border border-line p-3 dark:border-slate-800">
+            <dt class="text-xs font-medium tracking-wide text-ink-soft uppercase">@label</dt>
+            <dd class="text-2xl font-bold tabular-nums text-ink dark:text-slate-100">@(value?.ToString("N0") ?? "—")</dd>
+        </div>
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Counts load after the panel is on screen, so an unreachable Neo4j never blocks it.
+        if (firstRender && !_loadedOnce && CanUseGraph)
+        {
+            _loadedOnce = true;
+            await RefreshSummaryAsync();
+        }
+    }
+
+    private async Task RefreshSummaryAsync()
+    {
+        _summaryBusy = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            _summary = await Knowledge.GetSummaryAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _summaryBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task PushAsync()
+    {
+        _pushing = true;
+        _error = null;
+        _notice = null;
+        try
+        {
+            var result = await Knowledge.PushAsync(CancellationToken.None);
+            _notice = $"Neo4j updated: {result.Tables} tables, {result.Columns} columns, {result.Relationships} relationships.";
+            await OnPushed.InvokeAsync();
+            _summary = await Knowledge.GetSummaryAsync(CancellationToken.None);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _pushing = false;
+        }
+    }
+}

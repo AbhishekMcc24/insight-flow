@@ -1,0 +1,525 @@
+@using InsightFlow.Contracts.Skills
+@inject SkillsApiClient Skills
+@inject AgentApiClient Agents
+@* A skill's details. Preview mode shows it read-only with the instructions rendered; edit mode changes any field, and saving creates a NEW
+   version that becomes the active one. Earlier versions are listed and can be made active again. Export, Duplicate and Close as in the library. *@
+
+<CostGate @ref="_gate" />
+<Modal Title="@Title" Open="Open" OpenChanged="CloseAsync" MaxWidth="sm:max-w-3xl">
+    @if (_loading)
+    {
+        <div class="flex justify-center p-10 text-brand-500"><Spinner /></div>
+    }
+    else
+    {
+        <div class="flex flex-col gap-4" data-testid="skill-dialog">
+            <Alert Message="@_error" OnDismiss="() => _error = null" />
+            <p class="-mt-2 text-xs text-ink-soft">
+                @if (_detail is null)
+                {
+                    <span>A new skill starts at version 1.0.0. Every later save creates a new version.</span>
+                }
+                else if (_editing)
+                {
+                    <span>Editing. Saving creates version @NextLabel and makes it the active one.</span>
+                }
+                else
+                {
+                    <span>Preview. Press Edit to change it; each save creates a new version.</span>
+                }
+            </p>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label>
+                    <span class="@UiStyles.Label">Name <span class="text-danger">*</span></span>
+                    <input class="@UiStyles.Input" @bind="_name" maxlength="100" disabled="@(!_editing)" data-testid="skill-name" />
+                </label>
+                <label>
+                    <span class="@UiStyles.Label">Category <span class="text-danger">*</span></span>
+                    <select class="@UiStyles.Input" @bind="_categoryId" disabled="@(!_editing)" data-testid="skill-category">
+                        @if (_categoryId == Guid.Empty)
+                        {
+                            <option value="@Guid.Empty">Choose a category…</option>
+                        }
+                        @foreach (var c in Categories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            <label>
+                <span class="@UiStyles.Label">Description <span class="text-danger">*</span></span>
+                <input class="@UiStyles.Input" @bind="_description" maxlength="300" disabled="@(!_editing)" data-testid="skill-description" />
+                <span class="mt-1 block text-xs text-ink-soft">One line shown on the skill card.</span>
+            </label>
+
+            <label>
+                <span class="@UiStyles.Label">Tags</span>
+                <input class="@UiStyles.Input" @bind="_tags" maxlength="300" disabled="@(!_editing)" placeholder="invoice, receivable" />
+                <span class="mt-1 block text-xs text-ink-soft">Comma separated. Skills set to “When relevant” are used when a question mentions the name, category or a tag.</span>
+            </label>
+
+            <div class="grid gap-4 sm:grid-cols-3">
+                <label>
+                    <span class="@UiStyles.Label">Version</span>
+                    <input class="@UiStyles.Input" value="@(_detail?.VersionLabel ?? "1.0.0")" disabled />
+                    <span class="mt-1 block text-xs text-ink-soft">Set by the system.</span>
+                </label>
+                <label>
+                    <span class="@UiStyles.Label">License</span>
+                    <input class="@UiStyles.Input" @bind="_license" maxlength="64" disabled="@(!_editing)" placeholder="Internal" />
+                </label>
+                <label>
+                    <span class="@UiStyles.Label">Disclosure</span>
+                    <select class="@UiStyles.Input" @bind="_disclosure" disabled="@(!_editing)" data-testid="skill-disclosure">
+                        <option value="Always">Always in the prompt</option>
+                        <option value="WhenRelevant">Only when relevant</option>
+                    </select>
+                    <span class="mt-1 block text-xs text-ink-soft">When the instructions go to the AI while the skill is on.</span>
+                </label>
+            </div>
+
+            <label>
+                <span class="@UiStyles.Label">Compatibility</span>
+                <input class="@UiStyles.Input" @bind="_compatibility" maxlength="300" disabled="@(!_editing)" placeholder="e.g. needs the Invoice and Receipt tables" />
+                <span class="mt-1 block text-xs text-ink-soft">Optional: what the skill needs (a table, a database…).</span>
+            </label>
+
+            <label>
+                <span class="@UiStyles.Label">Tables</span>
+                <input class="@UiStyles.Input font-mono" @bind="_tables" maxlength="1500" disabled="@(!_editing)" placeholder="invoice_hdr, payment_hdr" data-testid="skill-tables" />
+                <span class="mt-1 block text-xs text-ink-soft">The knowledge-base tables the skill is about. A question that uses the skill reads only these (and the tables its own words match), so list every table the logic needs.</span>
+            </label>
+
+            @if (_editing)
+            {
+                <div class="rounded-xl border border-brand-200 bg-brand-50/60 p-3 dark:border-brand-900/60 dark:bg-brand-900/10" data-testid="skill-ai">
+                    <p class="text-xs font-semibold text-ink dark:text-slate-100">Write or improve with AI</p>
+                    <p class="text-xs text-ink-soft">The AI reads the table and column descriptions, relationships and stored procedures and fills the fields above. Nothing is saved until you press Save.</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <input class="@UiStyles.Input min-w-0 flex-1" @bind="_aiAsk" maxlength="1000" disabled="@_aiBusy" data-testid="skill-ai-ask"
+                               placeholder="@(_detail is null ? "What should this skill cover? e.g. how outstanding is calculated" : "What should change? e.g. also subtract credit notes")" />
+                        <Button Variant="ButtonVariant.Primary" Busy="_aiBusy" OnClick="ImproveAsync" data-testid="skill-ai-run"><Icon Name="squares" /> @(_detail is null ? "Draft" : "Improve")</Button>
+                    </div>
+                    @if (_aiReply is not null)
+                    {
+                        <p class="mt-2 text-xs text-ink dark:text-slate-100" data-testid="skill-ai-reply">@_aiReply</p>
+                    }
+
+                    <div class="mt-1"><UsageNote Usage="_aiUsage" /></div>
+                </div>
+            }
+
+            <div>
+                <div class="mb-1 flex flex-wrap items-center gap-2">
+                    <span class="@UiStyles.Label !mb-0">Instructions</span>
+                    <span class="@UiStyles.Badge">Markdown</span>
+                    <span class="ml-auto text-xs text-ink-soft tabular-nums" data-testid="skill-size">@_instructions.Length.ToString("N0") chars · ~@Tokens tokens</span>
+                    @if (_editing)
+                    {
+                        <Button Small="true" OnClick="() => _showPreview = !_showPreview"><Icon Name="eye" /> @(_showPreview ? "Edit text" : "Preview")</Button>
+                    }
+                </div>
+                @if (_editing && !_showPreview)
+                {
+                    <textarea class="@UiStyles.Input min-h-72 font-mono leading-relaxed" rows="14" maxlength="20000" @bind="_instructions" @bind:event="oninput"
+                              placeholder="Explain the business logic step by step: which tables and columns, how a figure is worked out, which statuses count…" data-testid="skill-instructions"></textarea>
+                }
+                else
+                {
+                    <div class="@MarkdownStyle.Class" data-testid="skill-preview">@((MarkupString)SimpleMarkdown.ToHtml(_instructions))</div>
+                }
+            </div>
+
+            @if (_editing)
+            {
+                <label>
+                    <span class="@UiStyles.Label">What changed (optional)</span>
+                    <input class="@UiStyles.Input" @bind="_note" maxlength="200" placeholder="e.g. Credit notes now reduce the outstanding amount" />
+                </label>
+            }
+
+            @if (_detail is { Versions.Count: > 0 })
+            {
+                <details class="rounded-xl border border-line p-3 text-sm dark:border-slate-700" data-testid="skill-versions">
+                    <summary class="cursor-pointer font-medium text-ink dark:text-slate-100">Versions (@_detail.Versions.Count)</summary>
+                    <ul class="mt-2 divide-y divide-line dark:divide-slate-800">
+                        @foreach (var v in _detail.Versions)
+                        {
+                            <li class="flex flex-wrap items-center gap-2 py-2">
+                                <span class="font-mono text-xs font-semibold text-ink dark:text-slate-100">v@(v.Label)</span>
+                                @if (v.IsActive)
+                                {
+                                    <span class="@UiStyles.Badge">Active</span>
+                                }
+                                <span class="min-w-0 flex-1 truncate text-xs text-ink-soft">@(v.Note ?? "—") · @v.CreatedAt.LocalDateTime.ToString("g")@(v.CreatedBy is { } by ? $" · {by}" : "")</span>
+                                @if (!v.IsActive && !_editing)
+                                {
+                                    <Button Small="true" Busy="_busyVersion == v.Id" OnClick="() => ActivateAsync(v)">Make active</Button>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </details>
+            }
+
+            <div class="flex flex-wrap items-center gap-2 border-t border-line pt-3 dark:border-slate-800">
+                @if (_detail is not null && !_editing)
+                {
+                    <a class="inline-flex items-center gap-1.5 rounded-control border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink shadow-xs hover:border-brand-300 hover:bg-mist dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                       href="@ExportHref" download="@ExportFileName" data-testid="skill-export"><Icon Name="download" /> Export</a>
+                    <Button Busy="_busyDuplicate" OnClick="DuplicateAsync" data-testid="skill-duplicate"><Icon Name="copy" /> Duplicate</Button>
+                    <Button Variant="ButtonVariant.Primary" OnClick="StartEdit" data-testid="skill-edit"><Icon Name="edit" /> Edit</Button>
+                }
+
+                @if (_editing)
+                {
+                    <Button Variant="ButtonVariant.Primary" Busy="_saving" OnClick="SaveAsync" data-testid="skill-save">@(_detail is null ? "Create skill" : "Save as new version")</Button>
+                    <Button OnClick="CancelEdit">Cancel</Button>
+                }
+
+                @if (_detail is not null && !_editing)
+                {
+                    <Button Variant="ButtonVariant.Ghost" OnClick="() => _confirmDelete = true"><Icon Name="trash" /> Delete</Button>
+                }
+
+                <span class="ml-auto"></span>
+                <Button OnClick="() => CloseAsync(false)">Close</Button>
+            </div>
+
+            @if (_confirmDelete && _detail is not null)
+            {
+                <div class="rounded-xl border border-danger/40 bg-danger/5 p-3 text-sm" role="alertdialog" aria-label="Confirm delete">
+                    <p class="font-medium text-ink dark:text-slate-100">Delete “@_detail.Name” and all @_detail.Versions.Count of its versions?</p>
+                    <p class="mt-1 text-xs text-ink-soft">This cannot be undone. To keep it but stop using it, switch the skill off instead.</p>
+                    <div class="mt-2 flex gap-2">
+                        <Button Variant="ButtonVariant.Danger" Small="true" Busy="_busyDelete" OnClick="DeleteAsync">Delete</Button>
+                        <Button Small="true" OnClick="() => _confirmDelete = false">Keep it</Button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</Modal>
+
+@code {
+    private string _tables = "";
+    private string _aiAsk = "";
+    private string? _aiReply;
+    private bool _aiBusy;
+    private InsightFlow.Contracts.Agents.UsageDto? _aiUsage;
+    private CostGate _gate = default!;
+
+    private SkillDetailDto? _detail;
+    private bool _loading;
+    private bool _editing;
+    private bool _showPreview;
+    private bool _saving;
+    private bool _busyDuplicate;
+    private bool _busyDelete;
+    private bool _confirmDelete;
+    private Guid? _busyVersion;
+    private string? _error;
+    private string? _loadedFor;
+
+    private string _name = "";
+    private Guid _categoryId;
+    private string _description = "";
+    private string _tags = "";
+    private string _license = "";
+    private string _compatibility = "";
+    private string _disclosure = "Always";
+    private string _instructions = "";
+    private string _note = "";
+
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>The skill to show, or null to start a new one.</summary>
+    [Parameter] public Guid? SkillId { get; set; }
+
+    /// <summary>The category a new skill starts in.</summary>
+    [Parameter] public Guid? NewInCategory { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<SkillCategoryDto> Categories { get; set; } = [];
+
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    /// <summary>Raised after anything was saved, switched, duplicated or deleted, so the list can reload.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private string Title => _detail is null && SkillId is null ? "New skill" : _editing ? "Edit skill" : "Skill details";
+
+    private string NextLabel => InsightFlow.Contracts.Skills.SkillLabels.Of((_detail?.Versions.Max(v => v.Number) ?? 0) + 1);
+
+    private int Tokens => (_instructions.Length + 3) / 4;
+
+    private string ExportFileName => $"{Slug(_name)}.SKILL.md";
+
+    private string ExportHref => "data:text/markdown;charset=utf-8," + Uri.EscapeDataString(ExportText());
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = Open ? $"{SkillId}|{NewInCategory}" : null;
+        if (key is null)
+        {
+            _loadedFor = null;
+            return;
+        }
+
+        if (key == _loadedFor)
+        {
+            return;
+        }
+
+        _loadedFor = key;
+        _error = null;
+        _confirmDelete = false;
+        _showPreview = false;
+        if (SkillId is { } id)
+        {
+            _loading = true;
+            try
+            {
+                Fill(await Skills.GetSkillAsync(id, CancellationToken.None));
+                _editing = false;
+            }
+            catch (ServiceCallException ex)
+            {
+                _error = ex.Message;
+            }
+            finally
+            {
+                _loading = false;
+            }
+        }
+        else
+        {
+            _detail = null;
+            _name = _description = _tags = _license = _compatibility = _instructions = _note = _tables = _aiAsk = "";
+            _aiReply = null;
+            _disclosure = "Always";
+            _categoryId = NewInCategory ?? Categories.FirstOrDefault()?.Id ?? Guid.Empty;
+            _editing = true;
+        }
+    }
+
+    private void Fill(SkillDetailDto d)
+    {
+        _detail = d;
+        _name = d.Name;
+        _categoryId = d.CategoryId;
+        _description = d.Description;
+        _tags = string.Join(", ", d.Tags);
+        _license = d.License ?? "";
+        _compatibility = d.Compatibility ?? "";
+        _disclosure = d.Disclosure;
+        _instructions = d.Instructions;
+        _tables = string.Join(", ", d.Tables);
+        _note = "";
+        _aiReply = null;
+    }
+
+    /// <summary>Asks the AI for a draft (a new skill) or an improvement (an existing one) and fills the form with it. Nothing is saved.</summary>
+    private async Task ImproveAsync()
+    {
+        if (!await _gate.ConfirmAsync(new InsightFlow.Contracts.Agents.AiEstimateRequest("skills", SkillId: _detail?.Id, CategoryId: _categoryId == Guid.Empty ? null : _categoryId)))
+        {
+            return;
+        }
+
+        _aiBusy = true;
+        _error = null;
+        _aiReply = null;
+        _aiUsage = null;
+        try
+        {
+            var response = await Agents.AssistSkillsAsync(
+                new SkillAssistRequest(string.IsNullOrWhiteSpace(_aiAsk) ? null : _aiAsk.Trim(), _detail?.Id, _categoryId == Guid.Empty ? null : _categoryId), CancellationToken.None);
+            _aiUsage = response.Usage;
+            if (response.Suggestions.FirstOrDefault() is { } s)
+            {
+                _name = s.Name;
+                _description = s.Description;
+                _tags = string.Join(", ", s.Tags);
+                _tables = string.Join(", ", s.Tables);
+                _disclosure = s.Disclosure;
+                _instructions = s.Instructions;
+                if (Categories.FirstOrDefault(x => string.Equals(x.Name, s.Category, StringComparison.OrdinalIgnoreCase)) is { } category)
+                {
+                    _categoryId = category.Id;
+                }
+
+                _showPreview = true;
+                _aiReply = $"{response.Reply} Review the fields, then press Save.";
+            }
+            else
+            {
+                _aiReply = $"{response.Reply} (nothing to change)";
+            }
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _aiBusy = false;
+        }
+    }
+
+    private void StartEdit()
+    {
+        _editing = true;
+        _showPreview = false;
+    }
+
+    private void CancelEdit()
+    {
+        if (_detail is null)
+        {
+            _ = CloseAsync(false);
+            return;
+        }
+
+        Fill(_detail);
+        _editing = false;
+        _error = null;
+    }
+
+    private SaveSkillRequest Request() => new(
+        _categoryId,
+        _name,
+        _description,
+        [.. _tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase)],
+        string.IsNullOrWhiteSpace(_license) ? null : _license,
+        string.IsNullOrWhiteSpace(_compatibility) ? null : _compatibility,
+        _disclosure,
+        _instructions,
+        string.IsNullOrWhiteSpace(_note) ? null : _note,
+        [.. _tables.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase)]);
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var saved = _detail is null
+                ? await Skills.CreateSkillAsync(Request(), CancellationToken.None)
+                : await Skills.SaveSkillAsync(_detail.Id, Request(), CancellationToken.None);
+            SkillId = saved.Id;
+            _loadedFor = $"{SkillId}|{NewInCategory}";
+            Fill(saved);
+            _editing = false;
+            await Changed.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ActivateAsync(SkillVersionDto version)
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        _busyVersion = version.Id;
+        _error = null;
+        try
+        {
+            Fill(await Skills.ActivateVersionAsync(_detail.Id, version.Id, CancellationToken.None));
+            await Changed.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busyVersion = null;
+        }
+    }
+
+    private async Task DuplicateAsync()
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        _busyDuplicate = true;
+        try
+        {
+            var copy = await Skills.DuplicateAsync(_detail.Id, CancellationToken.None);
+            SkillId = copy.Id;
+            _loadedFor = $"{SkillId}|{NewInCategory}";
+            Fill(copy);
+            _editing = false;
+            await Changed.InvokeAsync();
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busyDuplicate = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_detail is null)
+        {
+            return;
+        }
+
+        _busyDelete = true;
+        try
+        {
+            await Skills.DeleteSkillAsync(_detail.Id, CancellationToken.None);
+            await Changed.InvokeAsync();
+            await CloseAsync(false);
+        }
+        catch (ServiceCallException ex)
+        {
+            _error = ex.Message;
+            _confirmDelete = false;
+        }
+        finally
+        {
+            _busyDelete = false;
+        }
+    }
+
+    private async Task CloseAsync(bool open)
+    {
+        _editing = false;
+        _confirmDelete = false;
+        await OpenChanged.InvokeAsync(open);
+    }
+
+    private string ExportText() =>
+        $"---\nname: {_name}\ndescription: {_description}\nversion: {_detail?.VersionLabel ?? "1.0.0"}\n" +
+        (string.IsNullOrWhiteSpace(_license) ? "" : $"license: {_license}\n") +
+        (string.IsNullOrWhiteSpace(_tags) ? "" : $"tags: {_tags}\n") +
+        (string.IsNullOrWhiteSpace(_compatibility) ? "" : $"compatibility: {_compatibility}\n") +
+        (string.IsNullOrWhiteSpace(_tables) ? "" : $"tables: {_tables}\n") +
+        $"disclosure: {_disclosure}\n---\n\n{_instructions}\n";
+
+    private static string Slug(string name)
+    {
+        var chars = name.Select(c => char.IsAsciiLetterOrDigit(c) ? char.ToLowerInvariant(c) : '-').ToArray();
+        var slug = string.Join('-', new string(chars).Split('-', StringSplitOptions.RemoveEmptyEntries));
+        return slug.Length == 0 ? "skill" : slug;
+    }
+}

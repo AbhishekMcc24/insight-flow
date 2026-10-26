@@ -25,6 +25,14 @@
         {
             <Spinner Small="true" Class="ml-auto text-slate-400" />
         }
+        @if (Folder is { ParentId: not null, CanWrite: true })
+        {
+            <button type="button" class="@($"ml-auto rounded p-0.5 text-slate-400 transition hover:text-danger focus-visible:opacity-100 {(selected ? "opacity-100" : "opacity-0 group-hover:opacity-100")}")"
+                    title="Delete this folder and everything in it" aria-label="@($"Delete folder {Folder.Name}")" data-testid="folder-delete"
+                    @onclick="() => Owner.RequestDeleteFolderAsync(Folder)" @onclick:stopPropagation="true">
+                <Icon Name="trash" Class="size-3.5" />
+            </button>
+        }
     </div>
 
     @if (expanded && contents is not null)
