@@ -2,6 +2,7 @@
   <!-- Central Package Management: every NuGet version in the repo lives here. Versions verified on nuget.org 2026-10-07. -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <AspireVersion>13.6.1</AspireVersion>
     <AspNetCoreVersion>10.0.12</AspNetCoreVersion>
     <ExtensionsVersion>10.10.0</ExtensionsVersion>
@@ -95,6 +96,18 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.UserSecrets" Version="$(AspNetCoreVersion)" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="$(ExtensionsVersion)" />
+  </ItemGroup>
+
+  <!-- Transitive pins (CentralPackageTransitivePinningEnabled): raise vulnerable indirect dependencies to the first
+       patched release. NuGet audit (NU1902/NU1903) fails the build under TreatWarningsAsErrors otherwise.
+       Remove a pin once the parent package ships a fixed dependency. Verified against the GitHub advisories 2026-10-26. -->
+  <ItemGroup Label="Security pins">
+    <!-- GHSA-2fmv-rv2c-59x7, GHSA-846f-f764-76mx -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <!-- GHSA-7hqp-7c5m-4vq6, GHSA-c399-9853-6jmj, GHSA-r955-8q5j-3h83 -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
+    <!-- GHSA-qhrr-8q5h-9q3h (2.5.x line; first patched 2.5.303) -->
+    <PackageVersion Include="MessagePack" Version="2.5.303" />
   </ItemGroup>
 
   <ItemGroup Label="Tooling">

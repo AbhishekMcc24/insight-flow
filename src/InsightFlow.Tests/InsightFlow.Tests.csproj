@@ -8,6 +8,9 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>InsightFlow.Tests</RootNamespace>
     <!-- Exit code 8 = "zero tests ran"; a filter that selects nothing must not fail the run. -->
+    <!-- CI builds (ContinuousIntegrationBuild) rewrite source paths to "/_/...". Golden.cs finds its snapshot files through
+         [CallerFilePath], so tests need the real path; test assemblies are never shipped, so determinism of paths is not needed. -->
+    <DeterministicSourcePaths>false</DeterministicSourcePaths>
     <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --ignore-exit-code 8</TestingPlatformCommandLineArguments>
   </PropertyGroup>
   <ItemGroup>

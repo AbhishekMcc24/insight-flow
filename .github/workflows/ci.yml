@@ -2,8 +2,9 @@
 # - build-test: restore (NuGet + npm caches), Release build with warnings as errors (Directory.Build.props),
 #   unit + architecture tests, the eval harness self-test (reference SQL, no model, no keys).
 # - integration: starts the whole AppHost with throwaway Postgres/Redis/Azurite containers (Docker is available on
-#   ubuntu-latest) and runs InsightFlow.Tests.Integration.
-# No secrets are used. Nothing is deployed from CI (deployment is manual: docs/deploy.md).
+#   ubuntu-latest) and runs the Category=Integration tests of InsightFlow.Tests.
+# The only secrets are MCC_NUGET_USER / MCC_NUGET_TOKEN (read:packages) for the private MCC.Foundation.* feed.
+# Nothing is deployed from CI (deployment is manual: docs/deploy.md).
 name: CI
 
 on:
@@ -49,6 +50,15 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Add MCC private NuGet feed
+        env:
+          MCC_NUGET_USER: ${{ secrets.MCC_NUGET_USER }}
+          MCC_NUGET_TOKEN: ${{ secrets.MCC_NUGET_TOKEN }}
+        run: |
+          # nuget.config already declares this feed as MCCITGIT (with the package source mapping); give that source its credentials.
+          dotnet nuget update source MCCITGIT --username "$MCC_NUGET_USER" --password "$MCC_NUGET_TOKEN" \
+            --store-password-in-clear-text
+
       - name: Restore
         run: dotnet restore src/InsightFlow.slnx
 
@@ -92,6 +102,15 @@ jobs:
           path: ${{ env.NUGET_PACKAGES }}
           key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
+
+      - name: Add MCC private NuGet feed
+        env:
+          MCC_NUGET_USER: ${{ secrets.MCC_NUGET_USER }}
+          MCC_NUGET_TOKEN: ${{ secrets.MCC_NUGET_TOKEN }}
+        run: |
+          # nuget.config already declares this feed as MCCITGIT (with the package source mapping); give that source its credentials.
+          dotnet nuget update source MCCITGIT --username "$MCC_NUGET_USER" --password "$MCC_NUGET_TOKEN" \
+            --store-password-in-clear-text
 
       - name: Build
         run: dotnet build src/InsightFlow.Tests -c Release
