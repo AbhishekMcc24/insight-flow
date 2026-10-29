@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- All automated tests in one xUnit v3 project, grouped by the layer they cover (Domain, Infrastructure, Agent, Web), plus the architecture
+       rules (Architecture/) and the end-to-end tests that start the AppHost via Aspire.Hosting.Testing (Integration/, need Docker and are
+       tagged Category=Integration so CI can run them separately). Assertions: Shouldly (docs/adr/0017). -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>InsightFlow.Tests</RootNamespace>
+    <!-- Exit code 8 = "zero tests ran"; a filter that selects nothing must not fail the run. -->
+    <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --ignore-exit-code 8</TestingPlatformCommandLineArguments>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
+    <PackageReference Include="Aspire.Hosting.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\InsightFlow.Foundation\InsightFlow.Foundation.csproj" />
+    <ProjectReference Include="..\InsightFlow.Infrastructure\InsightFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\InsightFlow.Repository\InsightFlow.Repository.csproj" />
+    <ProjectReference Include="..\InsightFlow.Agent\InsightFlow.Agent.csproj" />
+    <ProjectReference Include="..\InsightFlow.Logic\InsightFlow.Logic.csproj" />
+    <ProjectReference Include="..\InsightFlow.Web\InsightFlow.Web.csproj" />
+    <ProjectReference Include="..\InsightFlow.AppHost\InsightFlow.AppHost.csproj" />
+    <ProjectReference Include="..\InsightFlow.AgentService\InsightFlow.AgentService.csproj" Aliases="agentservice" />
+    <ProjectReference Include="..\..\tests\InsightFlow.Testing\InsightFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\evals\InsightFlow.Evals\InsightFlow.Evals.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <Using Include="Aspire.Hosting" />
+    <Using Include="Aspire.Hosting.ApplicationModel" />
+    <Using Include="Aspire.Hosting.Testing" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The VizSpec fixtures are read from the output folder as Fixtures/*.json. -->
+    <None Include="Domain\Fixtures\**\*.json" Link="Fixtures\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

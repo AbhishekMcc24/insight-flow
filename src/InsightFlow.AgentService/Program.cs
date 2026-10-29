@@ -1,10 +1,10 @@
-using InsightFlow.Agents;
+using InsightFlow.Agent;
 using InsightFlow.AgentService;
-using InsightFlow.Contracts;
+using InsightFlow.Domain.Contracts;
 using InsightFlow.Domain.Tenancy;
-using InsightFlow.Persistence;
-using InsightFlow.Query;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Repository;
+using InsightFlow.Infrastructure.Query;
+using InsightFlow.Foundation.Security;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);

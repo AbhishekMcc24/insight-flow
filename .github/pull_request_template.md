@@ -8,8 +8,8 @@
 
 ## Checklist
 
-- [ ] Builds with **zero warnings** (`dotnet build InsightFlow.slnx`)
-- [ ] Tests added/updated and green (`dotnet test --solution InsightFlow.slnx`); golden files reviewed, not blindly accepted
+- [ ] Builds with **zero warnings** (`dotnet build src/InsightFlow.slnx`)
+- [ ] Tests added/updated and green (`dotnet test --solution src/InsightFlow.slnx`); golden files reviewed, not blindly accepted
 - [ ] **Tenant isolation considered:** new data is `ITenantOwned` / filtered by tenant; new endpoints have a cross-tenant test
 - [ ] Authorization uses `InsightFlowPolicies` (no role strings in endpoints)
 - [ ] **No secrets** in code, config or tests; credentials only as `SecretReference`

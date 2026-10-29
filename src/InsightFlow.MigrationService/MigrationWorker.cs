@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace InsightFlow.MigrationService;

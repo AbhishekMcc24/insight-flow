@@ -1,5 +1,5 @@
-using InsightFlow.Agents.Guardrails;
-using InsightFlow.Contracts.Agents;
+using InsightFlow.Agent.Guardrails;
+using InsightFlow.Domain.Contracts.Agents;
 
 namespace InsightFlow.AgentService;
 

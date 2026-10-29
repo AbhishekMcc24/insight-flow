@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="InsightFlow.Agent/InsightFlow.Agent.csproj" />
+    <Project Path="InsightFlow.AgentService/InsightFlow.AgentService.csproj" />
+    <Project Path="InsightFlow.Api/InsightFlow.Api.csproj" />
+    <Project Path="InsightFlow.AppHost/InsightFlow.AppHost.csproj" />
+    <Project Path="InsightFlow.Domain/InsightFlow.Domain.csproj" />
+    <Project Path="InsightFlow.Foundation/InsightFlow.Foundation.csproj" />
+    <Project Path="InsightFlow.Infrastructure/InsightFlow.Infrastructure.csproj" />
+    <Project Path="InsightFlow.Logic/InsightFlow.Logic.csproj" />
+    <Project Path="InsightFlow.MigrationService/InsightFlow.MigrationService.csproj" />
+    <Project Path="InsightFlow.QueryService/InsightFlow.QueryService.csproj" />
+    <Project Path="InsightFlow.Repository/InsightFlow.Repository.csproj" />
+    <Project Path="InsightFlow.Tests/InsightFlow.Tests.csproj" />
+    <Project Path="InsightFlow.Web/InsightFlow.Web.csproj" />
+    <Project Path="InsightFlow.Worker/InsightFlow.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="../evals/InsightFlow.Evals/InsightFlow.Evals.csproj" />
+    <Project Path="../tests/InsightFlow.Benchmarks/InsightFlow.Benchmarks.csproj" />
+    <Project Path="../tests/InsightFlow.Testing/InsightFlow.Testing.csproj" />
+  </Folder>
+</Solution>

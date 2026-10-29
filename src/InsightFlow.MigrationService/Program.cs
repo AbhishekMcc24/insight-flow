@@ -1,5 +1,5 @@
 using InsightFlow.MigrationService;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 
 var builder = Host.CreateApplicationBuilder(args);
 

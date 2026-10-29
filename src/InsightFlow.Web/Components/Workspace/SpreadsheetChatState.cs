@@ -1,4 +1,4 @@
-using InsightFlow.Contracts.Documents;
+using InsightFlow.Domain.Contracts.Documents;
 
 namespace InsightFlow.Web.Components.Workspace;
 

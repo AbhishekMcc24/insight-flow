@@ -1,12 +1,12 @@
 using System.Security.Cryptography;
-using InsightFlow.Connectors;
+using InsightFlow.Infrastructure.Connectors;
 using InsightFlow.Domain.Connections;
 using InsightFlow.Domain.Modeling;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 using InsightFlow.Domain.Workspace;
-using InsightFlow.Persistence;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Repository;
+using InsightFlow.Foundation.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 

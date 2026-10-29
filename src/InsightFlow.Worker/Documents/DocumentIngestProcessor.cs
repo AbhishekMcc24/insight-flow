@@ -1,11 +1,11 @@
 using System.Data;
 using System.Data.Common;
-using InsightFlow.Connectors;
-using InsightFlow.Connectors.Extraction;
+using InsightFlow.Infrastructure.Connectors;
+using InsightFlow.Infrastructure.Connectors.Extraction;
 using InsightFlow.Domain.Documents;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Workspace;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace InsightFlow.Worker.Documents;
@@ -53,7 +53,7 @@ public sealed partial class DocumentIngestProcessor(IServiceScopeFactory scopes,
     {
         await using var scope = scopes.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<JobCurrentTenant>().EnterSystem();
-        var db = scope.ServiceProvider.GetRequiredService<InsightFlow.Persistence.InsightFlowDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<InsightFlow.Repository.InsightFlowDbContext>();
         var now = clock.GetUtcNow();
         var cutoff = now - StaleAfter;
         var failed = await db.Database.ExecuteSqlInterpolatedAsync($"""

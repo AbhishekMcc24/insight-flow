@@ -2,7 +2,7 @@
 # - build-test: restore (NuGet + npm caches), Release build with warnings as errors (Directory.Build.props),
 #   unit + architecture tests, the eval harness self-test (reference SQL, no model, no keys).
 # - integration: starts the whole AppHost with throwaway Postgres/Redis/Azurite containers (Docker is available on
-#   ubuntu-latest) and runs InsightFlow.IntegrationTests.
+#   ubuntu-latest) and runs InsightFlow.Tests.Integration.
 # No secrets are used. Nothing is deployed from CI (deployment is manual: docs/deploy.md).
 name: CI
 
@@ -50,20 +50,13 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore
-        run: dotnet restore InsightFlow.slnx
+        run: dotnet restore src/InsightFlow.slnx
 
       - name: Build (warnings are errors)
-        run: dotnet build InsightFlow.slnx -c Release --no-restore
+        run: dotnet build src/InsightFlow.slnx -c Release --no-restore
 
-      - name: Unit and architecture tests
-        run: |
-          set -euo pipefail
-          for project in tests/*.Tests; do
-            case "$project" in *IntegrationTests) continue ;; esac
-            echo "::group::$project"
-            dotnet test --project "$project" -c Release --no-build
-            echo "::endgroup::"
-          done
+      - name: Unit and architecture tests (the end-to-end tests run in the integration job)
+        run: dotnet test --project src/InsightFlow.Tests -c Release --no-build --filter-not-trait "Category=Integration"
 
       - name: Eval harness self-test (no model)
         run: dotnet run -c Release --no-build --project evals/InsightFlow.Evals -- --provider reference --out eval-results
@@ -101,7 +94,7 @@ jobs:
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Build
-        run: dotnet build tests/InsightFlow.IntegrationTests -c Release
+        run: dotnet build src/InsightFlow.Tests -c Release
 
       - name: Integration tests (AppHost + containers)
-        run: dotnet test --project tests/InsightFlow.IntegrationTests -c Release --no-build
+        run: dotnet test --project src/InsightFlow.Tests -c Release --no-build --filter-trait "Category=Integration"

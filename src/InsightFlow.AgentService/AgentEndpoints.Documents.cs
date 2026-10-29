@@ -1,10 +1,10 @@
-using InsightFlow.Agents.Ai;
-using InsightFlow.Agents.Documents;
-using InsightFlow.Agents.Knowledge;
-using InsightFlow.Agents.Sandbox;
-using InsightFlow.Contracts.Documents;
+using InsightFlow.Agent.Ai;
+using InsightFlow.Agent.Documents;
+using InsightFlow.Agent.Knowledge;
+using InsightFlow.Agent.Sandbox;
+using InsightFlow.Domain.Contracts.Documents;
 using InsightFlow.Domain.Documents;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 

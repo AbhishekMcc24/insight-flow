@@ -12,9 +12,9 @@ Cursor also loads the always-on rules in `.cursor/rules/`.
 |---|---|---|
 | UI | `src/InsightFlow.Web` | Tailwind shell, workspace grid, Explorer (drag-and-drop), `/slice` chart builder, Assistant chat, ECharts renderer |
 | Public API | `src/InsightFlow.Api` | Workspace Explorer endpoints, connections + extracts (create/test/discover/trigger), extract runs |
-| Connectors | `src/InsightFlow.Connectors` | CSV, Parquet, Excel, SQL Server, PostgreSQL, MySQL, Oracle, MongoDB and Cosmos DB |
+| Connectors | `src/InsightFlow.Infrastructure.Connectors` | CSV, Parquet, Excel, SQL Server, PostgreSQL, MySQL, Oracle, MongoDB and Cosmos DB |
 | Jobs | `src/InsightFlow.Worker` | Quartz (clustered), extract-run processor |
-| Tenancy admin, roles, RLS | ServiceDefaults policies + Persistence | Plumbing only: roles, policies, tenant filter, dev auth |
+| Tenancy admin, roles, RLS | Foundation policies + Persistence | Plumbing only: roles, policies, tenant filter, dev auth |
 
 Roy owns Domain, Query/QueryService, Agents/AgentService and the evals. Changes there go through him (CODEOWNERS).
 
@@ -24,7 +24,7 @@ Roy owns Domain, Query/QueryService, Agents/AgentService and the evals. Changes 
 2. Clone, then build. The first build runs `npm ci` and the Tailwind build for the Web project.
 
    ```bash
-   dotnet build InsightFlow.slnx
+   dotnet build src/InsightFlow.slnx
    ```
 
 3. Start PostgreSQL and Garnet (`garnet-server`) on localhost, then start the app. Set AppHost user-secret `ConnectionStrings:insightflow` to the Postgres connection string. The Redis connection string is in `appsettings.Development.json`.
@@ -38,7 +38,7 @@ Roy owns Domain, Query/QueryService, Agents/AgentService and the evals. Changes 
 5. Optional AI: set AppHost user secrets (README "AI provider keys"). Without keys, the Assistant reports "No AI
    provider is configured" and everything else works.
 
-Tests: `dotnet test --solution InsightFlow.slnx`. The integration tests need Docker. While editing styles, run
+Tests: `dotnet test --solution src/InsightFlow.slnx`. The integration tests need Docker. While editing styles, run
 `npm run watch:css` in `src/InsightFlow.Web`.
 
 If the AppHost fails with a DCP timeout on Windows, delete `%USERPROFILE%\.dcp\state.elevated` (ADR 0021).
@@ -54,7 +54,7 @@ If the AppHost fails with a DCP timeout on Windows, delete `%USERPROFILE%\.dcp\s
 | `AnalystRequest`, `AgentEvent` (+ `AgentEventTypes`), `DerivedFieldRequest/Response` | `Contracts/Agents` | SSE event names = `AgentEventTypes` |
 | `ContractsJsonContext` | `Contracts` | Add every new DTO here (source-generated JSON) |
 | `IDataSourceConnector`, `IExtractWriter`, `ConnectorCapabilities` | `Connectors/Abstractions.cs` | |
-| `ITenantContext`, `InsightFlowPolicies`, `InsightFlowRoles` | ServiceDefaults `Security/` | Never read the tenant from the request body |
+| `ITenantContext`, `InsightFlowPolicies`, `InsightFlowRoles` | Foundation `Security/` | Never read the tenant from the request body |
 | `ISecretStore`, `SecretReference` | `Domain/Security` | Credentials are stored only as references |
 | Typed clients (`WorkspaceApiClient`, `QueryApiClient`, `AgentApiClient`, `WorkspaceUploadClient`) | `Web/Services` | Errors surface as `ServiceCallException` (message safe to show) |
 
@@ -93,12 +93,12 @@ Scalar API docs are served in Development at `/scalar` on each API service. The 
 1. Put the endpoint in a feature folder under `src/InsightFlow.Api/<Feature>/`. Use a `static class <Feature>Endpoints`
    with `Map<Feature>Endpoints(this RouteGroupBuilder group)`, mounted in `Program.cs` under
    `MapGroup("/api/v1").MapGroup("/<feature>")`.
-2. Use `TypedResults` and return DTOs from `InsightFlow.Contracts` (add them to `ContractsJsonContext`). Errors use
+2. Use `TypedResults` and return DTOs from `InsightFlow.Domain.Contracts` (add them to `ContractsJsonContext`). Errors use
    `ApiProblemException` (→ ProblemDetails). Validation failures use `TypedResults.ValidationProblem`.
 3. Authorize with policies (`.RequireAuthorization(InsightFlowPolicies.CanCreate)`), never role strings. The tenant
    comes from `ITenantContext`, and EF filters by tenant automatically. For raw SQL, filter on `tenant_id` yourself.
 4. Take a `CancellationToken` and pass it all the way down. Log ids and counts only.
-5. Add an integration test in `tests/InsightFlow.IntegrationTests` (see `WorkspaceApiTests`). Use `Caller.NewTenant()`
+5. Add an integration test in `src/InsightFlow.Tests/Integration` (see `WorkspaceApiTests`). Use `Caller.NewTenant()`
    for isolation, and add a cross-tenant check.
 
 ### Add a Web page that renders a VizSpec
@@ -134,7 +134,7 @@ full builder, reuse `Components/Workspace/SliceBuilder.razor`.
 
 1. If it is a new mark, add it to `Mark` (Roy's area: the compiler and validator must support it) — talk to Roy first.
 2. In `src/InsightFlow.Web/Charts/EChartsOptionBuilder.cs`, add a case in `Build` (see `Cartesian`, `Pie`, `Heatmap`, `Scatter`). Formatters that need JS functions go in `wwwroot/js/echartsInterop.js`.
-3. Add a golden test in `tests/InsightFlow.Web.Tests/EChartsOptionBuilderTests.cs`. Run it once, review
+3. Add a golden test in `src/InsightFlow.Tests/Web/EChartsOptionBuilderTests.cs`. Run it once, review
    `Golden/<name>.received.json`, and accept it (rename, or rerun with `INSIGHTFLOW_ACCEPT_GOLDEN=1`).
 
 ### Add a Tailwind UI component
@@ -157,7 +157,7 @@ Write an `IJob` (Quartz 4: `ValueTask Execute(IJobExecutionContext context, Canc
 ### Add a database migration
 
 ```bash
-dotnet ef migrations add <Name> --project src/InsightFlow.Persistence
+dotnet ef migrations add <Name> --project src/InsightFlow.Repository
 ```
 
 The migration service applies it on the next run. Don't call `Migrate()` from services.
@@ -174,7 +174,7 @@ Run `git grep -n "TODO(dev2)"` for the live list.
 - Explorer: trash/restore, sharing, search, multi-select, keyboard navigation, live refresh (`Workspace/ExplorerPane.razor`).
 - Assistant: Data Thread view (branching history), derived-field UI, conversation memory (`Workspace/AnalystChat.razor`).
 - Home: recent threads, workbooks, dashboards.
-- Entra: verify OIDC + token acquisition end to end (`Services/ServiceCallCredentials.cs`, ServiceDefaults `SecurityExtensions.cs`).
+- Entra: verify OIDC + token acquisition end to end (`Services/ServiceCallCredentials.cs`, Foundation `SecurityExtensions.cs`).
 - Before more than one replica: a persistent Data Protection key ring and sticky sessions (docs/deploy.md).
 
 **Api (`src/InsightFlow.Api`)**
@@ -187,7 +187,7 @@ Run `git grep -n "TODO(dev2)"` for the live list.
 - Scheduled refreshes: a cron per `ExtractDefinition` that enqueues an `ExtractRun`. Then subscriptions, alerts, exports.
 
 **Tenancy, roles, security**
-- Role-management screens; row-level security rules; tenant admin (ServiceDefaults `InsightFlowPolicies`, `Domain/Tenancy`).
+- Role-management screens; row-level security rules; tenant admin (Foundation `InsightFlowPolicies`, `Domain/Tenancy`).
 - `tenant_id` claim in Entra External ID (custom claims provider / extension attribute) and the app registrations (docs/deploy.md).
 - Workspace content: workbooks and dashboards content kinds (reserved in `ContentKind`); sharing on top of `IContentPermissionEvaluator`.
 

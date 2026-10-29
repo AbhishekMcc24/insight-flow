@@ -4,9 +4,9 @@
     <UserSecretsId>insightflow-agentservice-2c8e</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\InsightFlow.Agents\InsightFlow.Agents.csproj" />
-    <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
-    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\InsightFlow.Agent\InsightFlow.Agent.csproj" />
+    <ProjectReference Include="..\InsightFlow.Repository\InsightFlow.Repository.csproj" />
+    <ProjectReference Include="..\InsightFlow.Foundation\InsightFlow.Foundation.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />

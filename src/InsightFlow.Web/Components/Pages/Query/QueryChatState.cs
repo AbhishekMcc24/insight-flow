@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Knowledge;
-using InsightFlow.Contracts.Skills;
+using InsightFlow.Domain.Contracts.Knowledge;
+using InsightFlow.Domain.Contracts.Skills;
 
 namespace InsightFlow.Web.Components.Pages.Query;
 

@@ -1,4 +1,4 @@
-using InsightFlow.Contracts.Agents;
+using InsightFlow.Domain.Contracts.Agents;
 
 namespace InsightFlow.Web.Components.Pages.Query;
 

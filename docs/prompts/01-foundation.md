@@ -75,14 +75,14 @@ There are **two developers**.
 **Roy — Tech lead / backend (.NET, SQL)** owns:
 - Overall architecture, solution structure, ADRs, `CLAUDE.md`
 - `InsightFlow.Domain` (`VizSpec`, semantic model, Data Thread DAG)
-- `InsightFlow.Query` + `InsightFlow.QueryService` (compiler, dialects, DuckDB, extract store, cache)
-- `InsightFlow.Agents` + `InsightFlow.AgentService` (agents, tools, model router, AI-SQL sandbox)
+- `InsightFlow.Infrastructure.Query` + `InsightFlow.QueryService` (compiler, dialects, DuckDB, extract store, cache)
+- `InsightFlow.Agent` + `InsightFlow.AgentService` (agents, tools, model router, AI-SQL sandbox)
 - `evals/InsightFlow.Evals` (AI accuracy eval set)
 
 **Developer 2** owns (after handoff):
 - `InsightFlow.Web` (all Blazor/Telerik UI: workspace, viz builder, dashboards, renderer adapter)
 - `InsightFlow.Api` (CRUD endpoints, sharing, embedding)
-- `InsightFlow.Connectors` (all connector implementations beyond the reference ones)
+- `InsightFlow.Infrastructure.Connectors` (all connector implementations beyond the reference ones)
 - `InsightFlow.Worker` (schedules, extract refresh, subscriptions, alerts, exports)
 - Tenancy administration, roles (Creator / Explorer / Viewer), row-level security rules
 
@@ -94,7 +94,7 @@ There are **two developers**.
 
 ```
 /
-├─ InsightFlow.slnx                     # .NET 10 SLNX solution format
+├─ src/InsightFlow.slnx                     # .NET 10 SLNX solution format
 ├─ global.json                          # pin .NET 10 SDK (rollForward: latestFeature)
 ├─ Directory.Build.props                # LangVersion, Nullable, TreatWarningsAsErrors, analyzers
 ├─ Directory.Packages.props             # Central Package Management — all versions live here
@@ -109,25 +109,25 @@ There are **two developers**.
 │  └─ prompts/01-foundation.md          # copy of this prompt
 ├─ src/
 │  ├─ InsightFlow.AppHost/              # Aspire orchestration
-│  ├─ InsightFlow.ServiceDefaults/      # OTel, health, resilience, service discovery
+│  ├─ InsightFlow.Foundation/      # OTel, health, resilience, service discovery
 │  ├─ InsightFlow.Domain/               # pure model: NO references to EF, ASP.NET, Telerik, DuckDB
-│  ├─ InsightFlow.Contracts/            # DTOs shared by Web ⇄ Api ⇄ services (System.Text.Json)
-│  ├─ InsightFlow.Persistence/          # EF Core 10 DbContext, configurations, migrations
-│  ├─ InsightFlow.Query/                # compiler, dialects, DuckDB execution, extract store, cache
+│  ├─ InsightFlow.Domain.Contracts/            # DTOs shared by Web ⇄ Api ⇄ services (System.Text.Json)
+│  ├─ InsightFlow.Repository/          # EF Core 10 DbContext, configurations, migrations
+│  ├─ InsightFlow.Infrastructure.Query/                # compiler, dialects, DuckDB execution, extract store, cache
 │  ├─ InsightFlow.QueryService/         # ASP.NET Core host exposing the query engine
-│  ├─ InsightFlow.Agents/               # agents, tools, model router, SQL sandbox
+│  ├─ InsightFlow.Agent/               # agents, tools, model router, SQL sandbox
 │  ├─ InsightFlow.AgentService/         # ASP.NET Core host exposing agents (SSE streaming)
-│  ├─ InsightFlow.Connectors/           # connector abstraction + implementations
+│  ├─ InsightFlow.Infrastructure.Connectors/           # connector abstraction + implementations
 │  ├─ InsightFlow.Api/                  # public REST API (Minimal APIs, OpenAPI)
 │  ├─ InsightFlow.Worker/               # Quartz.NET jobs
 │  └─ InsightFlow.Web/                  # Blazor Web App + Telerik
 ├─ tests/
-│  ├─ InsightFlow.Domain.Tests/
-│  ├─ InsightFlow.Query.Tests/          # includes golden-file SQL tests
-│  ├─ InsightFlow.Agents.Tests/         # fake IChatClient, sandbox tests
-│  ├─ InsightFlow.Connectors.Tests/
-│  ├─ InsightFlow.Architecture.Tests/   # enforces layering rules (NetArchTest or ArchUnitNET)
-│  ├─ InsightFlow.IntegrationTests/     # Aspire.Hosting.Testing end-to-end
+│  ├─ InsightFlow.Tests.Domain/
+│  ├─ InsightFlow.Tests.Infrastructure.Query/          # includes golden-file SQL tests
+│  ├─ InsightFlow.Tests.Agent/         # fake IChatClient, sandbox tests
+│  ├─ InsightFlow.Tests.Infrastructure.Connectors/
+│  ├─ InsightFlow.Tests.Architecture/   # enforces layering rules (NetArchTest or ArchUnitNET)
+│  ├─ InsightFlow.Tests.Integration/     # Aspire.Hosting.Testing end-to-end
 │  └─ InsightFlow.Benchmarks/           # BenchmarkDotNet: compiler + DuckDB at 10M rows
 ├─ evals/
 │  └─ InsightFlow.Evals/                # AI accuracy harness + question set
@@ -137,7 +137,7 @@ There are **two developers**.
    └─ pull_request_template.md
 ```
 
-### Dependency rules (enforce in `InsightFlow.Architecture.Tests`)
+### Dependency rules (enforce in `InsightFlow.Tests.Architecture`)
 
 - `Domain` → nothing (BCL only).
 - `Contracts` → `Domain` only.
@@ -159,7 +159,7 @@ There are **two developers**.
 - System.Text.Json with source-generated `JsonSerializerContext` for `Contracts` and `VizSpec`.
 - Minimal APIs grouped with `MapGroup`, `TypedResults`, `ProblemDetails` for errors, built-in .NET 10 OpenAPI; Scalar UI in Development only. Routes versioned under `/api/v1`.
 - Options pattern with `ValidateDataAnnotations().ValidateOnStart()` for all config.
-- Custom `ActivitySource` + `Meter` per service (`InsightFlow.Query`, `InsightFlow.Agents`, …) registered in ServiceDefaults so traces show compile → execute → cache.
+- Custom `ActivitySource` + `Meter` per service (`InsightFlow.Infrastructure.Query`, `InsightFlow.Agent`, …) registered in ServiceDefaults so traces show compile → execute → cache.
 - Tests: xUnit v3, `FluentAssertions` (or `Shouldly` — pick one, record it), `Verify` for golden files. Name tests `Method_State_Expected`.
 
 ---
@@ -291,7 +291,7 @@ public interface IDataSourceConnector
 - AppHost: PostgreSQL (with a database `insightflow`, data volume), Redis, Azure Storage emulator (blobs container `extracts`), Key Vault reference for cloud, parameters for AI keys. Wire `QueryService`, `AgentService`, `Api`, `Worker`, `Web` with `WithReference`/`WaitFor`; `Web` has external endpoints.
 - ServiceDefaults: OpenTelemetry (traces, metrics, logs), health checks (`/health`, `/alive`), resilience handlers, service discovery.
 - Each service starts and reports healthy in the Aspire dashboard.
-- `InsightFlow.Architecture.Tests` implemented and passing.
+- `InsightFlow.Tests.Architecture` implemented and passing.
 - Done when: `aspire run` shows every resource healthy; build has zero warnings; architecture tests pass.
 
 ### M2 — Domain model

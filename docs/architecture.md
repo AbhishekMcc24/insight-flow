@@ -60,33 +60,32 @@ flowchart LR
     api & worker & qs & as -.-> kv
 ```
 
-**Dependency rules** (enforced by `tests/InsightFlow.Architecture.Tests`):
+**Dependency rules** (enforced by `src/InsightFlow.Tests/Architecture`; ADR 0029). The layout follows one layered pattern, with feature
+folders inside every layer:
 
-- Domain → nothing.
-- Contracts → Domain.
-- Persistence → Domain.
-- Query → Domain, Contracts.
-- Agents → Domain, Contracts, Query.
-- Connectors → Domain, Contracts.
-- Service hosts → their library + Persistence + ServiceDefaults.
-- Web → Contracts + ServiceDefaults only, using only `InsightFlow.Domain.Viz` types.
-- AI SDKs live only in Agents, DB drivers only in Connectors, UI/JS assets only in Web.
+- Domain → nothing. Foundation → nothing.
+- Repository → Domain. Infrastructure → Domain.
+- Agent → Domain, Infrastructure.
+- Logic → Domain, Foundation, Infrastructure, Repository.
+- Service hosts → their library + Repository + Foundation (`Api` also Logic).
+- Web → Domain (only the `Contracts` and `Viz` namespaces) + Foundation.
+- AI SDKs live only in Agent, DB drivers only in Infrastructure, UI/JS assets only in Web.
 
 | Component | Responsibility |
 |---|---|
 | **AppHost** | Declares every resource. Containers/emulators locally; Azure resources when published (ADR 0003, 0004) |
-| **ServiceDefaults** | OpenTelemetry, health checks, resilience, service discovery, authentication + tenant + policies |
-| **Domain** | Pure model and rules: `VizSpec` + validator, semantic model, dataset-version DAG, workspace tree rules, `TenantId` |
-| **Contracts** | HTTP DTOs with a source-generated `ContractsJsonContext` |
-| **Persistence** | `InsightFlowDbContext` with `tenant` and `soft_delete` filters, a write guard, migrations, `ISecretStore` |
-| **Query / QueryService** | VizSpec → SQL, DuckDB execution over cached Parquet, Redis result cache |
-| **Agents / AgentService** | Model router + middleware, Analyst agent and tools, derived-field planner, SQL guard + sandbox, SSE |
-| **Connectors** | Source connectors writing Parquet through the DuckDB Appender; extract pipeline |
-| **Api** | Workspace Explorer (folders, uploads, downloads, create dataset), connections, extract runs |
+| **Foundation** | OpenTelemetry, health checks, resilience, service discovery, authentication + tenant + policies |
+| **Domain** | Pure model and rules (`VizSpec` + validator, semantic model, dataset-version DAG, workspace tree rules, `TenantId`) and the HTTP DTOs (`Contracts/`, source-generated `ContractsJsonContext`) |
+| **Repository** | `InsightFlowDbContext` with `tenant` and `soft_delete` filters, a write guard, migrations, `ISecretStore` |
+| **Infrastructure** | `Query/`: VizSpec → SQL, DuckDB execution over cached Parquet, Redis result cache. `Connectors/`: source connectors writing Parquet through the DuckDB Appender, extract pipeline, Neo4j gateway |
+| **Agent / AgentService** | Model router + middleware, Analyst agent and tools, derived-field planner, SQL guard + sandbox, skills, SSE |
+| **Logic** | The application services behind the REST API: workspace, documents, knowledge base, skills, playground, admin |
+| **QueryService** | Hosts the query engine over HTTP |
+| **Api** | Thin host: maps HTTP endpoints (Workspace Explorer, connections, extract runs, playground…) to the Logic services |
 | **Worker** | Quartz (clustered, PostgreSQL store); claims and runs queued extract runs |
 | **MigrationService** | Applies migrations once; seeds Contoso Retail in Development |
 | **Web** | Tailwind UI, ECharts rendering, BFF proxy for files, typed clients to the services |
-
+| **Tests** | One project (`InsightFlow.Tests`) grouped by layer, plus the architecture rules and the Docker-based end-to-end tests |
 ## Vertical slice: drop a file → chart
 
 ```mermaid

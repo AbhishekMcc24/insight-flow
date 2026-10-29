@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using InsightFlow.Agents.Analyst;
-using InsightFlow.Agents.Sandbox;
-using InsightFlow.Contracts.Agents;
-using InsightFlow.Contracts.Query;
+using InsightFlow.Agent.Analyst;
+using InsightFlow.Agent.Sandbox;
+using InsightFlow.Domain.Contracts.Agents;
+using InsightFlow.Domain.Contracts.Query;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 

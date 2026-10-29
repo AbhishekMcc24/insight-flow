@@ -1,5 +1,5 @@
-using InsightFlow.Connectors;
-using InsightFlow.Persistence;
+using InsightFlow.Infrastructure.Connectors;
+using InsightFlow.Repository;
 using InsightFlow.Worker.Development;
 using InsightFlow.Worker.Documents;
 using InsightFlow.Worker.Extracts;

@@ -10,7 +10,7 @@ While building, a few of the prompt's starting-point interfaces needed more info
 
 ## Decision
 
-- `InsightFlow.Agents` references DuckDB (sandbox + guard); the package-placement test allows it.
+- `InsightFlow.Agent` references DuckDB (sandbox + guard); the package-placement test allows it.
 - `IQueryExecutor.ExecuteAsync(CompiledQuery, IReadOnlyList<DatasetVersion> sources, ct)`: a compiled query can span several dataset versions (joins), so the executor receives all sources.
 - `IExtractStore.SaveAsync(TenantId, Guid datasetVersionId, Stream, ct)`: the caller assigns the version id first, so the blob path is deterministic and immutable. `LocalRoot` is exposed for DuckDB's `allowed_directories`.
 - `IQueryDialect` gained `DateTrunc(unit, expr, dateOnly)` (DuckDB's `date_trunc` returns TIMESTAMP; date fields cast back to DATE) and `ApplyLimit`.

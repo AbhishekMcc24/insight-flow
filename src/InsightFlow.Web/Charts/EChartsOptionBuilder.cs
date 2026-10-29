@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using InsightFlow.Contracts.Query;
+using InsightFlow.Domain.Contracts.Query;
 using InsightFlow.Domain.Viz;
 
 namespace InsightFlow.Web.Charts;

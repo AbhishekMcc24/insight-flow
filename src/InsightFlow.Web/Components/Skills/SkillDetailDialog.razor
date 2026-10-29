@@ -1,4 +1,4 @@
-@using InsightFlow.Contracts.Skills
+@using InsightFlow.Domain.Contracts.Skills
 @inject SkillsApiClient Skills
 @inject AgentApiClient Agents
 @* A skill's details. Preview mode shows it read-only with the instructions rendered; edit mode changes any field, and saving creates a NEW
@@ -209,7 +209,7 @@
     private string _aiAsk = "";
     private string? _aiReply;
     private bool _aiBusy;
-    private InsightFlow.Contracts.Agents.UsageDto? _aiUsage;
+    private InsightFlow.Domain.Contracts.Agents.UsageDto? _aiUsage;
     private CostGate _gate = default!;
 
     private SkillDetailDto? _detail;
@@ -251,7 +251,7 @@
 
     private string Title => _detail is null && SkillId is null ? "New skill" : _editing ? "Edit skill" : "Skill details";
 
-    private string NextLabel => InsightFlow.Contracts.Skills.SkillLabels.Of((_detail?.Versions.Max(v => v.Number) ?? 0) + 1);
+    private string NextLabel => InsightFlow.Domain.Contracts.Skills.SkillLabels.Of((_detail?.Versions.Max(v => v.Number) ?? 0) + 1);
 
     private int Tokens => (_instructions.Length + 3) / 4;
 
@@ -324,7 +324,7 @@
     /// <summary>Asks the AI for a draft (a new skill) or an improvement (an existing one) and fills the form with it. Nothing is saved.</summary>
     private async Task ImproveAsync()
     {
-        if (!await _gate.ConfirmAsync(new InsightFlow.Contracts.Agents.AiEstimateRequest("skills", SkillId: _detail?.Id, CategoryId: _categoryId == Guid.Empty ? null : _categoryId)))
+        if (!await _gate.ConfirmAsync(new InsightFlow.Domain.Contracts.Agents.AiEstimateRequest("skills", SkillId: _detail?.Id, CategoryId: _categoryId == Guid.Empty ? null : _categoryId)))
         {
             return;
         }

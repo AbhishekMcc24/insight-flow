@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Documents;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Documents;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace InsightFlow.Api.Documents;

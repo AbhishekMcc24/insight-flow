@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 using System.Security.Claims;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;

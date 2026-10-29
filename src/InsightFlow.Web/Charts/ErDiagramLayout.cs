@@ -1,5 +1,5 @@
 using System.Globalization;
-using InsightFlow.Contracts.Knowledge;
+using InsightFlow.Domain.Contracts.Knowledge;
 
 namespace InsightFlow.Web.Charts;
 

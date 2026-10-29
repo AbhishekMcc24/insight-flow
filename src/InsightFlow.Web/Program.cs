@@ -1,4 +1,4 @@
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using InsightFlow.Web.Components;

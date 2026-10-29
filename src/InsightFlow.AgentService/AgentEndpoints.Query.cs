@@ -1,9 +1,9 @@
-using InsightFlow.Agents.Ai;
-using InsightFlow.Agents.Knowledge;
-using InsightFlow.Agents.Sandbox;
-using InsightFlow.Contracts.Knowledge;
+using InsightFlow.Agent.Ai;
+using InsightFlow.Agent.Knowledge;
+using InsightFlow.Agent.Sandbox;
+using InsightFlow.Domain.Contracts.Knowledge;
 using InsightFlow.Domain.Knowledge;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http.HttpResults;
 

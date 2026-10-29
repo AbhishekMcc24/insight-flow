@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\InsightFlow.Query\InsightFlow.Query.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Infrastructure\InsightFlow.Infrastructure.csproj" />
     <ProjectReference Include="..\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
 </Project>

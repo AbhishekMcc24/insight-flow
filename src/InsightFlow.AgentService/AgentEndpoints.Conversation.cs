@@ -1,7 +1,7 @@
-using InsightFlow.Agents.Ai;
-using InsightFlow.Agents.Knowledge;
-using InsightFlow.Contracts.Knowledge;
-using InsightFlow.Persistence;
+using InsightFlow.Agent.Ai;
+using InsightFlow.Agent.Knowledge;
+using InsightFlow.Domain.Contracts.Knowledge;
+using InsightFlow.Repository;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
@@ -37,7 +37,7 @@ internal static partial class AgentEndpoints
         var threshold = (long)(limit * settings.CompactAtFraction);
         var tokens = ConversationCompactor.EstimateTokens(turns);
 
-        ConversationCompactDto Not() => new(false, null, tokens, threshold, limit, model, InsightFlow.Contracts.Agents.UsageDto.None);
+        ConversationCompactDto Not() => new(false, null, tokens, threshold, limit, model, InsightFlow.Domain.Contracts.Agents.UsageDto.None);
         if ((!request.Force && tokens < threshold) || turns.Count < 2 || router.AvailableRoutes.Count == 0)
         {
             return TypedResults.Ok(Not());

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Everything that talks to the outside world or does the heavy lifting: data source connectors and the extract pipeline (Connectors/),
+       and the VizQL-lite engine: VizSpec -> SQL compiler, dialects, DuckDB execution, extract store and result cache (Query/).
+       References Domain only; it must not reference UI packages, ASP.NET Core MVC or the Agent layer. -->
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DuckDB.NET.Data.Full" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+    <PackageReference Include="MongoDB.Driver" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Newtonsoft.Json" />
+    <PackageReference Include="MCC.Foundation.Neo4JHelper" />
+    <PackageReference Include="ExcelDataReader" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="InsightFlow.Tests" />
+  </ItemGroup>
+</Project>

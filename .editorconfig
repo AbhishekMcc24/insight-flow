@@ -75,7 +75,7 @@ dotnet_diagnostic.CA1720.severity = none
 dotnet_diagnostic.CA1056.severity = none
 dotnet_diagnostic.CA1054.severity = none
 
-[tests/**.cs]
+[{tests/**.cs,src/InsightFlow.Tests/**.cs}]
 # Test names use Method_State_Expected.
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1515.severity = none

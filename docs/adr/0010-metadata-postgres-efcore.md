@@ -18,4 +18,4 @@ Metadata is relational (tenants, folders, versions, threads) and has document-sh
 ## Consequences
 
 + Strong consistency, and JSONB keeps the contracts flexible.
-- Adding a migration: `dotnet ef migrations add <Name> --project src/InsightFlow.Persistence`.
+- Adding a migration: `dotnet ef migrations add <Name> --project src/InsightFlow.Repository`.

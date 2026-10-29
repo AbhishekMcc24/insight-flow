@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Playground;
-using InsightFlow.Contracts.Query;
+using InsightFlow.Domain.Contracts.Playground;
+using InsightFlow.Domain.Contracts.Query;
 
 namespace InsightFlow.Web.Playground;
 

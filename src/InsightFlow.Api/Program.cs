@@ -1,3 +1,4 @@
+using InsightFlow.Logic.DependencyInjection;
 using InsightFlow.Api.Documents;
 using InsightFlow.Api.Playground;
 using InsightFlow.Api.Skills;
@@ -6,13 +7,11 @@ using InsightFlow.Api.Admin;
 using InsightFlow.Api.Connections;
 using InsightFlow.Api.Knowledge;
 using InsightFlow.Api.Workspace;
-using InsightFlow.Connectors;
-using InsightFlow.Contracts;
+using InsightFlow.Infrastructure.Connectors;
+using InsightFlow.Domain.Contracts;
 using InsightFlow.Domain.Tenancy;
-using InsightFlow.Domain.Threads;
-using InsightFlow.Domain.Workspace;
-using InsightFlow.Persistence;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Repository;
+using InsightFlow.Foundation.Security;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,23 +36,7 @@ if (useKeyVault)
 builder.Services.AddInsightFlowSecretStore(useKeyVault, builder.Configuration["SecretStore:LocalFilePath"] ?? DefaultLocalSecretsPath());
 builder.Services.AddInsightFlowConnectors(builder.Configuration);
 
-builder.Services.AddOptions<UploadOptions>()
-    .Bind(builder.Configuration.GetSection(UploadOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart()
-    .PostConfigure(o => o.StorageRoot = LocalStorage.ChooseRoot(
-        builder.Configuration[LocalStorage.RootConfigurationKey],
-        builder.Configuration.GetConnectionString(LocalStorage.ConnectionStringName)));
-builder.Services.AddSingleton<IFileStore, DirectoryFileStore>();
-builder.Services.AddSingleton<IUploadScanner, NoOpUploadScanner>();
-builder.Services.AddSingleton<IContentPermissionEvaluator, ContentPermissionEvaluator>();
-builder.Services.AddScoped<WorkspaceService>();
-builder.Services.AddScoped<DocumentService>();
-builder.Services.AddScoped<AdminService>();
-builder.Services.AddScoped<KnowledgeService>();
-builder.Services.AddScoped<KnowledgeSourceService>();
-builder.Services.AddScoped<SkillService>();
-builder.Services.AddScoped<PlaygroundService>();
+builder.Services.AddInsightFlowLogic(builder.Configuration);
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, ContractsJsonContext.Default));
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();

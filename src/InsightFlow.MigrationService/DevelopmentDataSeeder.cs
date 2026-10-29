@@ -1,8 +1,8 @@
 using InsightFlow.Domain.Admin;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Workspace;
-using InsightFlow.Persistence;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Repository;
+using InsightFlow.Foundation.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace InsightFlow.MigrationService;

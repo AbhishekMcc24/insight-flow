@@ -1,13 +1,13 @@
 using System.Data;
 using System.Data.Common;
-using InsightFlow.Connectors;
-using InsightFlow.Connectors.Extraction;
+using InsightFlow.Infrastructure.Connectors;
+using InsightFlow.Infrastructure.Connectors.Extraction;
 using InsightFlow.Domain;
 using InsightFlow.Domain.Connections;
 using InsightFlow.Domain.Tenancy;
 using InsightFlow.Domain.Threads;
 using InsightFlow.Domain.Workspace;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace InsightFlow.Worker.Extracts;

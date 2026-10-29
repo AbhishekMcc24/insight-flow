@@ -1,4 +1,4 @@
-using InsightFlow.Contracts;
+using InsightFlow.Domain.Contracts;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Net.Http.Headers;
 

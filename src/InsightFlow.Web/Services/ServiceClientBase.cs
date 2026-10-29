@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using InsightFlow.Contracts;
+using InsightFlow.Domain.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
 namespace InsightFlow.Web.Services;

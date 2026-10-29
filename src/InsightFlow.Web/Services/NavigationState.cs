@@ -1,4 +1,4 @@
-using InsightFlow.Contracts.Admin;
+using InsightFlow.Domain.Contracts.Admin;
 
 namespace InsightFlow.Web.Services;
 

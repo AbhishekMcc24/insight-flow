@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Skills;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Skills;
+using InsightFlow.Foundation.Security;
 
 namespace InsightFlow.Api.Skills;
 

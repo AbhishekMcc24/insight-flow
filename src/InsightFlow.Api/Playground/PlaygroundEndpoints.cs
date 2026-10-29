@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Playground;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Playground;
+using InsightFlow.Foundation.Security;
 
 namespace InsightFlow.Api.Playground;
 

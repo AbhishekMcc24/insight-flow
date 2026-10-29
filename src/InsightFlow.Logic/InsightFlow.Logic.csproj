@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Business logic: the application services behind the REST API (workspace, documents, knowledge base, skills, playground, admin).
+       The API host only maps HTTP to these services. References Domain, Foundation, Repository and Infrastructure; never the Web UI. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\InsightFlow.Foundation\InsightFlow.Foundation.csproj" />
+    <ProjectReference Include="..\InsightFlow.Infrastructure\InsightFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\InsightFlow.Repository\InsightFlow.Repository.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <InternalsVisibleTo Include="InsightFlow.Api" />
+    <InternalsVisibleTo Include="InsightFlow.Tests" />
+  </ItemGroup>
+</Project>

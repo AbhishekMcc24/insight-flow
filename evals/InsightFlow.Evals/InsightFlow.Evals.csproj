@@ -14,11 +14,11 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\InsightFlow.Agents\InsightFlow.Agents.csproj" />
+    <ProjectReference Include="..\..\src\InsightFlow.Agent\InsightFlow.Agent.csproj" />
     <ProjectReference Include="..\..\tests\InsightFlow.Testing\InsightFlow.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="questions.yaml" CopyToOutputDirectory="PreserveNewest" />
-    <InternalsVisibleTo Include="InsightFlow.Agents.Tests" />
+    <InternalsVisibleTo Include="InsightFlow.Tests" />
   </ItemGroup>
 </Project>

@@ -32,8 +32,8 @@ Working rules (for you **and** the AI assistant):
 5. **The AI assistant never commits, pushes, deploys, provisions Azure resources or deletes data unless the developer
    explicitly asks, each time.** Before a commit it shows `git diff --stat` and asks.
 6. **Definition of done for every change:**
-   - `dotnet build InsightFlow.slnx` passes with **zero warnings**.
-   - `dotnet test --solution InsightFlow.slnx` is green.
+   - `dotnet build src/InsightFlow.slnx` passes with **zero warnings**.
+   - `dotnet test --solution src/InsightFlow.slnx` is green.
    - New endpoints have integration tests, including a **cross-tenant** check.
    - UI changes are checked in a browser.
    - Docs or `TODO` markers are updated.
@@ -75,16 +75,16 @@ extracts. The AI writes **DuckDB SQL only**, runs it in a sandbox, and always sh
 **You own:**
 - `src/InsightFlow.Web`
 - `src/InsightFlow.Api`
-- `src/InsightFlow.Connectors`
+- `src/InsightFlow.Infrastructure.Connectors`
 - `src/InsightFlow.Worker`
-- their tests (`tests/InsightFlow.Web.Tests`, `tests/InsightFlow.Connectors.Tests`, your parts of `tests/InsightFlow.IntegrationTests`)
+- their tests (`src/InsightFlow.Tests/Web`, `src/InsightFlow.Tests/Infrastructure/Connectors`, your parts of `src/InsightFlow.Tests/Integration`)
 - tenancy administration, role management and row-level-security features
 
 **Roy owns — ask before changing:**
 - `InsightFlow.Domain` (VizSpec, semantic model, threads, workspace rules)
-- `InsightFlow.Contracts` (DTO shape changes)
-- `InsightFlow.Persistence` (entities, migrations)
-- `InsightFlow.Query` / `QueryService`, `InsightFlow.Agents` / `AgentService`
+- `InsightFlow.Domain.Contracts` (DTO shape changes)
+- `InsightFlow.Repository` (entities, migrations)
+- `InsightFlow.Infrastructure.Query` / `QueryService`, `InsightFlow.Agent` / `AgentService`
 - `AppHost`, `ServiceDefaults`, `evals/`, the architecture tests, `Directory.*.props`
 
 When your feature needs one of these changes (a new entity, a new DTO, a new `Mark`), write a short proposal in
@@ -228,7 +228,7 @@ changes to the AI sandbox or compiler internals.
 - **Migration (Roy reviews):**
 
   ```bash
-  dotnet ef migrations add <Name> --project src/InsightFlow.Persistence
+  dotnet ef migrations add <Name> --project src/InsightFlow.Repository
   ```
 
 ---
@@ -236,18 +236,18 @@ changes to the AI sandbox or compiler internals.
 ## 7. Commands
 
 ```bash
-dotnet build InsightFlow.slnx
+dotnet build src/InsightFlow.slnx
 ```
 
 ```bash
-dotnet test --solution InsightFlow.slnx
+dotnet test --solution src/InsightFlow.slnx
 ```
 
 ```bash
 dotnet run --project src/InsightFlow.AppHost
 ```
 
-- Single project: `dotnet test --project tests/InsightFlow.Connectors.Tests`.
+- Single project: `dotnet test --project src/InsightFlow.Tests/Infrastructure/Connectors`.
 - CSS watch: `npm run watch:css` in `src/InsightFlow.Web`.
 - The integration tests need Docker running.
 - If the AppHost times out starting DCP on Windows, delete `%USERPROFILE%\.dcp\state.elevated`.
@@ -261,7 +261,7 @@ dotnet run --project src/InsightFlow.AppHost
 - Propose a plan and wait for the developer's OK before large edits. Flag any change to Roy's areas (§3) explicitly.
 - Verify package versions and APIs on the web before using them. Never invent a method or a version number.
 - After edits:
-  - Run `dotnet build InsightFlow.slnx` and the relevant test projects, and fix warnings and failures.
+  - Run `dotnet build src/InsightFlow.slnx` and the relevant test projects, and fix warnings and failures.
   - For UI, run the app and check the page.
   - Report honestly what was and wasn't verified.
 - Never commit, push, deploy, create Azure resources, delete data, or edit secrets unless the developer explicitly

@@ -14,7 +14,7 @@ Start here: [docs/architecture.md](docs/architecture.md) · [docs/adr/](docs/adr
 |---|---|
 | D1 | Multi-tenant SaaS; `TenantId` on every tenant-owned row; per-tenant blob prefixes |
 | D2 | .NET 10, C# 14, nullable, warnings as errors |
-| D3 | Aspire 13.x AppHost + ServiceDefaults |
+| D3 | Aspire 13.x AppHost + the Foundation project (service defaults) |
 | D4 | Azure Container Apps, PostgreSQL Flexible Server, Azure Managed Redis, Blob, Key Vault; containers/Azurite locally |
 | D5 | One versioned `VizSpec` for every chart |
 | D6 | DuckDB.NET in-process over Parquet extracts; dialect seam for future pushdown |
@@ -28,34 +28,44 @@ Start here: [docs/architecture.md](docs/architecture.md) · [docs/adr/](docs/adr
 | D14 | Entra External ID in the cloud; development auth handler locally |
 | D15 | Quartz.NET with the clustered PostgreSQL job store |
 
-## Projects and dependency rules (enforced by `tests/InsightFlow.Architecture.Tests`)
+## Projects and dependency rules (enforced by `src/InsightFlow.Tests/Architecture`)
 
-- `Domain` → nothing (BCL only). `Contracts` → Domain. `Persistence` → Domain.
-- `Query` → Domain, Contracts (never Agents, MVC, UI). `Agents` → Domain, Contracts, Query. `Connectors` → Domain, Contracts.
-- Hosts (`QueryService`, `AgentService`, `Api`, `Worker`, `MigrationService`) → their library + Persistence + ServiceDefaults.
-- `Web` → Contracts + ServiceDefaults only, and from Domain only `InsightFlow.Domain.Viz`. It talks to services over HTTP.
-- Packages: AI SDKs only in Agents; DB drivers only in Connectors; DuckDB only in Query/Connectors/Agents;
+One solution, `src/InsightFlow.slnx`, laid out in layers (ADR 0029). Everything is organised feature-first inside each layer.
+
+| Project | Layer | May reference |
+|---|---|---|
+| `InsightFlow.Domain` | Entities, rules, `VizSpec` and the HTTP contracts (`Domain/Contracts`, `ContractsJsonContext`). BCL only. | nothing |
+| `InsightFlow.Foundation` | Cross-cutting: OpenTelemetry, health, resilience, authentication, tenant context, policies | nothing |
+| `InsightFlow.Repository` | EF Core, tenant filters, migrations, secret stores | Domain |
+| `InsightFlow.Infrastructure` | Everything external: connectors and extracts (`Connectors/`), the DuckDB query engine, cache and Parquet store (`Query/`) | Domain |
+| `InsightFlow.Agent` | AI agents, model router, guardrails, SQL guard + sandbox, skills | Domain, Infrastructure |
+| `InsightFlow.Logic` | Application services behind the REST API (workspace, documents, knowledge base, skills, playground, admin) | Domain, Foundation, Infrastructure, Repository |
+| Hosts: `Api`, `QueryService`, `AgentService`, `Worker`, `MigrationService` | Thin: endpoints, Program.cs, appsettings | their layer + Repository + Foundation (`Api` also Logic) |
+| `InsightFlow.Web` | Blazor UI. Talks to the services over HTTP. | Domain (only `Contracts` and `Viz` types), Foundation |
+| `InsightFlow.AppHost` | Aspire orchestration | the hosts |
+| `InsightFlow.Tests` | All automated tests, by layer; `Integration/` needs Docker (`Category=Integration`) | everything |
+
+- Packages: AI SDKs only in Agent; DB drivers only in Infrastructure; DuckDB only in Infrastructure/Agent;
   `Microsoft.AspNetCore.Components.*`, npm and JS/CSS only in Web.
 - New project or package? Update the rule tables in the architecture tests, plus Central Package Management (`Directory.Packages.props`).
-
 ## Commands
 
 ```bash
-dotnet build InsightFlow.slnx
+dotnet build src/InsightFlow.slnx
 ```
 
 ```bash
-dotnet test --solution InsightFlow.slnx
+dotnet test --solution src/InsightFlow.slnx
 ```
 
 ```bash
 dotnet run --project src/InsightFlow.AppHost
 ```
 
-Run a single test project: `dotnet test --project tests/InsightFlow.Query.Tests`. The integration tests need Docker.
+Run one area of the tests: `dotnet test --project src/InsightFlow.Tests --filter-namespace "InsightFlow.Tests.Infrastructure.Query"`. The unit tests alone: add `--filter-not-trait "Category=Integration"`; the integration tests need Docker.
 
 Other commands:
-- Add a migration: `dotnet ef migrations add <Name> --project src/InsightFlow.Persistence`. The migration service applies it.
+- Add a migration: `dotnet ef migrations add <Name> --project src/InsightFlow.Repository`. The migration service applies it.
 - Evals: `dotnet run --project evals/InsightFlow.Evals -- --provider reference` (self-test, no keys) or `--provider anthropic` / `azure-openai`.
 - Benchmarks: `dotnet run -c Release --project tests/InsightFlow.Benchmarks -- --filter "*"`.
 - Accept golden files: review `Golden/*.received.*`, then rename to `.verified.*`, or rerun with `INSIGHTFLOW_ACCEPT_GOLDEN=1`.
@@ -74,7 +84,7 @@ on Windows, delete `%USERPROFILE%\.dcp\state.elevated`.
 - APIs: Minimal APIs with `MapGroup` under `/api/v1`, `TypedResults`, ProblemDetails (`ApiProblemException`), policies
   from `InsightFlowPolicies`. OpenAPI + Scalar in Development only.
 - Options: `AddOptions<T>().Bind(...).ValidateDataAnnotations().ValidateOnStart()`.
-- Telemetry: an `ActivitySource`/`Meter` per area named `InsightFlow.*` (registered by ServiceDefaults).
+- Telemetry: an `ActivitySource`/`Meter` per area named `InsightFlow.*` (registered by Foundation).
 - Public abstractions get an XML doc comment explaining **why** they exist. Match the surrounding comment density.
 - Tests: xUnit v3 on Microsoft.Testing.Platform, Shouldly, golden files through `tests/InsightFlow.Testing/Golden.cs`.
   Name tests `Method_State_Expected`. Use a fake `IChatClient` for agent tests (`ScriptedChatClient`).
@@ -102,7 +112,7 @@ on Windows, delete `%USERPROFILE%\.dcp\state.elevated`.
 
 | Area | Owner |
 |---|---|
-| Architecture, ADRs, `CLAUDE.md`, Domain, Query/QueryService, Agents/AgentService, evals, AppHost/ServiceDefaults | Roy (tech lead) |
-| Web, Api, Connectors (beyond the reference ones), Worker, tenancy admin, roles, RLS | Developer 2 |
+| Architecture, ADRs, `CLAUDE.md`, Domain, Infrastructure/Query + QueryService, Agent/AgentService, Repository, Foundation, evals, AppHost | Roy (tech lead) |
+| Web, Api + Logic, Infrastructure/Connectors (beyond the reference ones), Worker, tenancy admin, roles, RLS | Developer 2 |
 
 See `.github/CODEOWNERS`. Contract changes in Roy's areas need his review even when Developer 2 needs them.

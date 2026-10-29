@@ -11,33 +11,33 @@
 /Directory.Packages.props           @roy
 /global.json                        @roy
 /src/InsightFlow.AppHost/           @roy
-/src/InsightFlow.ServiceDefaults/   @roy
+/src/InsightFlow.Foundation/   @roy
 /src/InsightFlow.Domain/            @roy
-/src/InsightFlow.Contracts/         @roy
-/src/InsightFlow.Persistence/       @roy
+/src/InsightFlow.Domain.Contracts/         @roy
+/src/InsightFlow.Repository/       @roy
 /src/InsightFlow.MigrationService/  @roy
-/src/InsightFlow.Query/             @roy
+/src/InsightFlow.Infrastructure.Query/             @roy
 /src/InsightFlow.QueryService/      @roy
-/src/InsightFlow.Agents/            @roy
+/src/InsightFlow.Agent/            @roy
 /src/InsightFlow.AgentService/      @roy
 /evals/                             @roy
-/tests/InsightFlow.Architecture.Tests/ @roy
-/tests/InsightFlow.Domain.Tests/    @roy
-/tests/InsightFlow.Query.Tests/     @roy
-/tests/InsightFlow.Agents.Tests/    @roy
+/src/InsightFlow.Tests/Architecture/ @roy
+/src/InsightFlow.Tests/Domain/    @roy
+/src/InsightFlow.Tests/Infrastructure/Query/     @roy
+/src/InsightFlow.Tests/Agent/    @roy
 /tests/InsightFlow.Benchmarks/      @roy
 
 # Developer 2 — product surface
 /src/InsightFlow.Web/               @dev2
 /src/InsightFlow.Api/               @dev2
-/src/InsightFlow.Connectors/        @dev2
+/src/InsightFlow.Infrastructure.Connectors/        @dev2
 /src/InsightFlow.Worker/            @dev2
-/tests/InsightFlow.Web.Tests/       @dev2
-/tests/InsightFlow.Connectors.Tests/ @dev2
+/src/InsightFlow.Tests/Web/       @dev2
+/src/InsightFlow.Tests/Infrastructure/Connectors/ @dev2
 /docs/handoff-dev2.md               @dev2 @roy
 
 # Shared — both review
-/src/InsightFlow.ServiceDefaults/Security/ @roy @dev2
-/tests/InsightFlow.IntegrationTests/ @roy @dev2
+/src/InsightFlow.Foundation/Security/ @roy @dev2
+/src/InsightFlow.Tests/Integration/ @roy @dev2
 /.github/                           @roy @dev2
 /.cursor/                           @roy @dev2

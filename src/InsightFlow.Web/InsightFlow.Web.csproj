@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\InsightFlow.Contracts\InsightFlow.Contracts.csproj" />
-    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\InsightFlow.Domain\InsightFlow.Domain.csproj" />
+    <ProjectReference Include="..\InsightFlow.Foundation\InsightFlow.Foundation.csproj" />
   </ItemGroup>
 
   <!-- ===================================================================================== -->

@@ -1,8 +1,8 @@
 using System.Diagnostics;
-using InsightFlow.Agents.Ai;
-using InsightFlow.Agents.Knowledge;
-using InsightFlow.Contracts.Knowledge;
-using InsightFlow.Persistence;
+using InsightFlow.Agent.Ai;
+using InsightFlow.Agent.Knowledge;
+using InsightFlow.Domain.Contracts.Knowledge;
+using InsightFlow.Repository;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace InsightFlow.AgentService;

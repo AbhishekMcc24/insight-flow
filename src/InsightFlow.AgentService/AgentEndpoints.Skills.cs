@@ -1,11 +1,11 @@
 using System.Diagnostics;
-using InsightFlow.Agents.Ai;
-using InsightFlow.Agents.Knowledge;
-using InsightFlow.Agents.Skills;
-using InsightFlow.Contracts.Agents;
-using InsightFlow.Contracts.Skills;
+using InsightFlow.Agent.Ai;
+using InsightFlow.Agent.Knowledge;
+using InsightFlow.Agent.Skills;
+using InsightFlow.Domain.Contracts.Agents;
+using InsightFlow.Domain.Contracts.Skills;
 using InsightFlow.Domain.Skills;
-using InsightFlow.Persistence;
+using InsightFlow.Repository;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 

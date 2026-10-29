@@ -51,14 +51,14 @@ dotnet user-secrets --project src/InsightFlow.AppHost set "Parameters:azure-open
 ## Build and test
 
 ```bash
-dotnet build InsightFlow.slnx
+dotnet build src/InsightFlow.slnx
 ```
 
 ```bash
-dotnet test --solution InsightFlow.slnx
+dotnet test --solution src/InsightFlow.slnx
 ```
 
-Tests run on Microsoft.Testing.Platform (opted in via `global.json`). `InsightFlow.IntegrationTests` starts the whole
+Tests run on Microsoft.Testing.Platform (opted in via `global.json`). `InsightFlow.Tests.Integration` starts the whole
 AppHost and is skipped automatically when Docker is not running. Build with `-p:SkipNpm=true` to skip the front-end
 step (generated CSS/JS must then already exist).
 
@@ -98,18 +98,17 @@ Manual and deliberate: see [docs/deploy.md](docs/deploy.md) (`aspire publish` to
 
 | Path | Purpose |
 |---|---|
-| `src/InsightFlow.AppHost` | Aspire orchestration (local containers, Azure resources when published) |
-| `src/InsightFlow.ServiceDefaults` | OpenTelemetry, health checks, resilience, service discovery |
-| `src/InsightFlow.Domain` | Pure model: `VizSpec`, semantic model, Data Thread DAG, workspace tree |
-| `src/InsightFlow.Contracts` | DTOs shared by Web, Api and services |
-| `src/InsightFlow.Persistence` | EF Core 10 / PostgreSQL metadata store |
-| `src/InsightFlow.MigrationService` | One-shot migration and seed step |
-| `src/InsightFlow.Query` / `QueryService` | VizSpec → SQL compiler, DuckDB execution, extract store, cache |
-| `src/InsightFlow.Agents` / `AgentService` | Agents, tools, model router, AI-SQL sandbox (SSE) |
-| `src/InsightFlow.Connectors` | Data source connectors and the extract pipeline |
-| `src/InsightFlow.Api` | Public REST API (workspace explorer, connections, datasets) |
-| `src/InsightFlow.Worker` | Quartz.NET background jobs |
+| `src/InsightFlow.slnx` | The solution (open this one) |
+| `src/InsightFlow.Domain` | Pure model: `VizSpec`, semantic model, Data Thread DAG, workspace tree, plus the HTTP contracts in `Contracts/` |
+| `src/InsightFlow.Foundation` | OpenTelemetry, health checks, resilience, service discovery, authentication and tenant context |
+| `src/InsightFlow.Repository` | EF Core 10 / PostgreSQL metadata store, migrations, secret stores |
+| `src/InsightFlow.Infrastructure` | `Query/`: VizSpec → SQL compiler, DuckDB execution, extract store, cache. `Connectors/`: data source connectors and the extract pipeline |
+| `src/InsightFlow.Agent` | Agents, tools, model router, guardrails, AI-SQL sandbox |
+| `src/InsightFlow.Logic` | Application services behind the REST API (workspace, documents, knowledge base, skills, playground, admin) |
+| `src/InsightFlow.Api` / `QueryService` / `AgentService` / `Worker` / `MigrationService` | Thin hosts: REST API, query engine, agents (SSE), Quartz.NET jobs, one-shot migration and seed |
 | `src/InsightFlow.Web` | Blazor Web App + Tailwind CSS v4 + Apache ECharts |
-| `tests/` | Unit, architecture, integration tests and benchmarks |
+| `src/InsightFlow.AppHost` | Aspire orchestration (local containers, Azure resources when published) |
+| `src/InsightFlow.Tests` | All tests, by layer: unit, architecture, and the Docker-based integration tests |
+| `tests/` | The shared test helpers and the benchmarks |
 | `evals/InsightFlow.Evals` | AI accuracy harness |
 | `docs/` | Architecture, ADRs, deploy guide, Developer 2 handoff, benchmarks, original prompt |

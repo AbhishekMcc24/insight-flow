@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Admin;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Admin;
+using InsightFlow.Foundation.Security;
 
 namespace InsightFlow.Api.Admin;
 

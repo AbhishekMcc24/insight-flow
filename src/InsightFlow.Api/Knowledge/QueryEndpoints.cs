@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Knowledge;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Knowledge;
+using InsightFlow.Foundation.Security;
 
 namespace InsightFlow.Api.Knowledge;
 

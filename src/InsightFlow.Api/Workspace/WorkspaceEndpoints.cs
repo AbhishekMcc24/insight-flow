@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Workspace;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Workspace;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.WebUtilities;

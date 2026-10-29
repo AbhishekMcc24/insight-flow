@@ -1,4 +1,4 @@
-using InsightFlow.Contracts.Workspace;
+using InsightFlow.Domain.Contracts.Workspace;
 
 using System.Globalization;
 using System.Text.Json.Nodes;

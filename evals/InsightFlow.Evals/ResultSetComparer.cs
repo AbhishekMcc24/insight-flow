@@ -1,5 +1,5 @@
 using System.Globalization;
-using InsightFlow.Contracts.Query;
+using InsightFlow.Domain.Contracts.Query;
 
 namespace InsightFlow.Evals;
 

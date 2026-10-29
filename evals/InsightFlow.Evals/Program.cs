@@ -1,9 +1,9 @@
-using InsightFlow.Agents.Ai;
-using InsightFlow.Agents.Analyst;
-using InsightFlow.Agents.Sandbox;
+using InsightFlow.Agent.Ai;
+using InsightFlow.Agent.Analyst;
+using InsightFlow.Agent.Sandbox;
 using InsightFlow.Domain.Threads;
 using InsightFlow.Evals;
-using InsightFlow.Query.Storage;
+using InsightFlow.Infrastructure.Query.Storage;
 using InsightFlow.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

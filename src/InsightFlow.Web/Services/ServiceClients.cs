@@ -2,12 +2,12 @@ using System.Net.Http.Headers;
 using System.Net.ServerSentEvents;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using InsightFlow.Contracts.Admin;
-using InsightFlow.Contracts.Agents;
-using InsightFlow.Contracts.Connections;
-using InsightFlow.Contracts.Knowledge;
-using InsightFlow.Contracts.Query;
-using InsightFlow.Contracts.Workspace;
+using InsightFlow.Domain.Contracts.Admin;
+using InsightFlow.Domain.Contracts.Agents;
+using InsightFlow.Domain.Contracts.Connections;
+using InsightFlow.Domain.Contracts.Knowledge;
+using InsightFlow.Domain.Contracts.Query;
+using InsightFlow.Domain.Contracts.Workspace;
 
 namespace InsightFlow.Web.Services;
 
@@ -109,7 +109,7 @@ public sealed class AgentApiClient(HttpClient http, ServiceCallCredentials crede
         SendAsync(HttpMethod.Post, "/api/v1/agent/knowledge/query/fix", JsonBody(request, Json.QueryFixRequest), Json.KnowledgeChatResponse, ct);
 
     /// <summary>Asks a question about the prepared spreadsheets (DuckDB SQL over their tables, run in the sandbox).</summary>
-    public Task<InsightFlow.Contracts.Documents.DocumentAnswerDto> AskDocumentsAsync(InsightFlow.Contracts.Documents.DocumentAskRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Documents.DocumentAnswerDto> AskDocumentsAsync(InsightFlow.Domain.Contracts.Documents.DocumentAskRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, "/api/v1/agent/documents/ask", JsonBody(request, Json.DocumentAskRequest), Json.DocumentAnswerDto, ct);
 
     public Task<QueryRunDto> RunQueryAsync(QueryRunRequest request, CancellationToken ct) =>
@@ -128,15 +128,15 @@ public sealed class AgentApiClient(HttpClient http, ServiceCallCredentials crede
         SendAsync(HttpMethod.Post, "/api/v1/agent/tables/pick", JsonBody(request, Json.TablePickRequest), Json.TablePickResponse, ct);
 
     /// <summary>Forecasts the tokens and cost of a large AI request (descriptions, relationships or skills) before it is made.</summary>
-    public Task<InsightFlow.Contracts.Agents.AiEstimateDto> EstimateAsync(InsightFlow.Contracts.Agents.AiEstimateRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Agents.AiEstimateDto> EstimateAsync(InsightFlow.Domain.Contracts.Agents.AiEstimateRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, "/api/v1/agent/estimate", JsonBody(request, Json.AiEstimateRequest), Json.AiEstimateDto, ct);
 
     /// <summary>Step 1 of a question: the agent chooses the skills it needs and the tables they involve.</summary>
-    public Task<InsightFlow.Contracts.Skills.SkillPickResponse> PickSkillsAsync(InsightFlow.Contracts.Skills.SkillPickRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillPickResponse> PickSkillsAsync(InsightFlow.Domain.Contracts.Skills.SkillPickRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, "/api/v1/agent/skills/pick", JsonBody(request, Json.SkillPickRequest), Json.SkillPickResponse, ct);
 
     /// <summary>AI drafts or improves skills from the knowledge base; nothing is stored.</summary>
-    public Task<InsightFlow.Contracts.Skills.SkillAssistResponse> AssistSkillsAsync(InsightFlow.Contracts.Skills.SkillAssistRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillAssistResponse> AssistSkillsAsync(InsightFlow.Domain.Contracts.Skills.SkillAssistRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, "/api/v1/agent/skills/assist", JsonBody(request, Json.SkillAssistRequest), Json.SkillAssistResponse, ct);
 
     public Task<QueryPlanDto> PlanQueryAsync(QueryPlanRequest request, CancellationToken ct) =>
@@ -254,7 +254,7 @@ public sealed class KnowledgeApiClient(HttpClient http, ServiceCallCredentials c
         SendAsync(HttpMethod.Post, "/api/v1/query/feedback", JsonBody(request, Json.QueryFeedbackRequest), ct);
 
     /// <summary>The signed-in user's roles (to know whether they may change descriptions).</summary>
-    public Task<InsightFlow.Contracts.Identity.CurrentUserResponse> GetMeAsync(CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Identity.CurrentUserResponse> GetMeAsync(CancellationToken ct) =>
         SendAsync(HttpMethod.Get, "/api/v1/me", Json.CurrentUserResponse, ct);
 
     public Task<QueryContextDto> GetQueryContextAsync(string question, CancellationToken ct, IReadOnlyList<Guid>? extraTableIds = null, bool chosenByAgent = false) =>
@@ -316,30 +316,30 @@ public sealed class DocumentsApiClient(HttpClient http, ServiceCallCredentials c
 {
     private const string Base = "/api/v1/documents";
 
-    public Task<IReadOnlyList<InsightFlow.Contracts.Documents.SpreadsheetFileDto>> ListFilesAsync(CancellationToken ct) =>
+    public Task<IReadOnlyList<InsightFlow.Domain.Contracts.Documents.SpreadsheetFileDto>> ListFilesAsync(CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/files", Json.IReadOnlyListSpreadsheetFileDto, ct);
 
-    public Task<InsightFlow.Contracts.Documents.DocumentSummaryDto> GetSummaryAsync(CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Documents.DocumentSummaryDto> GetSummaryAsync(CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/summary", Json.DocumentSummaryDto, ct);
 
     /// <summary>The most recent preparation run, or null when there has been none.</summary>
-    public async Task<InsightFlow.Contracts.Documents.IngestRunDto?> GetLatestRunAsync(CancellationToken ct)
+    public async Task<InsightFlow.Domain.Contracts.Documents.IngestRunDto?> GetLatestRunAsync(CancellationToken ct)
     {
         using var response = await SendRawAsync(HttpMethod.Get, $"{Base}/runs/latest", content: null, HttpCompletionOption.ResponseContentRead, ct);
         return response.StatusCode == System.Net.HttpStatusCode.NoContent ? null : await response.Content.ReadFromJsonAsync(Json.IngestRunDto, ct);
     }
 
-    public Task<InsightFlow.Contracts.Documents.IngestRunDto> GetRunAsync(Guid runId, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Documents.IngestRunDto> GetRunAsync(Guid runId, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/runs/{runId}", Json.IngestRunDto, ct);
 
-    public Task<InsightFlow.Contracts.Documents.IngestRunDto> StartRunAsync(IReadOnlyList<Guid> itemIds, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, $"{Base}/runs", JsonBody(new InsightFlow.Contracts.Documents.StartIngestRequest(itemIds), Json.StartIngestRequest), Json.IngestRunDto, ct);
+    public Task<InsightFlow.Domain.Contracts.Documents.IngestRunDto> StartRunAsync(IReadOnlyList<Guid> itemIds, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"{Base}/runs", JsonBody(new InsightFlow.Domain.Contracts.Documents.StartIngestRequest(itemIds), Json.StartIngestRequest), Json.IngestRunDto, ct);
 
-    public Task<InsightFlow.Contracts.Documents.IngestRunDto> ResolveAsync(Guid runId, Guid problemId, string option, string? text, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Documents.IngestRunDto> ResolveAsync(Guid runId, Guid problemId, string option, string? text, CancellationToken ct) =>
         SendAsync(
             HttpMethod.Post,
             $"{Base}/runs/{runId}/problems/{problemId}/resolve",
-            JsonBody(new InsightFlow.Contracts.Documents.ResolveProblemRequest(option, text), Json.ResolveProblemRequest),
+            JsonBody(new InsightFlow.Domain.Contracts.Documents.ResolveProblemRequest(option, text), Json.ResolveProblemRequest),
             Json.IngestRunDto,
             ct);
 
@@ -352,41 +352,41 @@ public sealed class SkillsApiClient(HttpClient http, ServiceCallCredentials cred
 {
     private const string Base = "/api/v1/skills";
 
-    public Task<IReadOnlyList<InsightFlow.Contracts.Skills.SkillCategoryDto>> ListCategoriesAsync(CancellationToken ct) =>
+    public Task<IReadOnlyList<InsightFlow.Domain.Contracts.Skills.SkillCategoryDto>> ListCategoriesAsync(CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/categories", Json.IReadOnlyListSkillCategoryDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillCategoryDto> CreateCategoryAsync(InsightFlow.Contracts.Skills.SaveSkillCategoryRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillCategoryDto> CreateCategoryAsync(InsightFlow.Domain.Contracts.Skills.SaveSkillCategoryRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"{Base}/categories", JsonBody(request, Json.SaveSkillCategoryRequest), Json.SkillCategoryDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillCategoryDto> UpdateCategoryAsync(Guid id, InsightFlow.Contracts.Skills.SaveSkillCategoryRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillCategoryDto> UpdateCategoryAsync(Guid id, InsightFlow.Domain.Contracts.Skills.SaveSkillCategoryRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Put, $"{Base}/categories/{id}", JsonBody(request, Json.SaveSkillCategoryRequest), Json.SkillCategoryDto, ct);
 
     public Task DeleteCategoryAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, $"{Base}/categories/{id}", content: null, ct);
 
-    public Task<IReadOnlyList<InsightFlow.Contracts.Skills.SkillSummaryDto>> ListSkillsAsync(CancellationToken ct) =>
+    public Task<IReadOnlyList<InsightFlow.Domain.Contracts.Skills.SkillSummaryDto>> ListSkillsAsync(CancellationToken ct) =>
         SendAsync(HttpMethod.Get, Base, Json.IReadOnlyListSkillSummaryDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillDetailDto> GetSkillAsync(Guid id, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillDetailDto> GetSkillAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/{id}", Json.SkillDetailDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillDetailDto> CreateSkillAsync(InsightFlow.Contracts.Skills.SaveSkillRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillDetailDto> CreateSkillAsync(InsightFlow.Domain.Contracts.Skills.SaveSkillRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, Base, JsonBody(request, Json.SaveSkillRequest), Json.SkillDetailDto, ct);
 
     /// <summary>Saves an edit as a new version, active at once.</summary>
-    public Task<InsightFlow.Contracts.Skills.SkillDetailDto> SaveSkillAsync(Guid id, InsightFlow.Contracts.Skills.SaveSkillRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillDetailDto> SaveSkillAsync(Guid id, InsightFlow.Domain.Contracts.Skills.SaveSkillRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Put, $"{Base}/{id}", JsonBody(request, Json.SaveSkillRequest), Json.SkillDetailDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillDetailDto> SetEnabledAsync(Guid id, bool enabled, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, $"{Base}/{id}/enabled", JsonBody(new InsightFlow.Contracts.Skills.SetSkillEnabledRequest(enabled), Json.SetSkillEnabledRequest), Json.SkillDetailDto, ct);
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillDetailDto> SetEnabledAsync(Guid id, bool enabled, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"{Base}/{id}/enabled", JsonBody(new InsightFlow.Domain.Contracts.Skills.SetSkillEnabledRequest(enabled), Json.SetSkillEnabledRequest), Json.SkillDetailDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillDetailDto> ActivateVersionAsync(Guid id, Guid versionId, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillDetailDto> ActivateVersionAsync(Guid id, Guid versionId, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"{Base}/{id}/versions/{versionId}/activate", content: null, Json.SkillDetailDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.SkillDetailDto> DuplicateAsync(Guid id, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.SkillDetailDto> DuplicateAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"{Base}/{id}/duplicate", content: null, Json.SkillDetailDto, ct);
 
-    public Task<InsightFlow.Contracts.Skills.ApplySkillSuggestionsResponse> ApplySuggestionsAsync(InsightFlow.Contracts.Skills.ApplySkillSuggestionsRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Skills.ApplySkillSuggestionsResponse> ApplySuggestionsAsync(InsightFlow.Domain.Contracts.Skills.ApplySkillSuggestionsRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"{Base}/suggestions/apply", JsonBody(request, Json.ApplySkillSuggestionsRequest), Json.ApplySkillSuggestionsResponse, ct);
 
     public Task DeleteSkillAsync(Guid id, CancellationToken ct) =>
@@ -398,24 +398,24 @@ public sealed class PlaygroundApiClient(HttpClient http, ServiceCallCredentials 
 {
     private const string Base = "/api/v1/playground";
 
-    public Task<IReadOnlyList<InsightFlow.Contracts.Playground.PlaygroundSheetSummaryDto>> ListAsync(CancellationToken ct) =>
+    public Task<IReadOnlyList<InsightFlow.Domain.Contracts.Playground.PlaygroundSheetSummaryDto>> ListAsync(CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/sheets", Json.IReadOnlyListPlaygroundSheetSummaryDto, ct);
 
-    public Task<InsightFlow.Contracts.Playground.PlaygroundSheetDto> GetAsync(Guid id, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Playground.PlaygroundSheetDto> GetAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Get, $"{Base}/sheets/{id}", Json.PlaygroundSheetDto, ct);
 
-    public Task<InsightFlow.Contracts.Playground.PlaygroundSheetDto> CreateAsync(string? name, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, $"{Base}/sheets", JsonBody(new InsightFlow.Contracts.Playground.CreatePlaygroundSheetRequest(name), Json.CreatePlaygroundSheetRequest), Json.PlaygroundSheetDto, ct);
+    public Task<InsightFlow.Domain.Contracts.Playground.PlaygroundSheetDto> CreateAsync(string? name, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"{Base}/sheets", JsonBody(new InsightFlow.Domain.Contracts.Playground.CreatePlaygroundSheetRequest(name), Json.CreatePlaygroundSheetRequest), Json.PlaygroundSheetDto, ct);
 
-    public Task<InsightFlow.Contracts.Playground.PlaygroundSheetDto> SaveAsync(Guid id, InsightFlow.Contracts.Playground.SavePlaygroundSheetRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Playground.PlaygroundSheetDto> SaveAsync(Guid id, InsightFlow.Domain.Contracts.Playground.SavePlaygroundSheetRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Put, $"{Base}/sheets/{id}", JsonBody(request, Json.SavePlaygroundSheetRequest), Json.PlaygroundSheetDto, ct);
 
-    public Task<InsightFlow.Contracts.Playground.PlaygroundSheetDto> DuplicateAsync(Guid id, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Playground.PlaygroundSheetDto> DuplicateAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"{Base}/sheets/{id}/duplicate", content: null, Json.PlaygroundSheetDto, ct);
 
     public Task DeleteAsync(Guid id, CancellationToken ct) =>
         SendAsync(HttpMethod.Delete, $"{Base}/sheets/{id}", content: null, ct);
 
-    public Task<InsightFlow.Contracts.Playground.ExportToPlaygroundResult> ExportAsync(InsightFlow.Contracts.Playground.ExportToPlaygroundRequest request, CancellationToken ct) =>
+    public Task<InsightFlow.Domain.Contracts.Playground.ExportToPlaygroundResult> ExportAsync(InsightFlow.Domain.Contracts.Playground.ExportToPlaygroundRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, $"{Base}/export", JsonBody(request, Json.ExportToPlaygroundRequest), Json.ExportToPlaygroundResult, ct);
 }

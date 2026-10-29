@@ -1,4 +1,4 @@
-@using InsightFlow.Contracts.Agents
+@using InsightFlow.Domain.Contracts.Agents
 @inject AgentApiClient Agents
 @* Asks for confirmation before a large AI request. Call <c>ConfirmAsync</c> with the request's description: it fetches a forecast and, only when
    the forecast is large (its estimated cost or token count is over the configured limit), shows a pop-up with the numbers and waits for

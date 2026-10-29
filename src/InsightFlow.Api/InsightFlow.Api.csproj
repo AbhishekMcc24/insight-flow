@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <!-- Public REST API (Minimal APIs, OpenAPI): workspace explorer, connections, datasets. Owned by Developer 2 after handoff. -->
+  <!-- Public REST API (Minimal APIs, OpenAPI): workspace explorer, connections, datasets. Owned by Developer 2 after handoff.
+       A thin host: the endpoints map HTTP to the services in InsightFlow.Logic. -->
   <PropertyGroup>
     <UserSecretsId>insightflow-api-3d9f</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\InsightFlow.Connectors\InsightFlow.Connectors.csproj" />
-    <ProjectReference Include="..\InsightFlow.Persistence\InsightFlow.Persistence.csproj" />
-    <ProjectReference Include="..\InsightFlow.ServiceDefaults\InsightFlow.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\InsightFlow.Logic\InsightFlow.Logic.csproj" />
+    <ProjectReference Include="..\InsightFlow.Infrastructure\InsightFlow.Infrastructure.csproj" />
+    <ProjectReference Include="..\InsightFlow.Repository\InsightFlow.Repository.csproj" />
+    <ProjectReference Include="..\InsightFlow.Foundation\InsightFlow.Foundation.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
@@ -14,5 +16,15 @@
     <PackageReference Include="Aspire.Azure.Security.KeyVault" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The services live in the Logic layer; the endpoints in this host call them by their feature namespaces. -->
+    <Using Include="InsightFlow.Logic" />
+    <Using Include="InsightFlow.Logic.Admin" />
+    <Using Include="InsightFlow.Logic.Documents" />
+    <Using Include="InsightFlow.Logic.Knowledge" />
+    <Using Include="InsightFlow.Logic.Playground" />
+    <Using Include="InsightFlow.Logic.Skills" />
+    <Using Include="InsightFlow.Logic.Workspace" />
   </ItemGroup>
 </Project>

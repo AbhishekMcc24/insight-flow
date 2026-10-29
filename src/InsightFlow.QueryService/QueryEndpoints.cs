@@ -1,11 +1,11 @@
-using InsightFlow.Contracts.Query;
+using InsightFlow.Domain.Contracts.Query;
 using InsightFlow.Domain.Modeling;
 using InsightFlow.Domain.Threads;
-using InsightFlow.Persistence;
-using InsightFlow.Query;
-using InsightFlow.Query.Compilation;
-using InsightFlow.Query.Modeling;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Repository;
+using InsightFlow.Infrastructure.Query;
+using InsightFlow.Infrastructure.Query.Compilation;
+using InsightFlow.Infrastructure.Query.Modeling;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

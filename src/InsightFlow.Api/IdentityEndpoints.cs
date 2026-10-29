@@ -1,5 +1,5 @@
-using InsightFlow.Contracts.Identity;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Domain.Contracts.Identity;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace InsightFlow.Api;

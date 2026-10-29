@@ -1,12 +1,11 @@
-using InsightFlow.Api.Workspace;
-using InsightFlow.Connectors;
-using InsightFlow.Connectors.Stubs;
-using InsightFlow.Contracts.Connections;
+using InsightFlow.Infrastructure.Connectors;
+using InsightFlow.Infrastructure.Connectors.Stubs;
+using InsightFlow.Domain.Contracts.Connections;
 using InsightFlow.Domain.Connections;
 using InsightFlow.Domain.Security;
 using InsightFlow.Domain.Tenancy;
-using InsightFlow.Persistence;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Repository;
+using InsightFlow.Foundation.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace InsightFlow.Api.Connections;

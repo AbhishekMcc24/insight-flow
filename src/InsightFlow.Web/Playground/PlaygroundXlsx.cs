@@ -2,8 +2,8 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
-using InsightFlow.Contracts.Playground;
-using InsightFlow.Contracts.Query;
+using InsightFlow.Domain.Contracts.Playground;
+using InsightFlow.Domain.Contracts.Query;
 
 namespace InsightFlow.Web.Playground;
 

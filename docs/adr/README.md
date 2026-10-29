@@ -34,3 +34,4 @@ the old one; don't rewrite history.
 | [0026](0026-duckdb-in-agents-and-interface-refinements.md) | DuckDB in Agents; refinements to the prompt's interfaces | Accepted |
 | [0027](0027-web-bff-proxy.md) | Web BFF proxy for uploads/downloads; services stay internal | Accepted |
 | [0028](0028-charts-apache-echarts.md) | Charts rendered with Apache ECharts (replaces Vega-Lite) | Accepted |
+| [0029](0029-layered-project-layout.md) | Layered project layout (Domain, Foundation, Repository, Infrastructure, Agent, Logic, Tests) | Accepted |

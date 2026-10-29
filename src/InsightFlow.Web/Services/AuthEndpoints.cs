@@ -1,5 +1,5 @@
 using System.Net.Mail;
-using InsightFlow.ServiceDefaults.Security;
+using InsightFlow.Foundation.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 

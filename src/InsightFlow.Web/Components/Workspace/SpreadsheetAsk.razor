@@ -1,4 +1,4 @@
-@using InsightFlow.Contracts.Documents
+@using InsightFlow.Domain.Contracts.Documents
 @implements IDisposable
 @inject AgentApiClient Agents
 @inject SpreadsheetChatState Chat
@@ -161,8 +161,8 @@
         Chat.Busy = true;
         var history = Chat.Thread.Where(x => x.Answer is { Sql: not null } or { Clarification: not null }).TakeLast(3).SelectMany(x => new[]
         {
-            new InsightFlow.Contracts.Knowledge.QueryTurnDto("user", x.Question),
-            new InsightFlow.Contracts.Knowledge.QueryTurnDto(
+            new InsightFlow.Domain.Contracts.Knowledge.QueryTurnDto("user", x.Question),
+            new InsightFlow.Domain.Contracts.Knowledge.QueryTurnDto(
                 "assistant", $"{x.Answer!.Explanation}\n{(x.Answer.Clarification is { } asked ? "I asked: " + asked + "\n" : "")}{(x.Answer.Sql is { } used ? "SQL: " + used : "")}"),
         }).ToList();
         var exchange = new AskExchange(question);
